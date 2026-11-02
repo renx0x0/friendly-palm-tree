@@ -113,6 +113,7 @@
   .srow .arr { margin-left:-34px; pointer-events:none; color:var(--acc2); font-size:12px; }
   .crow { display:flex; justify-content:center; margin-top:14px; } .crow.hidden { display:none; }
   .crow textarea { max-width:640px; min-height:72px; font-size:14px; }
+  .crow.vpw { flex-direction:column; align-items:center; gap:6px; } .crow.vpw .vph { color:var(--ink2); font-size:12px; max-width:640px; text-align:center; }
   .qrow select.qst { width:190px; flex:none; padding:4px 8px; font-size:12px; }
   .qbox .qh button.ghost.on { border-color:var(--acc2); color:var(--acc2); }
 
@@ -482,6 +483,7 @@
     <div class="qrow srow"><span class="lbl" data-i18n="prof_lbl"></span><span class="q" data-tipkey="tip_profile">?</span><select id="prof_sel"></select><span class="arr">&#9660;</span></div>
     <div class="qrow srow"><span class="lbl" data-i18n="style_lbl"></span><span class="q" data-tipkey="tip_style">?</span><select id="style_sel"></select><span class="arr">&#9660;</span></div>
     <div class="crow hidden" id="custom_row"><textarea id="custom_style" spellcheck="false"></textarea></div>
+    <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
 
@@ -669,7 +671,12 @@ function fillStyles() {
 }
 $('style_sel').addEventListener('change', () => { styleKey = $('style_sel').value; fillStyles(); pywebview.api.save_config({style: styleKey}); if (styleKey === 'custom') $('custom_style').focus(); });
 $('custom_style').addEventListener('change', () => pywebview.api.save_config({custom_style: customStyle()}));
-function drawVf() { const n = +$('vf').value; $('vf_row').classList.toggle('hidden', mode() === 'video'); const mx = mode() === 'mixed'; $('vf_val').textContent = (n ? plural(n, t('vf_scenes')) : (mx ? '' : t('vf_none'))) + (mx ? (n ? ' ' : '') + t('vf_mixed') : ''); $('vf_val').classList.toggle('zero', !n && !mx); }
+$('video_prompt').addEventListener('change', () => pywebview.api.save_config({video_prompt: $('video_prompt').value.trim()}));
+function drawVf() { const n = +$('vf').value; $('vf_row').classList.toggle('hidden', mode() === 'video');
+  $('vp_row').classList.toggle('hidden', !(mode() !== 'images' || n > 0));
+  $('vp_lbl').textContent = pt('Промпт оживления', 'Animation prompt');
+  $('video_prompt').placeholder = pt('Необязательно. Как оживлять кадры, например: slow cinematic push-in, subtle natural motion, chalk drawing stays still', 'Optional. How to animate frames, e.g.: slow cinematic push-in, subtle natural motion');
+  $('vp_hint').textContent = pt('Один промпт для всех оживляемых кадров. {кадр} — подставить описание кадра. Пусто — программа собирает промпт сама.', 'One prompt for every animated frame. {frame} inserts the frame description. Empty — the app builds the prompt itself.'); const mx = mode() === 'mixed'; $('vf_val').textContent = (n ? plural(n, t('vf_scenes')) : (mx ? '' : t('vf_none'))) + (mx ? (n ? ' ' : '') + t('vf_mixed') : ''); $('vf_val').classList.toggle('zero', !n && !mx); }
 $('vf').addEventListener('input', drawVf);
 $('vf').addEventListener('change', () => pywebview.api.save_config({video_first: +$('vf').value}));
 document.querySelectorAll('input[name=fgq]').forEach(r => r.addEventListener('change', () => pywebview.api.save_config({quality: fgq()})));
@@ -1055,7 +1062,7 @@ async function loadConfig(keepScreen) {
   $('use_tts').checked = c.source === 'script' || !!c.rewrite; $('use_subs').checked = !!c.subtitles; $('use_motion').checked = !!c.motion; $('use_hd').checked = !!c.hd_images; $('use_qa').checked = !!c.qa_images; $('use_speed').checked = !!c.speed_copies; qaEngine = c.qa_engine || 'gemini'; qaModel = c.qa_model || ''; mark();
   $('vf').value = c.video_first || 0; drawVf();
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; fillProfiles();
-  STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) $('custom_style').value = c.custom_style || ''; fillStyles();
+  STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
   stt = c.stt_engine || (c.has_fastgen ? 'fastgen' : 'whisper'); llm = c.llm_engine || (c.has_fastgen ? 'fastgen' : 'openai'); tts = c.tts_service || 'voicegen';
   recent = c.tts_recent || [];
@@ -1301,7 +1308,7 @@ async function loadVoices() {
   renderVoiceList(r.voices.map(v => ({id: v.id, name: `${v.name}${v.lang ? ' · ' + v.lang : ''}${v.gender ? ' · ' + v.gender : ''}`})));
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
-function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(),
+function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(),
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),

@@ -828,9 +828,16 @@ def upload_copy(path, limit=UPLOAD_LIMIT):
     return out
 
 
+VIDEO_PROMPT = ""  # свой промпт оживления из окна (для всех кадров ролика); пусто — собирается автоматически
+
+
 def video_prompt(scene):
     """Промпт оживления: движение + содержание + стиль + запрет текста.
-    Кадр профиля (exact): движение + промпт как есть + свой хвост из профиля, без стиля и запрета текста."""
+    Кадр профиля (exact): движение + промпт как есть + свой хвост из профиля, без стиля и запрета текста.
+    Свой промпт из окна заменяет всё это; {кадр} (или {frame}) в нём — описание кадра."""
+    if VIDEO_PROMPT:
+        frame = scene.get("raw_prompt") or scene.get("prompt") or ""
+        return VIDEO_PROMPT.replace("{кадр}", frame).replace("{frame}", frame).strip()
     if scene.get("exact"):
         return " ".join(x for x in (scene.get("motion", "slow gentle camera movement") + ".", scene.get("prompt") or scene.get("raw_prompt", ""),
                                     scene.get("video_suffix", "")) if x)
@@ -3000,7 +3007,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
                video_first=0, hd=False, profile=None, voice_file=None):
     """profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию."""
-    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT
     HD_IMAGES = bool(hd)
     LAST_FAILURES.update({"images": 0, "videos": 0})
     progress = Progress(progress_cb)
@@ -3008,6 +3015,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     clear_wait()
     take_redo()
     cfg = load_config()
+    VIDEO_PROMPT = " ".join(str(cfg.get("video_prompt") or "").split())
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:
         raise SystemExit(f"Неизвестный режим: {mode}")

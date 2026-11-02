@@ -894,7 +894,7 @@ class Api:
             "lang": cfg.get("lang", "ru"),
             "mode": cfg.get("mode", "images"),
             "style": style_key(cfg.get("style"), pipeline.DEFAULT_STYLE),
-            "custom_style": cfg.get("custom_style", ""),
+            "custom_style": cfg.get("custom_style", ""), "video_prompt": cfg.get("video_prompt", ""),
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -954,6 +954,8 @@ class Api:
             cfg["mode"] = data["mode"]
         if style_key(data.get("style")):
             cfg["style"] = data["style"]
+        if "video_prompt" in data:
+            cfg["video_prompt"] = str(data.get("video_prompt") or "").strip()[:4000]
         if "custom_style" in data:
             cfg["custom_style"] = " ".join(str(data.get("custom_style") or "").split())
         if "queue_styles" in data:
@@ -1319,6 +1321,8 @@ class Api:
         cfg.update({"image_providers": provider, "mode": mode, "style": style, "custom_style": custom_style, "use_refs": use_refs, "subtitles": subtitles, "motion": motion, "hd_images": hd,
                     "qa_images": bool(opts.get("qa", cfg.get("qa_images", False))), "speed_copies": bool(opts.get("speed", cfg.get("speed_copies", False))),
                     "source": opts.get("source", cfg.get("source", "mp3")), "tts_service": tts, "tts_voice": voice, "video_first": video_first, "profile": profile})
+        if "video_prompt" in opts:
+            cfg["video_prompt"] = str(opts.get("video_prompt") or "").strip()[:4000]
         if voice:
             rec = [x for x in cfg.get("tts_recent", []) if x.get("id") != voice]
             rec.insert(0, {"id": voice, "service": tts})
