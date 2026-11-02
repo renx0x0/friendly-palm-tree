@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p6"
+VERSION = "1.7.1-p7"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -746,6 +746,34 @@ class _Failed(Exception):
     pass
 
 
+JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model",
+                "tts_service", "tts_voice", "style", "image_providers")
+
+
+def job_record(d, status, result=None, error=None):
+    """job.json в папке задания: с какими настройками ролик запускали — для «Недавних роликов» и кнопки «Продолжить»."""
+    if not d or not LAST_RUN:
+        return
+    try:
+        p = os.path.join(d, "job.json")
+        rec = pipeline.read_json(p, {}) or {}
+        if status == "running":
+            args = {k: v for k, v in LAST_RUN.items() if k != "script"}
+            cfg = load_cfg()
+            title = STATE.get("title") or job_title({"source": "script" if LAST_RUN.get("script") else "mp3", "script": LAST_RUN.get("script") or "",
+                                                       "audio": LAST_RUN.get("voice_file") or LAST_RUN.get("audio") or ""})
+            rec.update({"version": 1, "title": title, "args": args, "script": LAST_RUN.get("script"),
+                        "cfg": {k: cfg.get(k) for k in JOB_CFG_KEYS}, "started": time.time(), "result": None, "error": None})
+        rec.update({"status": status, "updated": time.time()})
+        if result:
+            rec["result"] = result
+        if error:
+            rec["error"] = str(error)[:500]
+        pipeline.write_json(p, rec)
+    except Exception as e:  # запись истории не должна мешать ролику
+        pipeline.log(f"job.json не записан: {e}")
+
+
 def _pause(sec, why):
     """Пауза перед повтором с обратным отсчётом в окне. False — нажали «Стоп»."""
     pipeline.log(why)
@@ -780,6 +808,7 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
         d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile)
         with LOCK:
             STATE["job_dir"] = d
+        job_record(d, "running")
         auto = load_cfg().get("auto_retry", True)
         while True:
             err = None
@@ -833,6 +862,8 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
         with LOCK:
             STATE["running"] = False
             STATE["ended_at"] = time.time()
+            res, err, stopped, jd = STATE.get("result"), STATE.get("error"), STATE.get("cancelled"), STATE.get("job_dir")
+        job_record(jd or pipeline.LAST_JOB_DIR, "done" if res and not err else ("stopped" if stopped else "error"), res, err)
         keep_awake(False)
 
 
@@ -1724,6 +1755,108 @@ class Api:
             with LOCK:
                 u["phase"] = (STATE.get("update") or {}).get("phase")
         return u
+
+    def recent_jobs(self, limit=15):
+        """«Недавние ролики»: папки заданий с кадрами, свежие сверху, с прогрессом и тем, чего не хватает для продолжения."""
+        root = os.path.join(data_dir(), "jobs")
+        if not os.path.isdir(root):
+            return []
+        with LOCK:
+            running_dir = STATE.get("job_dir") if (STATE["running"] or STATE.get("queue_active")) else None
+        out = []
+        for n in os.listdir(root):
+            d = os.path.join(root, n)
+            if not os.path.isdir(d):
+                continue
+            rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
+            scenes = pipeline.read_json(os.path.join(d, "scenes.json"), []) or []
+            if not rec and not scenes:
+                continue  # служебная папка (распознавание, озвучка) — кадров в ней нет
+            base, _, prof = n.partition("@")
+            img_dir, vid_dir = os.path.join(d, "images"), os.path.join(d, "videos")
+            imgs = sum(1 for f in os.listdir(img_dir) if f.endswith(".png")) if os.path.isdir(img_dir) else 0
+            vids = sum(1 for f in os.listdir(vid_dir) if f.endswith(".mp4")) if os.path.isdir(vid_dir) else 0
+            try:
+                updated = max([os.path.getmtime(d)] + [os.path.getmtime(os.path.join(d, f)) for f in os.listdir(d)])
+            except OSError:
+                updated = 0
+            args = rec.get("args") or {}
+            title = rec.get("title")
+            if not title:
+                st = self._job_script(d, base)
+                title = " ".join(st.split()[:7]) if st else base
+            out.append({"id": n, "title": title[:80], "profile": (args.get("profile") if rec else prof) or prof or "",
+                        "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
+                        "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else rec.get("status", ""),
+                        "result": rec.get("result"), "known": bool(rec)})
+        out.sort(key=lambda x: -x["updated"])
+        return out[:limit]
+
+    @staticmethod
+    def _job_script(d, base):
+        for p in (os.path.join(d, "script.txt"), os.path.join(os.path.dirname(d), base, "script.txt")):
+            try:
+                with open(p, encoding="utf-8") as f:
+                    t = f.read().strip()
+                if t:
+                    return t
+            except OSError:
+                pass
+        return ""
+
+    def continue_job(self, job_id, audio=None):
+        """«Продолжить»: тот же ролик с теми же настройками; всё готовое возьмётся из задания.
+        Нужен файл озвучки, а он неизвестен (ролик из старой версии или файл переехал) → need_audio."""
+        global QUEUE_STOP
+        name = os.path.basename(str(job_id or ""))
+        root = os.path.join(data_dir(), "jobs")
+        d = os.path.join(root, name)
+        if not name or not os.path.isdir(d):
+            return {"ok": False, "error": "Папка этого ролика не найдена — возможно, заготовки удалены."}
+        with LOCK:
+            if STATE["running"] or STATE["preparing"] or STATE.get("queue_active"):
+                return {"ok": False, "error": "Сейчас делается другой ролик. Продолжите этот, когда он закончится."}
+        base, _, prof = name.partition("@")
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
+        cfg = load_cfg()
+        if rec.get("args"):
+            args = dict(rec["args"])
+            args["script"] = rec.get("script")
+            if args.get("rewrite"):  # рерайт уже сделан — продолжаем по готовому тексту, заново не переписываем
+                args["rewrite"], args["script"] = None, args["script"] or self._job_script(d, base)
+            cfg.update({k: v for k, v in (rec.get("cfg") or {}).items() if v is not None})
+        else:  # ролик из версии без job.json: настройки — текущие, профиль — из имени папки, сценарий — из script.txt
+            args = dict(audio=None, provider=pipeline.normalize_providers(cfg.get("image_providers")), mode=cfg.get("mode", "images"),
+                        style=style_key(cfg.get("style"), pipeline.DEFAULT_STYLE), use_refs=cfg.get("quality") == "quality",
+                        subtitles=bool(cfg.get("subtitles")), motion=bool(cfg.get("motion")), script=self._job_script(d, base) or None,
+                        rewrite=None, tts=cfg.get("tts_service") or "voicegen", voice=cfg.get("tts_voice", ""), video_first=_vf(cfg.get("video_first")),
+                        hd=bool(cfg.get("hd_images")), profile=prof, voice_file=None)
+        if audio:
+            audio = str(audio).strip().strip('"')
+            got = pipeline.short_base(os.path.splitext(os.path.basename(audio))[0])
+            if not base.startswith("script_") and got != base:
+                return {"ok": False, "error": f"У этого файла другое имя: задание ролика лежит в папке «{base}», а файл «{os.path.basename(audio)}» "
+                                              f"начнёт новую папку «{got}». Выберите тот же файл озвучки, что и в прошлый раз."}
+            if args.get("script"):
+                args["voice_file"] = audio
+            else:
+                args["audio"] = audio
+        if base.startswith("script_"):  # озвучку делала программа — она лежит в задании и возьмётся сама
+            args["voice_file"] = None
+        elif args.get("script"):
+            if not (args.get("voice_file") and os.path.isfile(args["voice_file"])):
+                return {"ok": False, "need_audio": True, "expect": base}
+        elif not (args.get("audio") and os.path.isfile(args["audio"])):
+            return {"ok": False, "need_audio": True, "expect": base}
+        cfg["profile"] = args.get("profile") or ""
+        save_cfg(cfg)
+        with LOCK:
+            STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "продолжаю", "log": [], "result": None,
+                          "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0, "queue": None,
+                          "title": rec.get("title") or base})
+        QUEUE_STOP = False
+        threading.Thread(target=job_chain, args=(args,), daemon=True).start()
+        return {"ok": True, "mode": args.get("mode", "images")}
 
     def storage_info(self):
         out, jobs = os.path.join(data_dir(), "output"), os.path.join(data_dir(), "jobs")

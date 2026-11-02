@@ -424,6 +424,17 @@
     .opt { padding:8px 18px; } .opt .t { font-size:17px; } .opt svg { width:32px; height:32px; } .opts .optq { font-size:20px; }
     .corner { display:none; }
   }
+  /* «Недавние ролики» */
+  .recent { max-width:860px; margin:14px auto 0; width:100%; }
+  .recent .rh { display:flex; align-items:baseline; gap:12px; margin:0 0 6px; font:600 12px/1 "Exo 2", sans-serif; letter-spacing:.3em; text-transform:uppercase; color:var(--ink2); }
+  .recent .rh .lk { letter-spacing:.05em; text-transform:none; font-weight:500; margin-left:auto; }
+  .rjob { display:flex; align-items:center; gap:12px; padding:8px 12px; border:1px solid var(--line); background:var(--bg2); margin-bottom:6px; font-size:13px; }
+  .rjob .rt { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--ink); }
+  .rjob .rp { color:var(--acc2); white-space:nowrap; } .rjob .rs { color:var(--ink2); white-space:nowrap; } .rjob .rs.ok { color:var(--ok); } .rjob .rs.bad { color:#e8a33a; }
+  .rjob button { padding:7px 14px; font-size:11px; letter-spacing:.18em; }
+  #rec_dlg { position:fixed; inset:0; z-index:60; display:none; place-items:center; background:rgba(0,0,0,.55); }
+  #rec_dlg.show { display:grid; } #rec_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:24px 28px; width:min(900px, calc(100% - 48px)); max-height:80vh; overflow-y:auto; }
+  #rec_dlg h3 { margin:0 0 12px; font:600 16px/1.3 "Exo 2", sans-serif; } #rec_dlg .row { display:flex; justify-content:flex-end; margin-top:10px; }
   /* окно «Готовая озвучка?» */
   #vo_dlg { position:fixed; inset:0; z-index:60; display:none; place-items:center; background:rgba(0,0,0,.55); }
   #vo_dlg.show { display:grid; }
@@ -449,6 +460,7 @@
 <div class="volbox" id="volbox"><div class="vwrap" title="Музыка"><input type="range" id="vol" min="0" max="100" value="50"></div><div class="nxt" id="nxt" title="Следующий трек"><svg viewBox="0 0 24 24"><path d="M5 5l9 7-9 7z"/><path d="M18 5v14"/></svg></div></div>
 <audio id="bgm" preload="auto"></audio>
 <div id="credit"></div>
+<div id="rec_dlg"><div class="box"><h3 id="rec_t"></h3><div id="rec_all"></div><div class="row"><button class="ghost" id="rec_close" onclick="$('rec_dlg').classList.remove('show')"></button></div></div></div>
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
   <button class="ghost" id="vo_cancel"></button><button class="ghost" id="vo_tts"></button><button class="primary" id="vo_file"></button>
 </div></div></div>
@@ -474,6 +486,7 @@
     </div>
     <div class="hint" id="hint1"></div>
     <div class="store" id="store"></div>
+    <div class="recent" id="recent"></div>
     <div class="nav"><span></span><button class="primary" onclick="go(2)" data-i18n="next"></button></div>
   </div>
 
@@ -655,6 +668,7 @@ function go(n) {
     from.classList.remove('leaving', 'active'); cur = n;
     for (let i = 1; i <= 6; i++) $('screen' + i).classList.toggle('active', i === n);
     if (n === 4) renderAccess();
+    if (n === 1) refreshRecent();
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
@@ -856,11 +870,48 @@ async function refreshStore() {
       + ` <span class="lk" onclick="pywebview.api.open_output()">${t('store_open')}</span> · <span class="lk" onclick="clearJobs()">${t('store_clear')}</span>`;
   } catch (e) {}
 }
+// ===== «Недавние ролики»: продолжить с того же места одной кнопкой =====
+let RECENT = [];
+function ago(ts) {
+  const m = Math.max(0, Math.round((Date.now() / 1000 - ts) / 60));
+  if (m < 60) return m <= 1 ? pt('только что', 'just now') : `${m} ${pt('мин назад', 'min ago')}`;
+  const h = Math.round(m / 60); if (h < 24) return `${h} ${pt('ч назад', 'h ago')}`;
+  const d = new Date(ts * 1000); return d.toLocaleDateString(L === 'ru' ? 'ru-RU' : 'en-GB', {day: 'numeric', month: 'short'});
+}
+function recentRow(r) {
+  const st = r.status === 'running' ? `<span class="rs ok">${pt('делается сейчас', 'in progress')}</span>`
+    : `<span class="rs${r.status === 'done' ? ' ok' : (r.status === 'error' ? ' bad' : '')}">${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''}${r.status === 'done' ? ' · ✓' : ''}</span>`;
+  const btn = r.status === 'running' ? `<button class="ghost" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
+    : `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`;
+  return `<div class="rjob"><span class="rt" title="${esc(r.title)}">${esc(r.title)}</span>${r.profile ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
+}
+async function refreshRecent() {
+  try { RECENT = await pywebview.api.recent_jobs(); } catch (e) { return; }
+  const box = $('recent');
+  if (!RECENT || !RECENT.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="rh">${pt('Недавние ролики', 'Recent videos')}${RECENT.length > 3 ? `<span class="lk" onclick="showAllRecent()">${pt('все', 'all')} (${RECENT.length})</span>` : ''}</div>` + RECENT.slice(0, 3).map(recentRow).join('');
+}
+function showAllRecent() {
+  $('rec_t').textContent = pt('Недавние ролики', 'Recent videos'); $('rec_close').textContent = pt('Закрыть', 'Close');
+  $('rec_all').innerHTML = RECENT.map(recentRow).join(''); $('rec_dlg').classList.add('show');
+}
+async function continueJob(id) {
+  $('rec_dlg').classList.remove('show');
+  let r = await pywebview.api.continue_job(id);
+  if (r.need_audio) {
+    toast(pt(`Выберите файл озвучки этого ролика (имя как у папки «${esc(r.expect)}»)`, `Pick this video's voice-over file (named like “${esc(r.expect)}”)`), 8000);
+    const p = await pywebview.api.pick_file(); if (!p) return;
+    r = await pywebview.api.continue_job(id, p);
+  }
+  if (!r.ok) { toast(esc(r.error || ''), 9000); return; }
+  $('result').classList.remove('show'); $('error').textContent = ''; $('p_err').textContent = ''; $('btn_cancel').disabled = false; shownPct = 0;
+  buildStages(r.mode || mode()); buildFrames(0); go(6); poll();
+}
 async function clearJobs() {
   if (!confirm(t('store_confirm'))) return;
   const r = await pywebview.api.clear_jobs();
   toast(r.ok ? t('store_done').replace('{m}', r.freed_mb) : r.error);
-  refreshStore();
+  refreshStore(); refreshRecent();
 }
 function toast(html, ms) { const e = $('toast'); e.innerHTML = html; e.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => e.classList.remove('show'), ms || 5000); }
 async function sendReport() {
@@ -1108,7 +1159,7 @@ async function loadConfig(keepScreen) {
   recent = c.tts_recent || [];
   if (!keepScreen) { source = c.source || 'mp3'; F.voice = c.tts_voice || ''; }
   $('use_tts').checked = source === 'script' || !!c.rewrite; mark(); applyLang();
-  refreshStore();
+  refreshStore(); refreshRecent();
   autoStart = false;
   if (st.scenes) total = st.scenes;
   queueItems = st.queue_items || [];
