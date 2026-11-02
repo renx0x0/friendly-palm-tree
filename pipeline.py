@@ -795,6 +795,39 @@ def style_line_of(style):
     return ". ".join(x for x in (hint, bible) if x)
 
 
+UPLOAD_LIMIT = 4_800_000  # сервисы (fast-gen и др.) не принимают картинки больше 5 МБ; с запасом
+
+
+def upload_copy(path, limit=UPLOAD_LIMIT):
+    """Картинка для отправки в сервис. Не больше лимита — как есть; больше (HD-картинки бывают 5,2–5,7 МБ) —
+    рядом сохраняется JPEG того же кадра, который влезает в лимит. Оригинал PNG не трогается."""
+    try:
+        if os.path.getsize(path) <= limit:
+            return path
+    except OSError:
+        return path
+    out = os.path.splitext(path)[0] + ".upload.jpg"
+    try:
+        if os.path.getsize(out) <= limit and os.path.getmtime(out) >= os.path.getmtime(path):
+            return out
+    except OSError:
+        pass
+    from PIL import Image
+    with Image.open(path) as src:
+        im = src.convert("RGB")
+    for scale in (1.0, 0.85, 0.7, 0.5):
+        img = im if scale == 1.0 else im.resize((max(1, int(im.width * scale)), max(1, int(im.height * scale))), Image.LANCZOS)
+        for q in (93, 87, 80):
+            img.save(out + ".tmp", "JPEG", quality=q, optimize=True)
+            if os.path.getsize(out + ".tmp") <= limit:
+                os.replace(out + ".tmp", out)
+                log(f"{os.path.basename(path)}: {os.path.getsize(path) / 1e6:.2f} МБ больше лимита — отправляю JPEG "
+                    f"{os.path.getsize(out) / 1e6:.2f} МБ ({img.width}×{img.height}, качество {q})")
+                return out
+    os.replace(out + ".tmp", out)
+    return out
+
+
 def video_prompt(scene):
     """Промпт оживления: движение + содержание + стиль + запрет текста.
     Кадр профиля (exact): движение + промпт как есть + свой хвост из профиля, без стиля и запрета текста."""
@@ -1148,7 +1181,7 @@ def gen_fastgen_image(api, gate, scene, out_path, progress, refs, chain=None):
     chain = chain or (IMAGE_CHAINS_REFS if refs else IMAGE_CHAINS)[FASTGEN_QUALITY]
     if HD_IMAGES:  # увеличение 2x умеет только Nano Banana через Flow — дешёвый канал Gemini пропускаем
         chain = [(o, n) for o, n in chain if o != "gemini_nano_banana_2_image_generate"] or chain
-    inputs = [{"filename": os.path.basename(p), "input": file_to_data_uri(p)} for p in refs]
+    inputs = [{"filename": os.path.basename(p), "input": file_to_data_uri(upload_copy(p))} for p in refs]
     started = time.time()
     for op, tries in chain:
         t = 0
@@ -1200,7 +1233,7 @@ def gen_nonstop_image(api, gate, scene, out_path, progress, refs):
         log(f"сцена {scene['index']}: veononstop — суточный лимит картинок исчерпан, пропускаю")
         return None
     prompt = scene["prompt"]
-    ref_objs = [{"name": os.path.splitext(os.path.basename(p))[0], "image_base64": file_to_data_uri(p).split(",", 1)[1],
+    ref_objs = [{"name": os.path.splitext(os.path.basename(p))[0], "image_base64": file_to_data_uri(upload_copy(p)).split(",", 1)[1],
                  "mime_type": "image/png"} for p in refs]
     for model_key, tries in NONSTOP_CHAINS[FASTGEN_QUALITY]:
         for t in range(tries):
@@ -1263,7 +1296,7 @@ def gen_yougen_image(api, gate, scene, out_path, progress, refs):
         log(f"сцена {scene['index']}: yougen — дневная квота картинок исчерпана, пропускаю")
         return None
     prompt = scene["prompt"]
-    inputs = [file_to_data_uri(p) for p in refs] or None
+    inputs = [file_to_data_uri(upload_copy(p)) for p in refs] or None
     for model, tries in YOUGEN_CHAINS[FASTGEN_QUALITY]:
         for t in range(tries):
             check_cancel()
@@ -2092,7 +2125,7 @@ def generate_all_videos(ctx, scenes, img_dir, job_dir, progress, mode="video", v
         model = None
         try:
             for prov in provs[k:] + provs[:k]:
-                model = video_gen[prov][1](s, img, out, say)
+                model = video_gen[prov][1](s, upload_copy(img), out, say)
                 if model:
                     break
         except Cancelled:
