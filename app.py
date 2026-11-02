@@ -42,10 +42,10 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1"
+VERSION = "1.7.1-p1"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
-UPDATE_FOLDER_ID = "1DJlVHa2POqkMals38boXjoKQlMxTUiNv"
+UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
 
 CONFIG_PATH = os.path.join(data_dir(), "config.json")
 RES_DIR = getattr(sys, "_MEIPASS", app_dir())
@@ -120,7 +120,8 @@ def run_queue(common):
             audio = item.get("audio") if item.get("source") == "mp3" else None
             # стиль у задания свой, если включён «Разный стиль» и выбран; иначе общий
             run_job(audio, common["provider"], common["mode"], style_key(item.get("style"), common["style"]), common["use_refs"], common["subtitles"], common["motion"],
-                    script, rw, common["tts"], (item.get("voice") or "").strip(), common["video_first"], common["hd"])
+                    script, rw, common["tts"], (item.get("voice") or "").strip(), common["video_first"], common["hd"],
+                    voice_file=(item.get("voice_file") or None) if script else None)
             with LOCK:
                 if STATE.get("cancelled"):
                     item["status"] = "stopped"
@@ -609,13 +610,14 @@ def run_rewrite(rw):
             STATE["preparing"] = False
 
 
-def run_prepare(audio, provider, mode, use_refs, script=None, rewrite=None):
+def run_prepare(audio, provider, mode, use_refs, script=None, rewrite=None, profile=None, voice_file=None):
     try:
         apply_engine(provider)
-        d = None if rewrite else (pipeline.script_job_dir(script)[0] if script else pipeline.job_dir_for(audio)[0])
+        d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile)
         with LOCK:
             STATE["job_dir"] = d
-        est = pipeline.prepare(audio, progress_cb=progress_cb, provider=provider, mode=mode, use_refs=use_refs, script_text=script, rewrite=rewrite)
+        est = pipeline.prepare(audio, progress_cb=progress_cb, provider=provider, mode=mode, use_refs=use_refs, script_text=script, rewrite=rewrite,
+                               profile=profile, voice_file=voice_file)
         with LOCK:
             STATE["estimate"] = est
             STATE["job_dir"] = est.get("job_dir") or d
@@ -641,16 +643,19 @@ def keep_awake(on):
         pass
 
 
-def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False):
+def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
+            profile=None, voice_file=None):
     keep_awake(True)
     try:
         apply_engine(provider)
-        d = None if rewrite else (pipeline.script_job_dir(script)[0] if script else pipeline.job_dir_for(audio)[0])
+        d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile)
         with LOCK:
             STATE["job_dir"] = d
         out = pipeline.make_video(audio, progress_cb=progress_cb, provider=provider, mode=mode, style_key=style,
                                   use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
-                                  tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd)
+                                  tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file)
+        with LOCK:  # у профиля папка задания своя — после старта окно смотрит туда
+            STATE["job_dir"] = pipeline.LAST_JOB_DIR or STATE.get("job_dir")
         with LOCK:
             STATE["result"] = out
     except pipeline.Cancelled:
@@ -733,6 +738,7 @@ class Api:
             "base_urls": {k: cfg.get(k + "_base_url", "") for k in ("openai", "anthropic", "gemini")}, "base_defaults": dict(endpoints.DEFAULTS),
             "quality": cfg.get("quality", "speed"), "motion": bool(cfg.get("motion", False)), "hd_images": bool(cfg.get("hd_images", False)), "video_first": _vf(cfg.get("video_first", 0)),
             "tts_recent": cfg.get("tts_recent", []), "data_dir": data_dir(), "portable": data_dir() == app_dir(),
+            "profiles": pipeline.list_profiles(), "profile": cfg.get("profile", ""),
             "source": cfg.get("source", "mp3"), "tts_service": cfg.get("tts_service", "voicegen"), "tts_voice": cfg.get("tts_voice", ""),
             "rewrite": bool(cfg.get("rewrite", False)), "rewrite_engine": cfg.get("rewrite_engine", "fastgen"), "rewrite_source": cfg.get("rewrite_source", "youtube"),
             "rewrite_url": cfg.get("rewrite_url", ""), "rewrite_words": cfg.get("rewrite_words", 1500), "rewrite_lang": cfg.get("rewrite_lang", "польском"),
@@ -795,6 +801,9 @@ class Api:
                 ik[p] = new
         if "providers" in data:
             cfg["image_providers"] = [p for p in (data["providers"] or []) if p in pipeline.PROVIDERS]
+        if "profile" in data:
+            p = str(data.get("profile") or "").strip()
+            cfg["profile"] = p if (not p or p in pipeline.list_profiles()) else cfg.get("profile", "")
         if data.get("lang") in ("ru", "en"):
             cfg["lang"] = data["lang"]
         for k in ("openai", "anthropic", "gemini"):
@@ -1044,6 +1053,9 @@ class Api:
         elif opts.get("source") == "script":
             if not (opts.get("script") or "").strip():
                 return "Вставьте текст сценария."
+            vf = (opts.get("voice_file") or "").strip().strip('"')
+            if vf:
+                return None if os.path.isfile(vf) else "Файл готовой озвучки не найден."
             tts = opts.get("tts") or cfg.get("tts_service")
             if not cfg.get(f"{tts}_api_key") and tts != "edge":
                 return f"Для озвучки выбран {tts}, но его ключ не введён."
@@ -1144,12 +1156,13 @@ class Api:
         mode, style, subtitles = opts.get("mode", "images"), style_key(opts.get("style"), pipeline.DEFAULT_STYLE), bool(opts.get("subtitles"))
         use_refs = (load_cfg().get("quality") == "quality")
         custom_style = " ".join(str(opts.get("custom_style") or "").split())
-        if style == pipeline.CUSTOM_STYLE and not custom_style:
+        if style == pipeline.CUSTOM_STYLE and not custom_style and not load_cfg().get("profile"):  # с профилем стиль не нужен
             return {"ok": False, "error": "Опишите свой стиль на экране «Режим» или выберите стиль из списка."}
         motion = bool(opts.get("motion"))
         hd = bool(opts.get("hd"))
         video_first = _vf(opts.get("video_first"))
         script = (opts.get("script") or "").strip() if opts.get("source") == "script" else None
+        voice_file = (opts.get("voice_file") or "").strip().strip('"') or None if script else None
         rw = self._rewrite_opts(opts)
         if rw:
             script = None
@@ -1172,7 +1185,8 @@ class Api:
             rec.insert(0, {"id": voice, "service": tts})
             cfg["tts_recent"] = rec[:12]
         save_cfg(cfg)
-        threading.Thread(target=run_job, args=(audio, provider, mode, style, use_refs, subtitles, motion, script, rw, tts, voice, video_first, hd), daemon=True).start()
+        threading.Thread(target=run_job, args=(audio, provider, mode, style, use_refs, subtitles, motion, script, rw, tts, voice, video_first, hd),
+                         kwargs={"voice_file": voice_file}, daemon=True).start()
         return {"ok": True}
 
     # ---------- очередь заданий ----------
@@ -1575,8 +1589,13 @@ def main():
         def arg(name, default=None):
             return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
         try:
+            script = None
+            if arg("--script"):
+                with open(arg("--script"), encoding="utf-8-sig") as f:
+                    script = f.read()
             out = pipeline.make_video(arg("--run"), provider=arg("--provider"), mode=arg("--mode", "images"),
-                                      style_key=arg("--style"), use_refs="--refs" in sys.argv, subtitles="--subs" in sys.argv)
+                                      style_key=arg("--style"), use_refs="--refs" in sys.argv, subtitles="--subs" in sys.argv,
+                                      profile=arg("--profile"), script_text=script, voice_file=arg("--run") if script else None)
             pipeline.log(f"RUN OK: {out}")
         except BaseException as e:
             pipeline.log(f"RUN FAILED: {type(e).__name__}: {e}")

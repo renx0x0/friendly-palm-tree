@@ -33,6 +33,7 @@ from secretslider_api import SecretSlider, SliderError
 from llm_api import AnthropicClient, GeminiClient, AssemblyAI, LLM_SERVICES
 from tts_api import make_tts, TTSError
 import hashlib
+import profiles
 
 # ---------- настройки ----------
 # fast-gen: режим "скорость" (Flower) и "качество" (Nano Banana Pro)
@@ -787,7 +788,11 @@ def style_line_of(style):
 
 
 def video_prompt(scene):
-    """Промпт оживления: движение + содержание + стиль + запрет текста."""
+    """Промпт оживления: движение + содержание + стиль + запрет текста.
+    Кадр профиля (exact): движение + промпт как есть + свой хвост из профиля, без стиля и запрета текста."""
+    if scene.get("exact"):
+        return " ".join(x for x in (scene.get("motion", "slow gentle camera movement") + ".", scene.get("prompt") or scene.get("raw_prompt", ""),
+                                    scene.get("video_suffix", "")) if x)
     return f"{scene.get('motion', 'slow gentle camera movement')}. {scene.get('raw_prompt', '')} {scene.get('style_line', '')} {NO_TEXT}"
 
 
@@ -1540,6 +1545,16 @@ QA_SYSTEM = """Ты контролёр качества кадров для ви
 - сильные артефакты генерации: мыло, разваливающиеся объекты, невозможная геометрия.
 НЕ брак: несовпадение мелких деталей, не идеальный свет, стиль чуть отличается, необычный ракурс.
 Ответ строго JSON: {"ok": true|false, "score": 1-10 (общее качество кадра), "issues": "по-английски, 5-20 слов: что именно не так и чего избегать при перерисовке; пусто, если ok"}"""
+QA_SYSTEM_EXACT = """Ты контролёр качества кадров для видеоролика. Тебе дано описание кадра (то, что просили нарисовать) и сама картинка.
+Текст на картинке допустим ТОЛЬКО если он есть в описании. Реши, годится ли картинка в ролик. БРАК (ok=false), если есть хотя бы одно:
+- надпись, которую просили в описании, написана с ошибкой: не та буква, лишняя или пропущенная буква, лишние или пропущенные диакритические знаки (точки, чёрточки, хвостики над и под буквами), лишние символы, звёздочки, кавычки;
+- на картинке есть текст, буквы или цифры, которых нет в описании (в том числе слова на другом языке), логотипы, водяные знаки;
+- лишние люди или животные, которых нет в описании; уродства анатомии: лишние или кривые пальцы, искажённое лицо, слившиеся тела;
+- главный предмет или действие из описания не узнаётся или нарисовано не то; картинка не про то, что в описании;
+- нарушен стиль, который прямо требует описание (например, цвет там, где просили только мел); коллаж, рамки, чёрные полосы;
+- сильные артефакты генерации: мыло, разваливающиеся объекты, невозможная геометрия.
+НЕ брак: несовпадение мелких деталей, не идеальный свет, необычный ракурс.
+Ответ строго JSON: {"ok": true|false, "score": 1-10 (общее качество кадра), "issues": "по-английски, 5-20 слов: что именно не так и чего избегать при перерисовке; пусто, если ok"}"""
 QA_MAX_REDO = 2  # сколько раз перерисовывать забракованный кадр, потом берём лучший из вариантов
 
 
@@ -1549,7 +1564,7 @@ def qa_check(client, scene, path):
         desc = scene.get("raw_prompt") or scene.get("prompt") or ""
         chars = ", ".join(scene.get("characters") or [])
         user = f"Описание кадра: {desc}" + (f"\nПерсонажи по описанию: {chars}" if chars else "") + "\nОцени картинку."
-        j = client.see_json(QA_SYSTEM, user, path)
+        j = client.see_json(QA_SYSTEM_EXACT if scene.get("exact") else QA_SYSTEM, user, path)
         ok = bool(j.get("ok", True))
         try:
             score = float(j.get("score") or (8 if ok else 3))
@@ -2713,12 +2728,167 @@ def rewrite_script(cfg, rw, progress):
                          rw.get("language") or cfg.get("rewrite_lang") or "польском", os.path.join(data_dir(), "jobs"), say)
 
 
-def resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite=None):
-    """Либо готовый mp3, либо сценарий (свой или после рерайта), который надо озвучить. Возвращает (audio_path, job_dir, base)."""
+# ============ профили: свои мастер-промпты (profiles.py) ============
+
+def profile_search_dirs():
+    return profiles.profile_dirs(data_dir(), app_dir())
+
+
+def list_profiles():
+    return profiles.list_profiles(profile_search_dirs())
+
+
+def load_active_profile(cfg, name=None):
+    """Профиль по имени; name=None — из настроек (config.json, поле profile). Пусто — без профиля."""
+    name = (cfg.get("profile") or "") if name is None else name
+    if not name:
+        return None
+    try:
+        return profiles.load_profile(name, profile_search_dirs())
+    except profiles.ProfileError as e:
+        raise SystemExit(str(e))
+
+
+def profile_job_dir(job_dir, prof):
+    """У профиля своя папка задания рядом с обычной: свои сцены и картинки, не путаются с обычным режимом.
+    Распознавание и сценарий берутся из обычной папки, чтобы не платить за них второй раз."""
+    d = f"{job_dir}@{profiles.safe_name(prof['name'])}"
+    os.makedirs(d, exist_ok=True)
+    src, dst = os.path.join(job_dir, "transcript.json"), os.path.join(d, "transcript.json")
+    if os.path.exists(src) and not os.path.exists(dst):
+        try:
+            shutil.copy(src, dst)
+        except OSError:
+            pass
+    src, dst = os.path.join(job_dir, "script.txt"), os.path.join(d, "script.txt")
+    try:  # сценарий всегда как в обычной папке: правили текст — профиль видит новый
+        if os.path.exists(src):
+            shutil.copy(src, dst)
+        elif os.path.exists(dst):
+            os.remove(dst)
+    except OSError:
+        pass
+    return d
+
+
+def run_job_dir(cfg, audio_path=None, script_text=None, voice_file=None, rewrite=None, profile=None):
+    """Папка задания заранее (для окна, чтобы показывать кадры). None — станет известна только после рерайта."""
+    if rewrite and rewrite.get("on"):
+        return None
+    if script_text and script_text.strip():
+        d = job_dir_for(os.path.abspath(voice_file))[0] if voice_file else script_job_dir(script_text)[0]
+    elif audio_path:
+        d = job_dir_for(os.path.abspath(audio_path))[0]
+    else:
+        return None
+    try:
+        prof = load_active_profile(cfg, profile)
+    except SystemExit:
+        prof = None
+    return profile_job_dir(d, prof) if prof else d
+
+
+def make_profile_chat(prof, cfg, progress):
+    """Чат для мастер-промпта: fast-gen (по умолчанию) или OpenAI-совместимый адрес (openai_base_url)."""
+    def wait(sec, why):
+        log(why)
+        set_wait("llm", time.time() + sec)
+        try:
+            for _ in range(int(sec)):
+                check_cancel()
+                time.sleep(1)
+        finally:
+            clear_wait("llm")
+
+    engine = (prof.get("llm") or "fastgen").lower()
+    if engine == "fastgen":
+        key = cfg.get("fastgen_api_key") or (provider_keys(cfg, "fastgen") or [""])[0]
+        if not key:
+            raise SystemExit(f"Профиль «{prof['name']}» пишет промпты через fast-gen, но ключ fast-gen не введён.")
+        model = prof.get("llm_model") or cfg.get("llm_model") or DEFAULT_LLM_MODEL
+        return profiles.make_chat(prof, lambda: FastGen(key).s, BASE_URL + "/v1/chat/completions", model,
+                                  wait=wait, check_cancel=check_cancel, log=log, progress=progress), f"fast-gen ({model})"
+    if engine == "openai":
+        key = cfg.get("openai_api_key")
+        if not key:
+            raise SystemExit(f"Профиль «{prof['name']}» пишет промпты через OpenAI, но ключ OpenAI не введён.")
+        model = prof.get("llm_model") or cfg.get("openai_model") or OPENAI_DEFAULT_MODEL
+
+        def session():
+            s = requests.Session()
+            s.headers["Authorization"] = f"Bearer {key}"
+            return s
+        return profiles.make_chat(prof, session, endpoints.base("openai") + "/chat/completions", model,
+                                  wait=wait, check_cancel=check_cancel, log=log, progress=progress), f"OpenAI ({model})"
+    raise SystemExit(f"Профиль «{prof['name']}»: неизвестная модель llm={engine!r} (можно fastgen или openai)")
+
+
+def profile_script_text(job_dir, tr):
+    """Текст для профиля: сценарий, если он есть (озвучка программой или «Готовая озвучка» к сценарию), иначе распознанный текст."""
+    p = os.path.join(job_dir, "script.txt")
+    if os.path.exists(p):
+        try:
+            with open(p, encoding="utf-8") as f:
+                t = f.read().strip()
+            if t:
+                return t, "сценарий"
+        except OSError:
+            pass
+    return (tr.get("text") or " ".join(w["text"] for w in tr.get("words") or [])).strip(), "распознанный текст озвучки"
+
+
+def profile_scenes(prof, cfg, tr, duration, job_dir, progress):
+    """Сцены по мастер-промпту профиля: части сценария → промпты от модели → время частей в озвучке ÷ число кадров."""
+    text, source = profile_script_text(job_dir, tr)
+    parts = profiles.split_parts(text, prof)
+    if not parts:
+        raise SystemExit("Профиль: пустой текст — нечего делить на части.")
+    chat, chat_name = make_profile_chat(prof, cfg, progress)
+    progress("scenes", 0, 0, f"профиль «{prof['name']}»: {len(parts)} частей по ~{len(text) // len(parts)} символов "
+                             f"({source}), промпты пишет {chat_name}")
+    prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel)
+    bounds = profiles.part_bounds(parts, tr["words"], duration, log)
+    scenes = profiles.build_scenes(prof, parts, prompts, bounds)
+    scenes_path = os.path.join(job_dir, "scenes.json")
+    old = {s.get("index"): s for s in (read_json(scenes_path) or []) if isinstance(s, dict)}
+    redrawn = 0
+    for s in scenes:  # промпт поменялся (правили мастер-промпт) — старая картинка не подходит; длительность — только клип
+        o = old.get(s["index"])
+        if not o:
+            continue
+        if o.get("prompt") != s["prompt"]:
+            redo_files(job_dir, s["index"])
+            redrawn += 1
+        elif abs(float(o.get("duration") or 0) - s["duration"]) > 0.02:
+            for sub in ("clips", "clips_m"):
+                try:
+                    os.remove(os.path.join(job_dir, sub, f"{s['index']:04d}.mp4"))
+                except OSError:
+                    pass
+    if redrawn:
+        log(f"профиль: у {redrawn} кадров изменились промпты — эти кадры будут нарисованы заново")
+    write_json(scenes_path, scenes)
+    per = ", ".join(f"{bounds[k + 1] - bounds[k]:.0f} с/{len(p)} кадров" for k, p in enumerate(prompts))
+    log(f"профиль «{prof['name']}»: части {per}")
+    progress("scenes", len(scenes), len(scenes), f"сцен: {len(scenes)} (профиль «{prof['name']}», частей {len(parts)})")
+    return scenes
+
+
+def resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite=None, voice_file=None):
+    """Либо готовый mp3, либо сценарий (свой или после рерайта), который надо озвучить. Возвращает (audio_path, job_dir, base).
+    voice_file — готовая озвучка к сценарию: озвучка не делается, сценарий сохраняется в задание (нужен профилям)."""
     global LAST_JOB_DIR
     if rewrite and rewrite.get("on"):
         script_text = rewrite_script(cfg, rewrite, progress)
         progress("rewrite", 1, 1, f"сценарий переписан: {len(script_text.split())} слов")
+    if script_text and script_text.strip() and voice_file:
+        audio_path = os.path.abspath(voice_file)
+        job_dir, base = job_dir_for(audio_path)
+        LAST_JOB_DIR = job_dir
+        with open(os.path.join(job_dir, "script.txt"), "w", encoding="utf-8") as f:
+            f.write(script_text.strip())
+        progress("tts", 1, 1, "озвучка готовая — беру файл")
+        return audio_path, job_dir, base
     if script_text and script_text.strip():
         job_dir, base = script_job_dir(script_text)
         LAST_JOB_DIR = job_dir
@@ -2732,24 +2902,32 @@ def resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progres
 
 
 def prepare(audio_path=None, progress_cb=None, provider=None, mode="images", use_refs=False,
-            script_text=None, tts_service=None, tts_voice=None, rewrite=None):
+            script_text=None, tts_service=None, tts_voice=None, rewrite=None, profile=None, voice_file=None):
     """Первая половина: (озвучка) + транскрипция + сцены. Возвращает оценку для подтверждения."""
     progress = Progress(progress_cb)
     CANCEL.clear()
     cfg = load_config()
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
-    audio_path, job_dir, base = resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite)
+    prof = load_active_profile(cfg, profile)
+    audio_path, job_dir, base = resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite, voice_file)
+    if prof:
+        job_dir = profile_job_dir(job_dir, prof)
     duration = audio_duration(audio_path)
     engine, text_api, _, _ = make_text_engine(cfg)
     tr = transcribe(engine, text_api, audio_path, job_dir, progress, duration)
     scenes_path = os.path.join(job_dir, "scenes.json")
-    scenes = read_json(scenes_path)
-    if scenes and not scenes_ok(scenes):
-        log("сцены из старой версии с битыми таймкодами — режу заново")
-        scenes = None
-    if not scenes:
-        scenes = split_scenes(tr["words"], duration)
-        write_json(scenes_path, scenes)
+    if prof:  # кадров = частей × промптов на часть; сами промпты пишутся только при запуске
+        text, _ = profile_script_text(job_dir, tr)
+        scenes = [{"index": i} for i in range(len(profiles.split_parts(text, prof)) * prof["prompts_per_part"])]
+        use_refs = False
+    else:
+        scenes = read_json(scenes_path)
+        if scenes and not scenes_ok(scenes):
+            log("сцены из старой версии с битыми таймкодами — режу заново")
+            scenes = None
+        if not scenes:
+            scenes = split_scenes(tr["words"], duration)
+            write_json(scenes_path, scenes)
     n = len(scenes)
     img_dir = os.path.join(job_dir, "images")
     have_images = sum(1 for s in scenes if os.path.exists(os.path.join(img_dir, f"{s['index']:04d}.png")))
@@ -2775,8 +2953,9 @@ def prepare(audio_path=None, progress_cb=None, provider=None, mode="images", use
 
 def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, mode="images", style_key=None, use_refs=False,
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
-               video_first=0, hd=False):
-    global FASTGEN_QUALITY, HD_IMAGES
+               video_first=0, hd=False, profile=None, voice_file=None):
+    """profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию."""
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR
     HD_IMAGES = bool(hd)
     progress = Progress(progress_cb)
     CANCEL.clear()
@@ -2790,7 +2969,13 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     FASTGEN_QUALITY = (fastgen_quality or cfg.get("quality") or cfg.get("fastgen_quality") or "speed")
     if FASTGEN_QUALITY not in IMAGE_CHAINS:
         FASTGEN_QUALITY = "speed"
-    audio_path, job_dir, base = resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite)
+    prof = load_active_profile(cfg, profile)
+    if prof:
+        use_refs = False  # у профиля нет героев с портретами: всё описано в мастер-промпте
+    audio_path, job_dir, base = resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite, voice_file)
+    if prof:
+        job_dir = profile_job_dir(job_dir, prof)
+        LAST_JOB_DIR = job_dir
     out_dir = out_dir or os.path.join(data_dir(), "output")
     os.makedirs(out_dir, exist_ok=True)
     out_mp4 = os.path.join(out_dir, base + ".mp4")
@@ -2798,7 +2983,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         shutil.copy(os.path.join(job_dir, "script.txt"), os.path.join(out_dir, base + ".txt"))  # сценарий рядом с видео
 
     duration = audio_duration(audio_path)
-    progress("start", 0, 0, f"аудио {duration:.0f} с · картинки: {' + '.join(PROVIDER_NAMES[p] for p in providers)} · режим: {mode} · стиль: {style_name}")
+    progress("start", 0, 0, f"аудио {duration:.0f} с · картинки: {' + '.join(PROVIDER_NAMES[p] for p in providers)} · режим: {mode} · "
+                            + (f"профиль: {prof['name']}" if prof else f"стиль: {style_name}"))
     ctx = make_context(cfg, providers)
     ctx["qa"] = make_qa_client(cfg)
     for k in QA_STATS:
@@ -2817,18 +3003,21 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     progress("start", 0, 0, f"речь: {engine} · тексты: {llm_name} ({llm.model}) · fast-gen: {FASTGEN_QUALITY}")
 
     tr = transcribe(engine, text_api, audio_path, job_dir, progress, duration)
-    scenes_path = os.path.join(job_dir, "scenes.json")
-    scenes = read_json(scenes_path)
-    if scenes and not scenes_ok(scenes):
-        log("сцены из старой версии с битыми таймкодами — режу заново")
-        scenes = None
-    if not scenes:
-        scenes = split_scenes(tr["words"], duration)
-        write_json(scenes_path, scenes)
-    progress("scenes", len(scenes), len(scenes), f"сцен: {len(scenes)}")
-
-    style = build_style(llm, tr["text"], job_dir, progress, style_key, style_hint)
     refs, ref_pool = {}, None
+    if prof:
+        scenes = profile_scenes(prof, cfg, tr, duration, job_dir, progress)
+        style = {"style_key": "profile:" + prof["key"], "style": "", "characters": [], "props": [], "locations": []}
+    else:
+        scenes_path = os.path.join(job_dir, "scenes.json")
+        scenes = read_json(scenes_path)
+        if scenes and not scenes_ok(scenes):
+            log("сцены из старой версии с битыми таймкодами — режу заново")
+            scenes = None
+        if not scenes:
+            scenes = split_scenes(tr["words"], duration)
+            write_json(scenes_path, scenes)
+        progress("scenes", len(scenes), len(scenes), f"сцен: {len(scenes)}")
+        style = build_style(llm, tr["text"], job_dir, progress, style_key, style_hint)
     if use_refs:
         # портреты героев зависят только от библии — рисуем их, пока пишутся промпты сцен (сообщения пока в журнал)
         ref_quiet = threading.Event()
@@ -2842,7 +3031,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             return progress(*a)
         ref_pool = cf.ThreadPoolExecutor(max_workers=1)
         ref_fut = ref_pool.submit(make_references, ctx, style, job_dir, ref_progress)
-    scenes = build_prompts(llm, style, scenes, job_dir, progress, use_refs)
+    if not prof:
+        scenes = build_prompts(llm, style, scenes, job_dir, progress, use_refs)
     if ref_pool:
         ref_quiet.clear()
         if not ref_fut.done():
@@ -2902,6 +3092,13 @@ if __name__ == "__main__":
     def arg(name, default=None):
         return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
 
+    def _read_script(path):
+        if not path:
+            return None
+        with open(path, encoding="utf-8-sig") as f:
+            return f.read()
+
     make_video(sys.argv[1], provider=arg("--provider"), mode=arg("--mode", "images"), style_key=arg("--style"),
                use_refs="--refs" in sys.argv, subtitles="--subs" in sys.argv, motion="--motion" in sys.argv,
-               fastgen_quality=arg("--quality"))
+               fastgen_quality=arg("--quality"), profile=arg("--profile"), script_text=_read_script(arg("--script")),
+               voice_file=sys.argv[1] if arg("--script") else None)
