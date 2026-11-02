@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p12"
+VERSION = "1.7.1-p13"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -806,17 +806,18 @@ def _pause(sec, why):
 
 
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
-            profile=None, voice_file=None):
+            profile=None, voice_file=None, prompts_file=None):
     """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
     подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
     LAST_RUN.clear()
     LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
-                         script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file))
+                         script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
+                         prompts_file=prompts_file))
     keep_awake(True)
     tries = fixes = 0
     try:
         apply_engine(provider)
-        d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile)
+        d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile, prompts_file)
         with LOCK:
             STATE["job_dir"] = d
         job_record(d, "running")
@@ -826,7 +827,8 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
             try:
                 out = pipeline.make_video(audio, progress_cb=progress_cb, provider=provider, mode=mode, style_key=style,
                                           use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
-                                          tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file)
+                                          tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
+                                          prompts_file=prompts_file)
             except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
                 err = str(e)
             except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
@@ -1296,6 +1298,9 @@ class Api:
 
     def _validate_source(self, opts):
         cfg = load_cfg()
+        pf = (opts.get("prompts_file") or "").strip().strip('"')
+        if pf and not os.path.isfile(pf):
+            return "Файл готовых промптов не найден — выберите его заново."
         rw = self._rewrite_opts(opts)
         if rw:
             if rw["source"] == "youtube" and not rw["url"]:
@@ -1418,7 +1423,8 @@ class Api:
         if profile is None:
             profile = cfg.get("profile", "")
         custom_style = " ".join(str(opts.get("custom_style") or "").split())
-        if style == pipeline.CUSTOM_STYLE and not custom_style and not profile:  # с профилем стиль не нужен
+        prompts_file = (opts.get("prompts_file") or "").strip().strip('"') or None
+        if style == pipeline.CUSTOM_STYLE and not custom_style and not profile and not prompts_file:  # с профилем/готовыми промптами стиль не нужен
             return "Опишите свой стиль на экране «Режим» или выберите стиль из списка.", None, None
         motion = bool(opts.get("motion"))
         hd = bool(opts.get("hd"))
@@ -1450,7 +1456,8 @@ class Api:
             cfg["tts_recent"] = rec[:12]
         save_cfg(cfg)
         args = dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
-                    script=script, rewrite=rw, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file)
+                    script=script, rewrite=rw, tts=tts, voice=voice, video_first=video_first, hd=hd,
+                    profile="" if prompts_file else profile, voice_file=voice_file, prompts_file=prompts_file)
         return None, args, job_title(opts)
 
     def _enqueue(self, opts):
@@ -1643,6 +1650,35 @@ class Api:
         """Панель «Промпты по частям»: состояние частей профиля (без самих промптов)."""
         return pipeline.profiles.BOARD.summary()
 
+    def find_prompts(self, audio):
+        """Готовые промпты рядом с озвучкой (<имя>.prompts.txt или <имя>.txt) — подставляются сами при выборе mp3."""
+        p = pipeline.find_prompts_file(str(audio or "").strip().strip('"'))
+        return self.prompts_info(p, audio) if p else {"ok": False}
+
+    def pick_prompts(self):
+        res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("Промпты (*.txt)", "Все файлы (*.*)"))
+        if not res:
+            return ""
+        return res[0] if isinstance(res, (list, tuple)) else str(res)
+
+    def prompts_info(self, path, audio=None):
+        """Сводка до запуска: блоки, промпты, секунды на кадр, сколько клипа Veo уйдёт в обрезку, замечания."""
+        path = str(path or "").strip().strip('"')
+        try:
+            blocks = pipeline.read_prompts_file(path)
+        except (OSError, UnicodeDecodeError) as e:
+            return {"ok": False, "error": f"Не открылся файл: {e}"}
+        if not blocks:
+            return {"ok": False, "error": "В файле нет пронумерованных промптов («001. …»)."}
+        dur = None
+        audio = str(audio or "").strip().strip('"')
+        if audio and os.path.isfile(audio):
+            try:
+                dur = pipeline.audio_duration(audio)
+            except Exception:
+                dur = None
+        return {"ok": True, "path": path, "name": os.path.basename(path), **pipeline.profiles.blocks_summary(blocks, dur)}
+
     def profile_request(self, n):
         """«Скопировать запрос для чата»: мастер-промпт с этой частью — в буфер обмена (и в окно, если буфер недоступен)."""
         try:
@@ -1825,7 +1861,8 @@ class Api:
             if not title:
                 st = self._job_script(d, base)
                 title = " ".join(st.split()[:7]) if st else base
-            out.append({"id": n, "title": title[:80], "profile": (args.get("profile") if rec else prof) or prof or "",
+            label = "готовые промпты" if args.get("prompts_file") else ((args.get("profile") if rec else prof) or prof or "")
+            out.append({"id": n, "title": title[:80], "profile": label,
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else rec.get("status", ""),
                         "result": rec.get("result"), "known": bool(rec), "mode": args.get("mode", ""),
@@ -1900,7 +1937,8 @@ class Api:
         if o.get("reset_images") or o.get("reset_videos"):
             freed = self._reset_job(d, images=bool(o.get("reset_images")), videos=True)
             pipeline.log(f"перезапуск «{name}»: удалено {'картинки и ' if o.get('reset_images') else ''}оживление ({freed / 1e6:.0f} МБ)")
-        cfg["profile"] = args.get("profile") or ""
+        if not args.get("prompts_file"):  # у готовых промптов профиля нет — выбранный в окне не трогаем
+            cfg["profile"] = args.get("profile") or ""
         save_cfg(cfg)
         with LOCK:
             STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "продолжаю", "log": [], "result": None,

@@ -122,6 +122,7 @@
   #screen2 .tiles.c3 .tile svg { width:64px; height:64px; } #screen2 .tiles.c3 .tile .t { font-size:20px; }
   .crow { display:flex; justify-content:center; margin-top:14px; } .crow.hidden { display:none; }
   .crow textarea { max-width:640px; min-height:72px; font-size:14px; }
+  .pfnote { font-size:12px; color:var(--ink2); line-height:1.5; } .pfnote .warn { color:#e8a33a; }
   .crow.vpw { flex-direction:column; align-items:center; gap:6px; } .crow.vpw .vph { color:var(--ink2); font-size:12px; max-width:640px; text-align:center; }
   #vc_row { margin-top:10px; } #vc_row .lbl { white-space:nowrap; } #vc_row input[type=range] { width:220px; flex:none; }
   #vc_row select { width:auto; flex:none; padding:7px 12px; font-size:12px; }
@@ -789,6 +790,36 @@ const dz = $('dropzone');
 document.addEventListener('dragover', e => e.preventDefault()); document.addEventListener('drop', e => e.preventDefault());
 
 async function pick() { const p = await pywebview.api.pick_file(); if (p) setAudio(p); }
+// ===== Готовые промпты из .txt: блоки с SYNC встают на свои куски озвучки, кадры блока делят его время поровну =====
+let promptsFile = '', promptsInfo = null;
+function promptsNote(r) {
+  if (!r) return '';
+  const parts = [`${r.prompts} ${pt('промптов', 'prompts')}${r.blocks > 1 ? ` ${pt('в', 'in')} ${r.blocks} ${pt('блоках', 'blocks')}` : ''}`];
+  if (r.sec_per_frame) parts.push(`~${String(r.sec_per_frame).replace('.', ',')} ${pt('с на кадр', 's per frame')}`);
+  if (r.sec_per_frame && mode() !== 'images') parts.push(r.clip_trim_pct ? pt(`у клипов Veo (8 с) уйдёт в обрезку ~${r.clip_trim_pct}%`, `~${r.clip_trim_pct}% of each 8 s Veo clip is trimmed`) : pt('клипы Veo используются целиком', 'Veo clips are used whole'));
+  parts.push(pt('профиль и fast-gen для промптов не используются', 'profile and fast-gen prompts are not used'));
+  return parts.join(' · ') + ((r.issues || []).length ? `<br><span class="warn">${pt('Замечания', 'Remarks')}: ${esc(r.issues.join('; '))}</span>` : '');
+}
+function promptsRows() {
+  const name = promptsFile ? promptsFile.split(/[\\/]/).pop() : '';
+  return row(pt('Готовые промпты', 'Ready prompts'), '', `<input type="text" id="pf_name" readonly value="${esc(name)}" placeholder="${esc(pt('не выбраны — промпты напишет программа', 'none — the app writes prompts'))}">`
+      + `<button onclick="pickPrompts()">${pt('Выбрать .txt', 'Pick .txt')}</button>${promptsFile ? `<button class="ghost" onclick="clearPrompts()">×</button>` : ''}`)
+    + (promptsInfo ? `<div class="lrow"><div class="lab"></div><div class="ctl"><span class="note pfnote">${promptsNote(promptsInfo)}</span></div></div>` : '');
+}
+function setPrompts(r) { promptsFile = r && r.ok ? r.path : ''; promptsInfo = r && r.ok ? r : null; if (cur === 4) renderAccess(); }
+async function autoFindPrompts(audio) {
+  try {
+    const r = await pywebview.api.find_prompts(audio);
+    if (r && r.ok) { setPrompts(r); toast(pt(`Рядом с озвучкой нашлись готовые промпты: ${esc(r.name)} (${r.prompts} шт.). Программа возьмёт их.`, `Found ready prompts next to the voice-over: ${esc(r.name)}`), 7000); }
+  } catch (e) {}
+}
+async function pickPrompts() {
+  const p = await pywebview.api.pick_prompts(); if (!p) return;
+  const r = await pywebview.api.prompts_info(p, source === 'mp3' ? audioPath : '');
+  if (!r.ok) { toast(esc(r.error), 7000); return; }
+  setPrompts(r);
+}
+function clearPrompts() { setPrompts(null); }
 let queueMode = false;
 async function startAll() {
   await saveKeys(); $('s_prep').textContent = ''; $('s_prep2').textContent = '';
@@ -1191,8 +1222,8 @@ async function updateParts() {
     const d = $('pp' + p.n); if (!d) continue;
     const changed = d.dataset.st !== p.status;
     d.className = `pp s-${p.status}${partsOpen.has(p.n) ? ' open' : ''}`; d.dataset.st = p.status;
-    d.querySelector('.pt').textContent = `${pt('Часть', 'Part')} ${p.n}`;
-    d.querySelector('.pm').textContent = `${p.chars.toLocaleString('ru-RU')} ${pt('симв.', 'chars')}`;
+    d.querySelector('.pt').textContent = `${ps.profile === 'готовые промпты' ? pt('Блок', 'Block') : pt('Часть', 'Part')} ${p.n}`;
+    d.querySelector('.pm').textContent = p.chars ? `${p.chars.toLocaleString('ru-RU')} ${pt('симв.', 'chars')}` : '';
     d.querySelector('.ps').textContent = partStatus(p);
     d._p = p;
     if (partsOpen.has(p.n)) fillPart(p.n, changed);
@@ -1361,6 +1392,7 @@ function renderAccess() {
   } else {
     H.push(row(t('file_lbl'), '', `<input type="text" id="file_name" readonly value="${esc(audioPath)}" placeholder="${esc(t('drop_hint'))}"><button onclick="pick()">${t('pick')}</button>`));
   }
+  if (!rwOn()) H.push(promptsRows());
   H.push(queueHtml());
   $('dropzone').innerHTML = `<div class="alist-in">${H.join('')}</div>`;
   bindAccess(); renderVoiceList(); bindQueue();
@@ -1468,7 +1500,7 @@ async function checkRow(k, i, sid) {
 }
 function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(); pywebview.api.save_config({source: v}); if (cur === 4) renderAccess(); }
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
-window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; };
+window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
@@ -1517,7 +1549,7 @@ async function loadVoices() {
   renderVoiceList(r.voices.map(v => ({id: v.id, name: `${v.name}${v.lang ? ' · ' + v.lang : ''}${v.gender ? ' · ' + v.gender : ''}`})));
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
-function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
+function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),

@@ -329,7 +329,9 @@ def parse_reply(text):
         if m and m.group(2).strip():
             cur = [int(m.group(1)), m.group(2).strip()]
             prompts.append(cur)
-        elif cur is not None and s:
+        elif not s:
+            cur = None  # пустая строка заканчивает промпт: «BATCH 2 OF 6…», «Batch 1 complete…» к нему не прилипнут
+        elif cur is not None:
             cur[1] += " " + s
     return [(n, t.strip()) for n, t in prompts if t.strip()], sync
 
@@ -860,3 +862,143 @@ def build_scenes(prof, parts, prompts_by_part, bounds):
         scenes[-1]["end"] = round(bounds[-1], 3)
         scenes[-1]["duration"] = round(scenes[-1]["end"] - scenes[-1]["start"], 3)
     return scenes
+
+
+# ---------------------------------------------------------------- готовые промпты из файла (.txt рядом с озвучкой)
+
+READY_NAME = "готовые промпты"
+READY_MIN_PROMPTS = 3
+
+
+def parse_blocks(text):
+    """Файл готовых промптов → блоки [{"prompts": [str], "numbers": [int], "sync": фраза | None}].
+    Блок кончается строкой SYNC; фраза — на той же строке («SYNC: …») или на следующей непустой.
+    Строки между блоками (заголовки «Часть 2» и т.п.) пропускаются; после последнего SYNC может быть хвост без SYNC."""
+    blocks, cur, cur_prompt, expect_sync = [], [], None, False
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        s = line.strip()
+        if expect_sync:
+            if not s:
+                continue
+            blocks.append((cur, s.strip("«»\"' ")))
+            cur, cur_prompt, expect_sync = [], None, False
+            continue
+        m = _SYNC.match(s)
+        if m and not _NUM.match(s):
+            rest = m.group(1).strip()
+            if rest:
+                blocks.append((cur, rest.strip("«»\"' ")))
+                cur, cur_prompt = [], None
+            else:
+                expect_sync = True
+            continue
+        m = _NUM.match(line)
+        if m and m.group(2).strip():
+            cur_prompt = [int(m.group(1)), m.group(2).strip()]
+            cur.append(cur_prompt)
+        elif not s:
+            cur_prompt = None  # пустая строка заканчивает промпт: служебные строки чата между пачками пропускаются
+        elif cur_prompt is not None:
+            cur_prompt[1] += " " + s
+    if cur:
+        blocks.append((cur, None))
+    out = []
+    for prompts, sync in blocks:
+        prompts = [(n, t.strip()) for n, t in prompts if t.strip()]
+        if prompts:
+            out.append({"prompts": [t for _, t in prompts], "numbers": [n for n, _ in prompts], "sync": sync or None})
+    return out
+
+
+def blocks_summary(blocks, duration=None, clip_seconds=8.0):
+    """Что получится из файла: блоки, промпты, нумерация, секунды на кадр и сколько клипа Veo уйдёт в обрезку."""
+    total = sum(len(b["prompts"]) for b in blocks)
+    nums = [n for b in blocks for n in b["numbers"]]
+    issues = []
+    if nums and nums != list(range(nums[0], nums[0] + len(nums))):
+        dup = sorted({n for n in nums if nums.count(n) > 1})
+        issues.append("нумерация не подряд" + (f" (повторы: {', '.join(map(str, dup[:5]))})" if dup else ""))
+    missing = [k + 1 for k, b in enumerate(blocks[:-1]) if not b["sync"]]
+    if missing:
+        issues.append(f"у блоков {', '.join(map(str, missing))} нет SYNC — их граница встанет по числу промптов")
+    out = {"blocks": len(blocks), "prompts": total, "per_block": [len(b["prompts"]) for b in blocks], "issues": issues}
+    if duration and total:
+        per = duration / total
+        out.update({"duration": round(duration), "sec_per_frame": round(per, 1),
+                    "clip_trim_pct": int(round(max(0.0, 1 - per / clip_seconds) * 100))})
+        if per < 2:
+            issues.append(f"кадры выходят короткими: ~{per:.1f} с на кадр")
+        elif per > 15:
+            issues.append(f"кадры выходят длинными: ~{per:.0f} с на кадр")
+    return out
+
+
+def _find_phrase_end(pw, tw, start, expect):
+    """Где в распознанной озвучке кончается фраза SYNC: индекс последнего слова и оценка совпадения (0…1).
+    Ищем от конца прошлого блока вперёд; при равной оценке — ближе к ожидаемому месту."""
+    if not pw or not tw:
+        return None, 0.0
+    L = len(pw)
+    best = (0.0, 0, None)
+    for i in range(max(0, start), len(tw)):
+        seg = tw[i:i + L + 2]
+        if not seg or not (set(seg[:3]) & set(pw[:3])):  # окно должно начинаться похоже на фразу — иначе не тратим время
+            continue
+        sm = difflib.SequenceMatcher(None, pw, seg, autojunk=False)
+        score = sm.ratio()
+        if score < 0.5:
+            continue
+        last = max((b + size - 1 for _, b, size in sm.get_matching_blocks() if size), default=None)
+        if last is None:
+            continue
+        key = (round(score, 2), -abs(i - expect))
+        if best[2] is None or key > (round(best[0], 2), -abs(best[1] - expect)):
+            best = (score, i, i + last)
+    return best[2], best[0]
+
+
+def block_bounds(blocks, words, duration, log=print):
+    """Времена границ блоков в озвучке по фразам SYNC: [0, t1, …, duration]. Не нашли фразу — граница по числу промптов."""
+    n = len(blocks)
+    if n <= 1:
+        return [0.0, float(duration)], []
+    tw = [norm_word(w.get("text", "")) for w in words]
+    counts = [len(b["prompts"]) for b in blocks]
+    total = sum(counts) or 1
+    anchors, report, pos, acc = {0: 0.0, n: float(duration)}, [], 0, 0
+    for k in range(n - 1):
+        acc += counts[k]
+        sync = blocks[k].get("sync")
+        expect = int(len(tw) * acc / total)
+        e, score = _find_phrase_end(script_words(sync or ""), tw, pos, expect) if sync else (None, 0.0)
+        if e is not None and score >= 0.6:
+            t = (float(words[e]["end"]) + float(words[e + 1]["start"])) / 2 if e + 1 < len(words) else float(words[e]["end"])
+            anchors[k + 1] = round(t, 3)
+            pos = e + 1
+            report.append((k + 1, True, round(score, 2), anchors[k + 1]))
+        else:
+            report.append((k + 1, False, round(score, 2), None))
+            if sync:
+                log(f"готовые промпты: фраза SYNC блока {k + 1} не найдена в озвучке («{sync[:60]}») — граница по числу промптов")
+    out, known = [], sorted(anchors)
+    cum = [0]
+    for c in counts:
+        cum.append(cum[-1] + c)
+    for k in range(n + 1):  # неизвестные границы — между соседними найденными, пропорционально числу промптов
+        if k in anchors:
+            out.append(anchors[k])
+            continue
+        lo = max(a for a in known if a < k)
+        hi = min(a for a in known if a > k)
+        frac = (cum[k] - cum[lo]) / max(1, cum[hi] - cum[lo])
+        out.append(round(anchors[lo] + (anchors[hi] - anchors[lo]) * frac, 3))
+    for k in range(1, len(out)):
+        out[k] = max(out[k], out[k - 1] + 0.5)
+    out[-1] = max(out[-1], float(duration))
+    return out, report
+
+
+def ready_profile():
+    p = dict(DEFAULTS)
+    p.update({"name": READY_NAME, "key": "ready"})
+    return p
