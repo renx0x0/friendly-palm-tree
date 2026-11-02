@@ -69,15 +69,66 @@ FG_IMAGE_MODEL = ""  # модель картинок fast-gen, выбранна�
 FG_VIDEO_MODEL = ""  # модель оживления fast-gen
 OMNI_OP = "flow_video_omni_flash_from_keyframes"
 DEFAULT_FG_MODELS = {
-    "image": [{"op": "flower_image_generate", "name": "Flower Nano Banana 2", "credits": 1},
-              {"op": "gemini_nano_banana_2_image_generate", "name": "Gemini Nano Banana 2", "credits": 1},
-              {"op": "nano_banana_2_image_generate", "name": "Nano Banana 2.1 (Flow)", "credits": 4},
-              {"op": "nano_banana_pro_image_generate", "name": "Nano Banana Pro (Flow)", "credits": 4},
-              {"op": "nano_banana_2_lite_image_generate", "name": "Nano Banana 2 Lite (Flow)", "credits": 4},
-              {"op": "openai_image_generate", "name": "ChatGPT Image", "credits": 4}],
-    "video": [{"op": "flower_video_from_image", "name": "Flower Omni Flash 1.1", "credits": 1},
-              {"op": "flow_video_from_keyframes", "name": "Veo 3.1 Fast (Flow)", "credits": 1},
-              {"op": OMNI_OP, "name": "Omni Flash 1.1 (Flow), клип 6/8/10 с", "credits": 1, "by_duration": True}],
+    "image": [
+        {
+            "op": "flower_image_generate",
+            "name": "Flower Nano Banana 2",
+            "credits": 1
+        },
+        {
+            "op": "gemini_nano_banana_2_image_generate",
+            "name": "Gemini Nano Banana 2",
+            "credits": 1
+        },
+        {
+            "op": "nano_banana_2_image_generate",
+            "name": "Nano Banana 2.1 (Flow)",
+            "credits": 4
+        },
+        {
+            "op": "nano_banana_pro_image_generate",
+            "name": "Nano Banana Pro (Flow)",
+            "credits": 4
+        },
+        {
+            "op": "nano_banana_2_lite_image_generate",
+            "name": "Nano Banana 2 Lite (Flow)",
+            "credits": 4
+        },
+        {
+            "op": "openai_image_generate",
+            "name": "ChatGPT Image (OpenAI)",
+            "credits": 4
+        }
+    ],
+    "video": [
+        {
+            "op": "flow_video_from_keyframes",
+            "name": "Veo 3.1 Fast (Flow)",
+            "credits": 1
+        },
+        {
+            "op": "flow_video_lite_from_keyframes",
+            "name": "Veo 3.1 Lite (Flow)",
+            "credits": 1
+        },
+        {
+            "op": "flow_video_quality_from_keyframes",
+            "name": "Veo 3.1 Quality (Flow)",
+            "credits": 10
+        },
+        {
+            "op": OMNI_OP,
+            "name": "Omni Flash 1.1 (Flow), клип 6/8/10 с",
+            "credits": 1,
+            "by_duration": True
+        },
+        {
+            "op": "flower_video_from_image",
+            "name": "Flower Omni",
+            "credits": 1
+        }
+    ]
 }
 
 
@@ -1117,10 +1168,14 @@ class RateGate:
             self.threads = max(1, min(10, int(lim.get("img_generation_threads_allowed") or 1)))
             self.hour_limit = int(lim.get("img_gen_per_hour_limit") or 0)
             used = hourly.get("image_generation") or 0
+            if isinstance(used, dict):  # fast-gen отдаёт {"current_usage": N, "window_start": …}
+                used = used.get("current_usage") or 0
         else:
             self.threads = max(1, min(10, int(lim.get("video_generation_threads_allowed") or 1)))
             self.hour_limit = int(lim.get("video_gen_per_hour_limit") or 0)
             used = hourly.get("video_generation") or 0
+            if isinstance(used, dict):  # fast-gen отдаёт {"current_usage": N, "window_start": …}
+                used = used.get("current_usage") or 0
         if isinstance(used, (int, float)) and used > 0:
             self.spent = collections.deque([(time.time(), int(used))])  # сервер сказал точно — верим ему
         self.checked_at = time.time()

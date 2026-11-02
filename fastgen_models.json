@@ -1,16 +1,18 @@
 {
-  "_что_это": "Модели fast-gen для выбора в окне (шаг «Режим»). Можно дописывать: op — код операции fast-gen, name — как показывать, credits — кредитов за штуку. Названия сопоставлены по коду KadroGen; если в кабинете fast-gen модель называется иначе — поправьте name.",
+  "_что_это": "Модели fast-gen для выбора в окне (шаг «Режим»). Список сверен с каталогом fast-gen (list_capabilities). Можно дописывать: op — код операции, name — как показывать, credits — кредитов за штуку.",
   "image": [
     {"op": "flower_image_generate", "name": "Flower Nano Banana 2", "credits": 1},
     {"op": "gemini_nano_banana_2_image_generate", "name": "Gemini Nano Banana 2", "credits": 1},
     {"op": "nano_banana_2_image_generate", "name": "Nano Banana 2.1 (Flow)", "credits": 4},
     {"op": "nano_banana_pro_image_generate", "name": "Nano Banana Pro (Flow)", "credits": 4},
     {"op": "nano_banana_2_lite_image_generate", "name": "Nano Banana 2 Lite (Flow)", "credits": 4},
-    {"op": "openai_image_generate", "name": "ChatGPT Image", "credits": 4}
+    {"op": "openai_image_generate", "name": "ChatGPT Image (OpenAI)", "credits": 4}
   ],
   "video": [
-    {"op": "flower_video_from_image", "name": "Flower Omni Flash 1.1", "credits": 1},
     {"op": "flow_video_from_keyframes", "name": "Veo 3.1 Fast (Flow)", "credits": 1},
-    {"op": "flow_video_omni_flash_from_keyframes", "name": "Omni Flash 1.1 (Flow), клип 6/8/10 с", "credits": 1, "by_duration": true}
+    {"op": "flow_video_lite_from_keyframes", "name": "Veo 3.1 Lite (Flow)", "credits": 1},
+    {"op": "flow_video_quality_from_keyframes", "name": "Veo 3.1 Quality (Flow)", "credits": 10},
+    {"op": "flow_video_omni_flash_from_keyframes", "name": "Omni Flash 1.1 (Flow), клип 6/8/10 с", "credits": 1, "by_duration": true},
+    {"op": "flower_video_from_image", "name": "Flower Omni", "credits": 1}
   ]
 }

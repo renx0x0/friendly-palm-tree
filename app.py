@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p5"
+VERSION = "1.7.1-p6"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -196,7 +196,8 @@ def fg_limits(key):
 
 
 _FG_USAGE = {"at": 0.0, "key": None, "data": None, "logged": False}
-_LIMIT_KINDS = (("img", "картинки"), ("image", "картинки"), ("video", "видео"), ("text", "тексты"), ("token", "тексты"),
+_LIMIT_KINDS = (("ultra", None), ("img", "картинки"), ("image", "картинки"), ("video", "видео"), ("prompt", "тексты"), ("text", "тексты"), ("token", "тексты"),
+                ("aistudio", "озвучка"),
                 ("llm", "тексты"), ("chat", "тексты"), ("tts", "озвучка"), ("voice", "озвучка"), ("speech", "озвучка"), ("audio", "озвучка"))
 
 
@@ -216,7 +217,7 @@ def _days_left(obj):
                 kl = k.lower()
                 if isinstance(v, (dict, list)):
                     stack.append(v)
-                elif any(w in kl for w in ("expire", "until", "ends", "end_at", "valid_to")) and v:
+                elif any(w in kl for w in ("expir", "until", "ends", "end_at", "valid_to")) and v:
                     try:
                         if isinstance(v, (int, float)):
                             t = datetime.datetime.fromtimestamp(v / (1000 if v > 1e11 else 1), datetime.timezone.utc)
@@ -241,6 +242,10 @@ def fg_usage_summary(u):
     used_by = {}
     for hk, hv in hourly.items():
         kind = _limit_kind(hk)
+        if isinstance(hv, dict):  # {"current_usage": N, "window_start": …}
+            hv = hv.get("current_usage")
+        if hv is None and kind:
+            hv = 0  # в этом часе ещё не тратили
         if kind and isinstance(hv, (int, float)) and kind not in used_by:
             used_by[kind] = hv
     items, seen = [], set()
