@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p11"
+VERSION = "1.7.1-p12"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -98,6 +98,17 @@ def queue_public():
 def style_key(v, default=None):
     """Ключ стиля из интерфейса: один из STYLES или «свой»; иначе default."""
     return v if v in pipeline.STYLES or v == pipeline.CUSTOM_STYLE else default
+
+
+def _video_fit(cfg, data):
+    """Увеличение и прижим оживлённых клипов (убрать водяной знак Veo) — из окна в настройки."""
+    if "video_zoom_pct" in data:
+        try:
+            cfg["video_zoom_pct"] = max(100, min(130, int(data.get("video_zoom_pct"))))
+        except (TypeError, ValueError):
+            pass
+    if data.get("video_anchor") in ("top", "center", "bottom"):
+        cfg["video_anchor"] = data["video_anchor"]
 
 
 def job_title(opts):
@@ -746,7 +757,7 @@ class _Failed(Exception):
     pass
 
 
-JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual",
+JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
                 "tts_service", "tts_voice", "style", "image_providers")
 
 
@@ -992,7 +1003,7 @@ class Api:
             "style": style_key(cfg.get("style"), pipeline.DEFAULT_STYLE),
             "custom_style": cfg.get("custom_style", ""), "video_prompt": cfg.get("video_prompt", ""),
             "fg_models": pipeline.fastgen_models(), "fg_image_model": cfg.get("fg_image_model", ""), "fg_video_model": cfg.get("fg_video_model", ""),
-            "profile_manual": bool(cfg.get("profile_manual", False)),
+            "profile_manual": bool(cfg.get("profile_manual", False)), "video_zoom_pct": cfg.get("video_zoom_pct", 104), "video_anchor": cfg.get("video_anchor", "top"),
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -1059,6 +1070,7 @@ class Api:
                 cfg[k] = str(data.get(k) or "").strip()[:120]
         if "profile_manual" in data:
             cfg["profile_manual"] = bool(data.get("profile_manual"))
+        _video_fit(cfg, data)
         if "custom_style" in data:
             cfg["custom_style"] = " ".join(str(data.get("custom_style") or "").split())
         if "queue_styles" in data:
@@ -1431,6 +1443,7 @@ class Api:
                 cfg[k] = str(opts.get(k) or "").strip()[:120]
         if "profile_manual" in opts:
             cfg["profile_manual"] = bool(opts.get("profile_manual"))
+        _video_fit(cfg, opts)
         if voice:
             rec = [x for x in cfg.get("tts_recent", []) if x.get("id") != voice]
             rec.insert(0, {"id": voice, "service": tts})

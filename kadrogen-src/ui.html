@@ -123,6 +123,9 @@
   .crow { display:flex; justify-content:center; margin-top:14px; } .crow.hidden { display:none; }
   .crow textarea { max-width:640px; min-height:72px; font-size:14px; }
   .crow.vpw { flex-direction:column; align-items:center; gap:6px; } .crow.vpw .vph { color:var(--ink2); font-size:12px; max-width:640px; text-align:center; }
+  #vc_row { margin-top:10px; } #vc_row .lbl { white-space:nowrap; } #vc_row input[type=range] { width:220px; flex:none; }
+  #vc_row select { width:auto; flex:none; padding:7px 12px; font-size:12px; }
+  #screen2 .crow.vpw { margin-top:10px; } #screen2 #video_prompt { min-height:46px; height:46px; } #screen2 .crow.vpw .vph { font-size:11px; }
   .qrow select.qst { width:190px; flex:none; padding:4px 8px; font-size:12px; }
   .qbox .qh button.ghost.on { border-color:var(--acc2); color:var(--acc2); }
 
@@ -531,6 +534,8 @@
     </div>
     <label class="jdc pmrow" id="pm_row"><input type="checkbox" id="use_pm"><span id="pm_t"></span></label>
     <div class="crow hidden" id="custom_row"><textarea id="custom_style" spellcheck="false"></textarea></div>
+    <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
+      <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
@@ -750,9 +755,17 @@ function fillStyles() {
 }
 $('style_sel').addEventListener('change', () => { styleKey = $('style_sel').value; fillStyles(); pywebview.api.save_config({style: styleKey}); if (styleKey === 'custom') $('custom_style').focus(); });
 $('custom_style').addEventListener('change', () => pywebview.api.save_config({custom_style: customStyle()}));
+$('vzoom').addEventListener('input', drawVf);
+$('vzoom').addEventListener('change', () => pywebview.api.save_config({video_zoom_pct: +$('vzoom').value}));
+$('vanchor').addEventListener('change', () => pywebview.api.save_config({video_anchor: $('vanchor').value}));
 $('video_prompt').addEventListener('change', () => pywebview.api.save_config({video_prompt: $('video_prompt').value.trim()}));
 function drawVf() { const n = +$('vf').value; $('vf_row').classList.toggle('hidden', mode() === 'video');
   $('vp_row').classList.toggle('hidden', !(mode() !== 'images' || n > 0));
+  $('vc_row').classList.toggle('hidden', !(mode() !== 'images' || n > 0));
+  $('vc_lbl').textContent = pt('Увеличить клипы (убрать знак Veo)', 'Zoom clips (hide Veo mark)');
+  $('vc_val').textContent = `${$('vzoom').value}%`;
+  const an = $('vanchor').options; an[0].text = pt('прижать к верху', 'align top'); an[1].text = pt('по центру', 'center'); an[2].text = pt('прижать к низу', 'align bottom');
+  $('vanchor').style.visibility = +$('vzoom').value > 100 ? '' : 'hidden';
   if (typeof fillFg === 'function') fillFg();
   $('vp_lbl').textContent = pt('Промпт оживления', 'Animation prompt');
   $('video_prompt').placeholder = pt('Необязательно. Как оживлять кадры, например: slow cinematic push-in, subtle natural motion, chalk drawing stays still', 'Optional. How to animate frames, e.g.: slow cinematic push-in, subtle natural motion');
@@ -1258,7 +1271,7 @@ async function loadConfig(keepScreen) {
   $('vf').value = c.video_first || 0; drawVf();
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
-  STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; } fillStyles(); drawVf();
+  STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
   stt = c.stt_engine || (c.has_fastgen ? 'fastgen' : 'whisper'); llm = c.llm_engine || (c.has_fastgen ? 'fastgen' : 'openai'); tts = c.tts_service || 'voicegen';
   recent = c.tts_recent || [];
@@ -1504,7 +1517,7 @@ async function loadVoices() {
   renderVoiceList(r.voices.map(v => ({id: v.id, name: `${v.name}${v.lang ? ' · ' + v.lang : ''}${v.gender ? ' · ' + v.gender : ''}`})));
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
-function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual,
+function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),

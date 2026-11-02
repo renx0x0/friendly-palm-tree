@@ -2414,14 +2414,22 @@ def render_scene_clip(img_path, i, duration, out_path):
     return out_path
 
 
+VIDEO_ZOOM = 1.04      # увеличение оживлённых клипов: водяной знак Veo (внизу справа) уходит за край кадра
+VIDEO_ANCHOR = "top"   # к какому краю прижать увеличенный клип: top — срезается только низ (там знак), верх цел
+
+
 def render_video_clip(src_mp4, duration, out_path):
     """Подогнать сгенерированный клип под длительность сцены: 1920x1080, 25 к/с, без звука.
-    Если клип короче сцены — последний кадр держится до конца."""
+    Если клип короче сцены — последний кадр держится до конца. Клип увеличивается на VIDEO_ZOOM и прижимается
+    к краю VIDEO_ANCHOR — как «104 % и вверх» в CapCut; в том же проходе ffmpeg, лишней нагрузки нет."""
     if os.path.exists(out_path):
         return out_path
     duration = max(0.3, float(duration))  # как и для картинок: отрицательная длительность → ffmpeg «duration out of range»
     tmp = out_path + ".tmp.mp4"
-    vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS},"
+    z = max(1.0, min(1.3, float(VIDEO_ZOOM or 1)))
+    y = {"top": "0", "bottom": "ih-oh"}.get(VIDEO_ANCHOR, "(ih-oh)/2")
+    pre = f"crop=iw/{z:.4f}:ih/{z:.4f}:(iw-ow)/2:{y}," if z > 1.0 else ""
+    vf = (f"{pre}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS},"
           f"tpad=stop_mode=clone:stop_duration={duration + 1:.3f}")
     run_ffmpeg(["-i", src_mp4, "-vf", vf, "-t", f"{duration:.3f}", "-an",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", tmp])
@@ -3163,7 +3171,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
                video_first=0, hd=False, profile=None, voice_file=None):
     """profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию."""
-    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR
     HD_IMAGES = bool(hd)
     LAST_FAILURES.update({"images": 0, "videos": 0})
     progress = Progress(progress_cb)
@@ -3172,6 +3180,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     take_redo()
     cfg = load_config()
     VIDEO_PROMPT = " ".join(str(cfg.get("video_prompt") or "").split())
+    try:
+        VIDEO_ZOOM = max(100.0, min(130.0, float(cfg.get("video_zoom_pct", 104)))) / 100
+    except (TypeError, ValueError):
+        VIDEO_ZOOM = 1.04
+    VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:
