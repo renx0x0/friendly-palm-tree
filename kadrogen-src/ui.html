@@ -853,6 +853,7 @@ function showWait(w) {
   if (!w) { box.classList.remove('on'); waitLeft = null; clearInterval(waitTick); waitTick = null; return; }
   const k = w.kind === 'llm' ? 'llm' : 'fastgen';
   if (w.kind === 'retry') { $('w_title').textContent = pt('Пауза перед повтором', 'Pause before retry'); $('w_sub').textContent = w.why || ''; }
+  else if (w.kind === 'fastgen_busy') { $('w_title').textContent = pt('fast-gen занят', 'fast-gen is busy'); $('w_sub').textContent = pt('Сервис сейчас не принимает новые генерации. Кредиты есть — продолжу автоматически.', 'The service is not accepting new jobs right now. Credits are available — will continue automatically.'); }
   else { $('w_title').textContent = t('wait_' + k); $('w_sub').textContent = t('wait_' + k + '_sub'); }
   waitLeft = w.left; drawWait();
   if (!waitTick) waitTick = setInterval(() => { if (waitLeft !== null && waitLeft > 0) { waitLeft--; drawWait(); } }, 1000);

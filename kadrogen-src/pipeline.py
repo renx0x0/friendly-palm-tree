@@ -1156,6 +1156,8 @@ class RateGate:
         # свой подсчёт кредитов — скользящее окно в час, как у сервера. Раньше счётчик копился с начала задания
         # и на длинном ролике «упирался в лимит» после 2000 кредитов, хотя часы давно сменились
         self.spent = collections.deque()
+        self.window_end = 0.0      # когда у сервера начнётся новый час (window_start + 3600), если сервер это сообщает
+        self.busy = False          # последний отказ — «сервис занят», а не «кредиты кончились»
         self.refresh()
         self.sem = threading.Semaphore(self.threads)
 
@@ -1167,18 +1169,32 @@ class RateGate:
         if self.kind == "image":
             self.threads = max(1, min(10, int(lim.get("img_generation_threads_allowed") or 1)))
             self.hour_limit = int(lim.get("img_gen_per_hour_limit") or 0)
-            used = hourly.get("image_generation") or 0
-            if isinstance(used, dict):  # fast-gen отдаёт {"current_usage": N, "window_start": …}
-                used = used.get("current_usage") or 0
+            used = hourly.get("image_generation")
         else:
             self.threads = max(1, min(10, int(lim.get("video_generation_threads_allowed") or 1)))
             self.hour_limit = int(lim.get("video_gen_per_hour_limit") or 0)
-            used = hourly.get("video_generation") or 0
-            if isinstance(used, dict):  # fast-gen отдаёт {"current_usage": N, "window_start": …}
-                used = used.get("current_usage") or 0
-        if isinstance(used, (int, float)) and used > 0:
-            self.spent = collections.deque([(time.time(), int(used))])  # сервер сказал точно — верим ему
-        self.checked_at = time.time()
+            used = hourly.get("video_generation")
+        start = None
+        if isinstance(used, dict):  # fast-gen отдаёт {"current_usage": N, "window_start": …} — час у сервера фиксированный
+            start = used.get("window_start")
+            used = used.get("current_usage") or 0
+        used = used or 0
+        now = time.time()
+        try:
+            start = float(start) if start else None
+        except (TypeError, ValueError):
+            start = None
+        if start and start > now - 3600:
+            self.window_end = start + 3600
+        else:
+            if start:  # час сервера уже кончился — это расход прошлого часа, в новом ещё ничего не потрачено
+                used = 0
+            start, self.window_end = None, 0.0
+        if isinstance(used, (int, float)):
+            # сервер сказал точно — верим ему; запись «стареет» тогда же, когда у сервера кончается час
+            self.spent = collections.deque([(start or now, int(used))]) if used > 0 else collections.deque()
+        self.server_used = int(used) if isinstance(used, (int, float)) else None
+        self.checked_at = now
 
     @property
     def used(self):
@@ -1210,8 +1226,14 @@ class RateGate:
                         return
                 waiting_server = now < self.blocked_until or self.probe is not None
             if waiting_server:
-                self._say(progress, "fast-gen: часовой лимит кредитов исчерпан, жду, пока сервер освободит окно (продолжу автоматически)")
-                set_wait("fastgen", self.blocked_until if now < self.blocked_until else None)
+                if self.busy:
+                    self._say(progress, "fast-gen занят: сейчас не принимает новые генерации, кредиты есть — жду и продолжу автоматически")
+                    set_wait("fastgen_busy", self.blocked_until if now < self.blocked_until else None)
+                else:
+                    left = int((self.blocked_until - now) // 60) if now < self.blocked_until else 0
+                    self._say(progress, "fast-gen: часовой лимит кредитов исчерпан — жду новый час у сервера"
+                                        + (f" (~{left} мин)" if left else "") + ", продолжу автоматически")
+                    set_wait("fastgen", self.blocked_until if now < self.blocked_until else None)
                 for _ in range(10):
                     check_cancel()
                     time.sleep(1)
@@ -1226,6 +1248,7 @@ class RateGate:
             if self.probe is threading.current_thread():
                 self.probe = None
                 if ok:
+                    self.busy = False
                     self.spent = collections.deque([(time.time(), credits)])  # сервер снова принимает; точного остатка не знаем — следующий 429 поправит
             if not ok:
                 self.spent.append((time.time(), -credits))  # кредиты не списались
@@ -1247,12 +1270,32 @@ class RateGate:
                 except Exception:
                     pass
 
+    BUSY_WAIT = 20
+
     def server_limit_hit(self, progress):
-        """Сервер ответил «лимит»: стоп всем на PROBE_WAIT секунд, потом один пробный запрос."""
+        """Сервер отказал («лимит», «slots full», «too many»…). Сначала спрашиваем у него, сколько потрачено на самом деле:
+        кредиты есть — это «занят», короткая пауза; кредитов нет — ждём ровно до нового часа у сервера.
+        Потом идёт ОДИН пробный запрос, остальные ждут его результата."""
         with self.lock:
-            if self.hour_limit and self.used < self.hour_limit:
-                self.spent.append((time.time(), self.hour_limit - self.used))
-            self.blocked_until = max(self.blocked_until, time.time() + self.PROBE_WAIT)
+            now = time.time()
+            if now - self.checked_at > 15:
+                try:
+                    self.refresh()
+                except Exception:
+                    pass
+            room = self.hour_limit == 0 or (self.server_used is not None and self.server_used < self.hour_limit)
+            if room:
+                self.busy = True
+                until = now + self.BUSY_WAIT
+            else:
+                self.busy = False
+                until = self.window_end if self.window_end > now else now + self.PROBE_WAIT
+                until = min(max(until, now + 30), now + 3600)
+                if self.hour_limit and self.used < self.hour_limit:
+                    self.spent.append((now, self.hour_limit - self.used))
+            log(("fast-gen занят (кредиты есть: " + f"{self.server_used}/{self.hour_limit}" + f"), пауза {self.BUSY_WAIT} с") if room
+                else f"fast-gen: лимит {self.hour_limit} кредитов/час выбран, жду новый час у сервера ({int(until - now)} с)")
+            self.blocked_until = max(self.blocked_until, until) if not room else until
             self.probe = None
             self.after_block = True
 
