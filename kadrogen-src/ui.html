@@ -435,6 +435,13 @@
   #rec_dlg { position:fixed; inset:0; z-index:60; display:none; place-items:center; background:rgba(0,0,0,.55); }
   #rec_dlg.show { display:grid; } #rec_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:24px 28px; width:min(900px, calc(100% - 48px)); max-height:80vh; overflow-y:auto; }
   #rec_dlg h3 { margin:0 0 12px; font:600 16px/1.3 "Exo 2", sans-serif; } #rec_dlg .row { display:flex; justify-content:flex-end; margin-top:10px; }
+  #job_dlg { position:fixed; inset:0; z-index:61; display:none; place-items:center; background:rgba(0,0,0,.55); }
+  #job_dlg.show { display:grid; } #job_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:24px 28px; width:min(640px, calc(100% - 48px)); }
+  #job_dlg h3 { margin:0 0 6px; font:600 16px/1.3 "Exo 2", sans-serif; } #job_dlg .note { color:var(--ink2); font-size:13px; margin-bottom:14px; }
+  #job_dlg .jdg { display:grid; grid-template-columns:160px 1fr; gap:8px 12px; align-items:center; margin-bottom:12px; font-size:13px; color:var(--ink2); }
+  #job_dlg select { padding:8px 10px; font-size:13px; } .jdc { display:flex; align-items:center; gap:10px; font-size:13px; margin:6px 0; cursor:pointer; }
+  #job_dlg .row { display:flex; gap:10px; align-items:center; margin-top:16px; } #job_dlg button { padding:10px 16px; font-size:12px; }
+  .rjob .more { padding:7px 10px; letter-spacing:0; }
   /* окно «Готовая озвучка?» */
   #vo_dlg { position:fixed; inset:0; z-index:60; display:none; place-items:center; background:rgba(0,0,0,.55); }
   #vo_dlg.show { display:grid; }
@@ -460,6 +467,11 @@
 <div class="volbox" id="volbox"><div class="vwrap" title="Музыка"><input type="range" id="vol" min="0" max="100" value="50"></div><div class="nxt" id="nxt" title="Следующий трек"><svg viewBox="0 0 24 24"><path d="M5 5l9 7-9 7z"/><path d="M18 5v14"/></svg></div></div>
 <audio id="bgm" preload="auto"></audio>
 <div id="credit"></div>
+<div id="job_dlg"><div class="box"><h3 id="jd_t"></h3><div class="note" id="jd_info"></div>
+  <div class="jdg"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
+  <label class="jdc"><input type="checkbox" id="jd_rimg"><span id="jd_t_rimg"></span></label>
+  <label class="jdc"><input type="checkbox" id="jd_rvid"><span id="jd_t_rvid"></span></label>
+  <div class="row"><button class="danger" id="jd_del"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div></div></div>
 <div id="rec_dlg"><div class="box"><h3 id="rec_t"></h3><div id="rec_all"></div><div class="row"><button class="ghost" id="rec_close" onclick="$('rec_dlg').classList.remove('show')"></button></div></div></div>
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
   <button class="ghost" id="vo_cancel"></button><button class="ghost" id="vo_tts"></button><button class="primary" id="vo_file"></button>
@@ -883,7 +895,8 @@ function recentRow(r) {
   const st = r.status === 'running' ? `<span class="rs ok">${pt('делается сейчас', 'in progress')}</span>`
     : `<span class="rs${r.status === 'done' ? ' ok' : (r.status === 'error' ? ' bad' : '')}">${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''}${r.status === 'done' ? ' · ✓' : ''}</span>`;
   const btn = r.status === 'running' ? `<button class="ghost" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
-    : `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`;
+    : `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`
+      + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
   return `<div class="rjob"><span class="rt" title="${esc(r.title)}">${esc(r.title)}</span>${r.profile ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
 async function refreshRecent() {
@@ -896,13 +909,49 @@ function showAllRecent() {
   $('rec_t').textContent = pt('Недавние ролики', 'Recent videos'); $('rec_close').textContent = pt('Закрыть', 'Close');
   $('rec_all').innerHTML = RECENT.map(recentRow).join(''); $('rec_dlg').classList.add('show');
 }
-async function continueJob(id) {
+function jobMenu(id) {
+  const r = RECENT.find(x => x.id === id); if (!r) return;
   $('rec_dlg').classList.remove('show');
-  let r = await pywebview.api.continue_job(id);
+  const modeName = m => ({images: pt('только картинки', 'images only'), mixed: pt('50 на 50', '50/50'), video: pt('только видео', 'video only')})[m] || '';
+  const opt = (list, cur) => {
+    const name = op => op ? ((list || []).find(m => m.op === op) || {name: op}).name : pt('Авто', 'Auto');
+    return [['__keep__', `${pt('как в прошлый раз', 'as last time')} (${name(cur)})`], ['', pt('Авто (программа выбирает сама)', 'Auto')]]
+      .concat((list || []).map(m => [m.op, `${m.name}${m.credits ? ` · ${m.credits} ${pt('кред.', 'cr.')}` : ''}`]))
+      .map(([v, n]) => `<option value="${esc(v)}">${esc(n)}</option>`).join('');
+  };
+  $('jd_t').textContent = r.title;
+  $('jd_info').textContent = `${r.profile ? pt('Профиль', 'Profile') + ' «' + r.profile + '» · ' : ''}${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''} · ${ago(r.updated)}`;
+  $('jd_l_img').textContent = pt('Модель картинок', 'Image model'); $('jd_img').innerHTML = opt(FG_MODELS.image, r.fg_image_model);
+  $('jd_l_vid').textContent = pt('Модель видео', 'Video model'); $('jd_vid').innerHTML = opt(FG_MODELS.video, r.fg_video_model);
+  $('jd_l_mode').textContent = pt('Режим', 'Mode');
+  $('jd_mode').innerHTML = [['', `${pt('как в прошлый раз', 'as last time')}${r.mode ? ' (' + modeName(r.mode) + ')' : ''}`], ['images', modeName('images')], ['mixed', modeName('mixed')], ['video', modeName('video')]]
+    .map(([v, n]) => `<option value="${v}">${esc(n)}</option>`).join('');
+  $('jd_t_rimg').textContent = pt('Удалить картинки и нарисовать заново (промпты останутся)', 'Delete images and redraw (prompts are kept)');
+  $('jd_t_rvid').textContent = pt('Удалить оживление и оживить заново', 'Delete animations and animate again');
+  $('jd_rimg').checked = false; $('jd_rvid').checked = false;
+  $('jd_del').textContent = pt('Удалить ролик', 'Delete video'); $('jd_cancel').textContent = pt('Отмена', 'Cancel'); $('jd_go').textContent = pt('Перезапустить', 'Restart');
+  $('jd_cancel').onclick = () => $('job_dlg').classList.remove('show');
+  $('jd_go').onclick = () => {
+    const o = {fg_image_model: $('jd_img').value, fg_video_model: $('jd_vid').value, mode: $('jd_mode').value, reset_images: $('jd_rimg').checked, reset_videos: $('jd_rvid').checked};
+    if (o.reset_images && !confirm(pt(`Удалить ${r.images} картинок этого ролика и нарисовать заново? Это снова потратит кредиты.`, `Delete ${r.images} images and redraw? This spends credits again.`))) return;
+    $('job_dlg').classList.remove('show'); continueJob(id, o);
+  };
+  $('jd_del').onclick = async () => {
+    if (!confirm(pt(`Удалить ролик «${r.title}» целиком: картинки, промпты, озвучку? Готовое видео в папке output останется.`, `Delete “${r.title}” entirely? The finished video in output stays.`))) return;
+    const x = await pywebview.api.delete_job(id);
+    $('job_dlg').classList.remove('show');
+    toast(x.ok ? pt(`Ролик удалён, освобождено ${x.freed_mb} МБ`, `Deleted, freed ${x.freed_mb} MB`) : esc(x.error || ''), 6000);
+    refreshRecent(); refreshStore();
+  };
+  $('job_dlg').classList.add('show');
+}
+async function continueJob(id, o) {
+  $('rec_dlg').classList.remove('show');
+  let r = await pywebview.api.continue_job(id, null, o || null);
   if (r.need_audio) {
     toast(pt(`Выберите файл озвучки этого ролика (имя как у папки «${esc(r.expect)}»)`, `Pick this video's voice-over file (named like “${esc(r.expect)}”)`), 8000);
     const p = await pywebview.api.pick_file(); if (!p) return;
-    r = await pywebview.api.continue_job(id, p);
+    r = await pywebview.api.continue_job(id, p, o || null);
   }
   if (!r.ok) { toast(esc(r.error || ''), 9000); return; }
   $('result').classList.remove('show'); $('error').textContent = ''; $('p_err').textContent = ''; $('btn_cancel').disabled = false; shownPct = 0;

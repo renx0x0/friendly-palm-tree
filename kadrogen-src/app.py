@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p9"
+VERSION = "1.7.1-p10"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1788,7 +1788,8 @@ class Api:
             out.append({"id": n, "title": title[:80], "profile": (args.get("profile") if rec else prof) or prof or "",
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else rec.get("status", ""),
-                        "result": rec.get("result"), "known": bool(rec)})
+                        "result": rec.get("result"), "known": bool(rec), "mode": args.get("mode", ""),
+                        "fg_image_model": (rec.get("cfg") or {}).get("fg_image_model") or "", "fg_video_model": (rec.get("cfg") or {}).get("fg_video_model") or ""})
         out.sort(key=lambda x: -x["updated"])
         return out[:limit]
 
@@ -1804,9 +1805,11 @@ class Api:
                 pass
         return ""
 
-    def continue_job(self, job_id, audio=None):
+    def continue_job(self, job_id, audio=None, opts=None):
         """«Продолжить»: тот же ролик с теми же настройками; всё готовое возьмётся из задания.
-        Нужен файл озвучки, а он неизвестен (ролик из старой версии или файл переехал) → need_audio."""
+        Нужен файл озвучки, а он неизвестен (ролик из старой версии или файл переехал) → need_audio.
+        opts — перезапуск с изменениями: fg_image_model / fg_video_model ("__keep__" — как было), mode,
+        reset_images (картинки нарисовать заново), reset_videos (оживить заново). Промпты, распознавание и озвучка остаются."""
         global QUEUE_STOP
         name = os.path.basename(str(job_id or ""))
         root = os.path.join(data_dir(), "jobs")
@@ -1848,6 +1851,15 @@ class Api:
                 return {"ok": False, "need_audio": True, "expect": base}
         elif not (args.get("audio") and os.path.isfile(args["audio"])):
             return {"ok": False, "need_audio": True, "expect": base}
+        o = opts or {}
+        for k in ("fg_image_model", "fg_video_model"):
+            if k in o and o[k] != "__keep__":
+                cfg[k] = str(o[k] or "").strip()
+        if o.get("mode") in pipeline.MODES:
+            args["mode"] = o["mode"]
+        if o.get("reset_images") or o.get("reset_videos"):
+            freed = self._reset_job(d, images=bool(o.get("reset_images")), videos=True)
+            pipeline.log(f"перезапуск «{name}»: удалено {'картинки и ' if o.get('reset_images') else ''}оживление ({freed / 1e6:.0f} МБ)")
         cfg["profile"] = args.get("profile") or ""
         save_cfg(cfg)
         with LOCK:
@@ -1857,6 +1869,42 @@ class Api:
         QUEUE_STOP = False
         threading.Thread(target=job_chain, args=(args,), daemon=True).start()
         return {"ok": True, "mode": args.get("mode", "images")}
+
+    @staticmethod
+    def _reset_job(d, images=False, videos=True):
+        """Удалить из задания картинки и/или оживление (и всё, что из них собрано). Промпты и сцены остаются. → освобождено байт."""
+        names = ["clips", "clips_m", "groups", "nosubs.mp4"]
+        if videos:
+            names += ["videos", "videos.json"]
+        if images:
+            names += ["images", "images.json"]
+        freed = 0
+        for n in names:
+            p = os.path.join(d, n)
+            try:
+                if os.path.isdir(p):
+                    freed += pipeline.dir_size(p)
+                    shutil.rmtree(p, ignore_errors=True)
+                elif os.path.exists(p):
+                    freed += os.path.getsize(p)
+                    os.remove(p)
+            except OSError:
+                pass
+        return freed
+
+    def delete_job(self, job_id):
+        """«Удалить ролик»: папка задания целиком. Готовое видео в output не трогается."""
+        name = os.path.basename(str(job_id or ""))
+        d = os.path.join(data_dir(), "jobs", name)
+        if not name or not os.path.isdir(d):
+            return {"ok": False, "error": "Папка этого ролика не найдена."}
+        with LOCK:
+            if (STATE["running"] or STATE.get("queue_active")) and STATE.get("job_dir") and \
+                    os.path.normcase(STATE["job_dir"]) == os.path.normcase(d):
+                return {"ok": False, "error": "Этот ролик сейчас делается — сначала нажмите «Стоп»."}
+        freed = pipeline.dir_size(d)
+        shutil.rmtree(d, ignore_errors=True)
+        return {"ok": not os.path.isdir(d), "freed_mb": round(freed / 1048576), "error": None if not os.path.isdir(d) else "Не удалось удалить папку (открыта в другой программе?)."}
 
     def storage_info(self):
         out, jobs = os.path.join(data_dir(), "output"), os.path.join(data_dir(), "jobs")
