@@ -421,6 +421,7 @@
     .lrow { padding:12px 18px 12px 22px; } .lrow .ctl { height:44px; }
     #credit { bottom:10px; font-size:10px; }
   }
+  @media (max-width: 1500px) { .topbar { padding-right:300px; } }
   @media (max-width: 1200px) { .topbar { padding-right:250px; } .stepname { letter-spacing:.3em; } }
   @media (max-height: 620px) {
     .logo.big { font-size:32px; }
@@ -503,6 +504,30 @@
   .sform input[type=color] { width:38px; height:26px; padding:0; border:1px solid var(--line); background:none; cursor:pointer; flex:none; }
   .sform .hint2 { grid-column:1 / -1; font-size:12px; color:var(--ink2); margin-top:-2px; }
   @media (max-width: 900px) { #sub_dlg .sbody { grid-template-columns:1fr; overflow-y:auto; } }
+
+  /* ===== озвучка: готовый файл / озвучить программой ===== */
+  .vseg { display:flex; flex:none; } .vseg button { padding:10px 16px; font-size:11px; letter-spacing:.16em; background:transparent; color:var(--ink2); border:1px solid var(--line); }
+  .vseg button + button { border-left:none; } .vseg button.on { color:var(--acc2); border-color:var(--acc2); box-shadow:inset 0 0 0 1px var(--acc2); }
+  .vsum { flex:1; min-width:0; padding:0 14px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #tts_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.6); }
+  #tts_dlg.show { display:grid; }
+  #tts_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(980px, calc(100% - 40px)); max-height:88vh; overflow-y:auto; }
+  #tts_dlg h3 { margin:0 0 4px; font:600 16px/1.3 "Exo 2", sans-serif; } #tts_dlg .note2 { color:var(--ink2); font-size:13px; margin-bottom:12px; }
+  #tts_dlg .row { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; } #tts_dlg .row button { padding:10px 18px; font-size:12px; }
+
+  /* ===== просмотр кадра в окне ===== */
+  #lb { position:fixed; inset:0; z-index:70; display:none; background:rgba(4,6,10,.92); }
+  #lb.show { display:flex; flex-direction:column; }
+  #lb .lbtop { display:flex; align-items:center; gap:10px; padding:14px 20px; color:#e8edf3; font-size:13px; }
+  #lb .lbtop b { font:600 14px/1 "Exo 2", sans-serif; letter-spacing:.2em; } #lb .lbtop .sp { flex:1; }
+  #lb .lbtop button { padding:8px 14px; font-size:11px; letter-spacing:.16em; }
+  #lb .lbmid { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; position:relative; padding:0 70px; }
+  #lb .lbmid img, #lb .lbmid video { max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 20px 60px rgba(0,0,0,.6); background:#000; }
+  #lb .nav2 { position:absolute; top:50%; transform:translateY(-50%); width:52px; height:52px; padding:0; font-size:26px; line-height:50px; background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
+  #lb .nav2:hover { background:var(--acc2); border-color:var(--acc2); } #lb .nav2.l { left:12px; } #lb .nav2.r { right:12px; } #lb .nav2:disabled { opacity:.25; cursor:default; }
+  #lb .lbcap { padding:12px 24px 18px; color:#c9d2dc; font-size:14px; line-height:1.45; max-height:22vh; overflow-y:auto; }
+  #lb .lbcap .pr { color:#7f8b98; font-size:12px; margin-top:6px; }
+  #lb .lbmsg { color:#c9d2dc; font-size:14px; }
 </style>
 </head>
 <body>
@@ -539,6 +564,12 @@
   <div class="sbody"><div><div id="sub_pv"><img id="sub_img" alt=""><span class="busy" id="sub_busy"></span></div><div id="sub_err"></div><div class="spres" id="sub_pres"></div></div>
   <div class="sform" id="sub_form"></div></div>
   <div class="row"><span class="note" id="sd_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="sd_cancel"></button><button class="primary" id="sd_save"></button></div></div></div>
+<div id="tts_dlg"><div class="box"><h3 id="tts_t"></h3><div class="note2" id="tts_n"></div><div class="alist-in" id="tts_body"></div>
+  <div class="row"><button class="primary" id="tts_ok" onclick="closeTts()"></button></div></div></div>
+<div id="lb"><div class="lbtop"><b id="lb_n"></b><span id="lb_t"></span><span class="sp"></span>
+  <button class="ghost" id="lb_sw"></button><button class="ghost" id="lb_ext"></button><button class="primary" id="lb_x" onclick="closeLB()"></button></div>
+  <div class="lbmid"><button class="nav2 l" id="lb_prev">&#8249;</button><div id="lb_media" style="display:contents"></div><button class="nav2 r" id="lb_next">&#8250;</button></div>
+  <div class="lbcap" id="lb_cap"></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -598,7 +629,7 @@
       <h1 class="optq" data-i18n="opt_q"></h1>
       <div class="grp" data-i18n="g_main"></div>
       <label class="opt" id="rw" data-tipkey="tip_rw"><input type="checkbox" id="use_rw"><svg viewBox="0 0 64 64"><path d="M12 52V12h26l10 10v30z"/><path d="M38 12v10h10M20 30h22M20 38h22M20 46h14"/><path d="M44 44l10-10 4 4-10 10h-4z"/></svg><span class="t" data-i18n="o_rw"></span><span class="dot"></span></label>
-      <label class="opt" id="mk_tts" data-tipkey="tip_tts"><input type="checkbox" id="use_tts"><svg viewBox="0 0 64 64"><rect x="24" y="8" width="16" height="30" rx="8"/><path d="M14 30c0 10 8 18 18 18s18-8 18-18M32 48v10M22 58h20"/></svg><span class="t" data-i18n="o_tts"></span><span class="dot"></span></label>
+      <label class="opt" id="mk_tts" data-tipkey="tip_tts" style="display:none"><input type="checkbox" id="use_tts"><svg viewBox="0 0 64 64"><rect x="24" y="8" width="16" height="30" rx="8"/><path d="M14 30c0 10 8 18 18 18s18-8 18-18M32 48v10M22 58h20"/></svg><span class="t" data-i18n="o_tts"></span><span class="dot"></span></label>
       <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="motion" data-tipkey="tip_motion"><input type="checkbox" id="use_motion"><svg viewBox="0 0 64 64"><path d="M8 40c8-20 16-20 24 0s16 20 24 0"/><path d="M8 24c8-12 16-12 24 0s16 12 24 0"/></svg><span class="t" data-i18n="o_motion"></span><span class="dot"></span></label>
       <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
@@ -882,7 +913,7 @@ async function startAll() {
   const o = opts();
   if (!rwOn() && source === 'script' && !o.script.trim()) { $('s_prep').textContent = t('err_script'); return; }
   if (!rwOn() && source !== 'script' && !audioPath) { $('s_prep').textContent = t('err_audio'); return; }
-  renderReview(rwOn() ? '' : (source === 'script' ? o.script : null));
+  renderReview(rwOn() ? '' : (o.source === 'script' ? o.script : null));
   if (rwOn()) {
     const r = await pywebview.api.rewrite(o);
     if (!r.ok) { $('s_prep').textContent = r.error; return; }
@@ -1132,15 +1163,10 @@ async function startFromReview() {
     buildStages(mode()); buildFrames(0); go(6); poll(); return;
   }
   if ($('rv_script_panel').style.display !== 'none') { o.script = $('rv_script').value; o.source = 'script'; o.rewrite.on = false; if (!o.script.trim()) { $('s_prep2').textContent = t('err_script'); return; } }
-  if (o.source === 'script' && !o.rewrite.on) {
-    const v = await askVoice();
-    if (v === null) return;
-    if (v !== 'tts') {
-      o.voice_file = v;
-      readyVoice = true;
-      try { await start(o); } finally { readyVoice = false; }
-      return;
-    }
+  if (o.voice_file) {
+    readyVoice = true;
+    try { await start(o); } finally { readyVoice = false; }
+    return;
   }
   await start(o);
 }
@@ -1432,16 +1458,24 @@ function renderAccess() {
     const rk = (rwEngine === 'fastgen' && fg) ? `<span class="note">${t('same_key')}</span>` : keyIn('k_rw', rwEngine, 0, rwKeys[rwEngine] || '', RW_PH[rwEngine]) + eye('k_rw') + chk(rwEngine, 0, 's_rw');
     H.push(row(t('rw_llm'), RW_LINKS[rwEngine], sel('rw_eng', [['fastgen','fast-gen'],['openai','ChatGPT'],['anthropic','Claude'],['gemini','Gemini']], rwEngine) + rk, 's_rw'));
   }
+  // озвучка: либо готовый файл, либо озвучить программой (сервис, ключ и голос — в отдельном окне)
+  if (!rwOn()) H.push(row(pt('Озвучка', 'Voice-over'), '', `<div class="vseg"><button type="button" class="${source !== 'script' ? 'on' : ''}" onclick="syncAll(); setSource('mp3')">${pt('Готовый файл', 'Ready file')}</button>`
+    + `<button type="button" class="${source === 'script' ? 'on' : ''}" onclick="syncAll(); setSource('script')">${pt('Озвучить программой', 'Synthesize')}</button></div>`
+    + `<span class="note">${source === 'script' ? pt('голос и ключ — кнопкой «Настроить голос» ниже', 'voice and key — “Voice settings” below') : pt('озвучка уже записана (mp3, wav…) — программа её не трогает', 'you already have the audio file')}</span>`));
+  const TH = [];
   if (source === 'script') {
     const ttsSel = sel('tts_sel', [['edge', t('tts_edge')],['fastgen','fast-gen · Gemini'],['royal','royaltechno · ElevenLabs'],['voicegen','VoiceGen'],['voicer','Voicer'],['lumean','Lumean']], tts);
     const hasRoyal = (keyRows.royal || []).some(r => r && r.value);
     const ttsCtl = tts === 'edge' ? `<span class="note">${t('tts_edge_note')}</span>` : tts === 'fastgen' ? `<span class="note">${fg ? t('tts_fg_note') : t('tts_fg_nokey')}</span>` : tts === 'royal' ? `<span class="note">${hasRoyal ? t('tts_royal_note') : t('tts_royal_nokey')}</span>` : keyIn('k_tts', tts, 0, ttsKeys[tts] || '', TTS_PH[tts]) + eye('k_tts');
-    H.push(row(t('ttskey'), LINKS[tts] || SVC_LINKS[tts] || '', ttsSel + ttsCtl + chk(tts, 0, 's_tts'), 's_tts'));
-    H.push(row(t('voiceid'), 'https://elevenlabs.io/voice-library', `<input type="text" id="tts_voice" list="voice_list" value="${esc(F.voice)}" placeholder="${esc(t('ph_voice'))}" spellcheck="false" autocomplete="off"><button class="ghost" onclick="loadVoices()">${t('list')}</button>`, 's_voice'));
+    TH.push(row(t('ttskey'), LINKS[tts] || SVC_LINKS[tts] || '', ttsSel + ttsCtl + chk(tts, 0, 's_tts'), 's_tts'));
+    TH.push(row(t('voiceid'), 'https://elevenlabs.io/voice-library', `<input type="text" id="tts_voice" list="voice_list" value="${esc(F.voice)}" placeholder="${esc(t('ph_voice'))}" spellcheck="false" autocomplete="off"><button class="ghost" onclick="loadVoices()">${t('list')}</button>`, 's_voice'));
+    H.push(row(pt('Голос', 'Voice'), '', `<span class="vsum" id="vsum">${esc(voiceSummary())}</span><button class="ghost" onclick="openTts()">${pt('Настроить голос', 'Voice settings')}</button>`, 's_vsum'));
     if (!rwOn()) H.push(row(t('script'), '', `<textarea id="script" spellcheck="false" placeholder="${esc(t('ph_script'))}">${esc(F.script)}</textarea>`));
   } else {
     H.push(row(t('file_lbl'), '', `<input type="text" id="file_name" readonly value="${esc(audioPath)}" placeholder="${esc(t('drop_hint'))}"><button onclick="pick()">${t('pick')}</button>`));
+    H.push(row(pt('Сценарий <small>(необязательно)</small>', 'Script <small>(optional)</small>'), '', `<textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it and parts/prompts follow it exactly. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea>`));
   }
+  $('tts_body').innerHTML = TH.join('');
   if (!rwOn()) H.push(promptsRows());
   H.push(queueHtml());
   $('dropzone').innerHTML = `<div class="alist-in">${H.join('')}</div>`;
@@ -1480,17 +1514,17 @@ async function queueAdd() {
   syncAll();
   if (!formHasContent()) { $('s_prep').textContent = t('q_need'); return false; }
   const o = opts();
-  const item = rwOn() ? {source: 'rewrite', rewrite: o.rewrite, voice: F.voice, tts} : source === 'script' ? {source: 'script', script: F.script, voice: F.voice, tts} : {source: 'mp3', audio: audioPath, voice: F.voice, tts};
+  const item = rwOn() ? {source: 'rewrite', rewrite: o.rewrite, voice: F.voice, tts} : o.voice_file ? {source: 'script', script: F.script, voice_file: o.voice_file, voice: F.voice, tts} : source === 'script' ? {source: 'script', script: F.script, voice: F.voice, tts} : {source: 'mp3', audio: audioPath, voice: F.voice, tts};
   const r = await pywebview.api.queue_add(item);
   if (!r.ok) { $('s_prep').textContent = r.error; return false; }
   queueItems = r.items; $('s_prep').textContent = '';
   // форма освобождается под следующее задание
-  if (rwOn()) { if (rwSrc === 'youtube') F.rwUrl = ''; else F.rwText = ''; } else if (source === 'script') F.script = ''; else audioPath = '';
+  if (rwOn()) { if (rwSrc === 'youtube') F.rwUrl = ''; else F.rwText = ''; } else if (source === 'script') F.script = ''; else { audioPath = ''; F.script = ''; }
   renderAccess(); toast(t('q_added')); return true;
 }
 function bindAccess() {
   const on = (id, ev, fn) => { const e = $(id); if (e) e.addEventListener(ev, fn); };
-  document.querySelectorAll('#dropzone input.key').forEach(inp => inp.addEventListener('change', () => {
+  document.querySelectorAll('#dropzone input.key, #tts_body input.key').forEach(inp => inp.addEventListener('change', () => {
     const k = inp.dataset.k, v = inp.value.trim();
     if (IMG.includes(k)) { keyRows[k][+inp.dataset.i].value = v; saveKeys(); return; }
     if (TTS_SVCS.includes(k)) ttsKeys[k] = v; else if (inp.id === 'k_rw') rwKeys[k] = v; else single[k] = v;
@@ -1514,7 +1548,7 @@ function bindAccess() {
 }
 function syncF() { if ($('script')) F.script = $('script').value; if ($('rw_url')) F.rwUrl = $('rw_url').value.trim(); if ($('rw_text')) F.rwText = $('rw_text').value; if ($('rw_words')) F.rwWords = $('rw_words').value; if ($('rw_lang')) F.rwLang = $('rw_lang').value.trim(); if ($('tts_voice')) F.voice = $('tts_voice').value.trim(); }
 function syncRows() {
-  document.querySelectorAll('#dropzone input.key').forEach(inp => { const k = inp.dataset.k, v = inp.value.trim();
+  document.querySelectorAll('#dropzone input.key, #tts_body input.key').forEach(inp => { const k = inp.dataset.k, v = inp.value.trim();
     if (IMG.includes(k)) keyRows[k][+inp.dataset.i].value = v; else if (TTS_SVCS.includes(k)) ttsKeys[k] = v; else if (inp.id === 'k_rw') rwKeys[k] = v; else single[k] = v; });
 }
 function syncAll() { syncRows(); syncF(); }
@@ -1575,7 +1609,7 @@ async function saveKeys() {
   for (const k of ['openai','anthropic','gemini','assemblyai','openrouter']) single[k] = c['has_' + k] ? c[k] : '';
   for (const k of TTS_SVCS) if (c['has_' + k]) ttsKeys[k] = c[k];
   for (const k of ['fastgen','openai','anthropic','gemini']) rwKeys[k] = c['has_' + k] ? (k === 'fastgen' ? (c.keys.fastgen[0] || '') : c[k]) : '';
-  if (cur === 4 && !(document.activeElement && document.activeElement.closest('#dropzone'))) renderAccess();
+  if (cur === 4 && !$('tts_dlg').classList.contains('show') && !(document.activeElement && document.activeElement.closest('#dropzone'))) renderAccess();
 }
 function renderVoiceList(extra) {
   if (!$('voice_list')) return;
@@ -1600,7 +1634,8 @@ async function loadVoices() {
   renderVoiceList(r.voices.map(v => ({id: v.id, name: `${v.name}${v.lang ? ' · ' + v.lang : ''}${v.gender ? ' · ' + v.gender : ''}`})));
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
-function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
+function opts() { syncAll(); const o = optsRaw(); if (o.source !== 'script' && !o.rewrite.on && (o.script || '').trim() && o.audio) { o.source = 'script'; o.voice_file = o.audio; } return o; }
+function optsRaw() { return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),
@@ -1670,7 +1705,7 @@ async function moreFrames() {
     const g = await pywebview.api.job_frames(FR.id, FR.shown, 24);
     if (!g.ok) { $('fr_info').textContent = g.error || ''; return; }
     FR.total = g.total;
-    $('fr_info').textContent = `${pt('картинки', 'images')} ${g.images}/${g.total}${g.videos ? ` · ${pt('видео', 'videos')} ${g.videos}` : ''} · ${pt('нажмите на кадр, чтобы открыть его; ▶ — оживлённый', 'click a frame to open it; ▶ — animated')}`;
+    $('fr_info').textContent = `${pt('картинки', 'images')} ${g.images}/${g.total}${g.videos ? ` · ${pt('видео', 'videos')} ${g.videos}` : ''} · ${pt('нажмите на кадр — посмотреть здесь же, стрелки ← → листают; ▶ — оживлённый', 'click a frame to view it here, ← → to flip; ▶ — animated')}`;
     $('fr_vids').style.display = g.videos ? '' : 'none';
     if (g.result) { $('fr_res').style.display = ''; $('fr_res').onclick = () => pywebview.api.open_path(g.result); }
     const grid = $('fr_grid');
@@ -1681,7 +1716,7 @@ async function moreFrames() {
       d.title = [it.text, it.prompt].filter(Boolean).join('\n\n');
       d.innerHTML = it.img ? `<img src="${it.img}" loading="lazy"><span class="n">${num}</span>${it.video ? '<span class="v">▶ ' + pt('ВИДЕО', 'VIDEO') + '</span><span class="im">' + pt('картинка', 'image') + '</span>' : ''}`
         : (it.video ? `<span>▶ ${num}</span>` : `<span>${num} · ${pt('нет', 'none')}</span>`);
-      if (it.img || it.video) d.onclick = e => pywebview.api.open_frame(FR.id, it.i, e.target.classList.contains('im') ? 'image' : 'auto');
+      if (it.img || it.video) d.onclick = e => openLB(FR.id, it.i, FR.total, e.target.classList.contains('im') ? 'image' : 'auto');
       grid.appendChild(d);
     });
     FR.shown += g.items.length;
@@ -1694,7 +1729,7 @@ $('fr_grid').addEventListener('scroll', e => { const g = e.target; if (FR.shown 
 $('frames').addEventListener('click', e => {
   if (e.target.closest('.redo')) return;
   const d = e.target.closest('.frame'); if (!d || !d.querySelector('img')) return;
-  pywebview.api.open_frame(null, parseInt(d.id.slice(2), 10), 'auto');
+  openLB(null, parseInt(d.id.slice(2), 10), total, 'auto');
 });
 
 // ===== вид субтитров =====
@@ -1794,6 +1829,69 @@ async function openSubs() {
 function subBtnLabel() { $('sub_cfg_btn').textContent = pt('Вид ›', 'Style ›'); }
 $('sub_cfg_btn').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSubs(); });
 subBtnLabel();
+
+// ===== окно «Настроить голос» =====
+const TTS_NAMES = {edge: 'Edge · бесплатно', fastgen: 'fast-gen · Gemini', royal: 'royaltechno · ElevenLabs', voicegen: 'VoiceGen', voicer: 'Voicer', lumean: 'Lumean'};
+function voiceSummary() {
+  const v = (F.voice || '').trim();
+  const nm = v ? ((typeof voiceNames !== 'undefined' && voiceNames[v]) || v) : pt('голос по умолчанию', 'default voice');
+  return `${TTS_NAMES[tts] || tts} · ${nm}`;
+}
+function openTts() {
+  syncAll();
+  $('tts_t').textContent = pt('Настроить голос', 'Voice settings');
+  $('tts_n').textContent = pt('Сервис озвучки, его ключ и ID голоса. Кнопка «Список» подтянет голоса с сервиса.', 'TTS service, its key and voice ID. “List” loads the voices from the service.');
+  $('tts_ok').textContent = pt('Готово', 'Done');
+  $('tts_dlg').classList.add('show');
+}
+async function closeTts() {
+  syncAll(); await saveKeys();
+  $('tts_dlg').classList.remove('show');
+  renderAccess();
+}
+
+// ===== просмотр кадра прямо в окне: картинка или оживлённое видео, ← → листают, Esc закрывает =====
+let LB = {job: null, i: 0, total: 0, kind: 'auto', seq: 0, info: null};
+async function openLB(job, i, total, kind) {
+  LB = {job, i, total: total || 0, kind: kind || 'auto', seq: LB.seq + 1, info: null};
+  $('lb_x').textContent = pt('Закрыть', 'Close'); $('lb_ext').textContent = pt('Открыть в плеере', 'Open externally');
+  $('lb').classList.add('show');
+  await showLB();
+}
+function closeLB() { $('lb').classList.remove('show'); $('lb_media').innerHTML = ''; }
+async function showLB() {
+  const seq = ++LB.seq, i = LB.i;
+  $('lb_n').textContent = String(i + 1).padStart(2, '0') + (LB.total ? ' / ' + LB.total : '');
+  $('lb_media').innerHTML = `<span class="lbmsg">${pt('загружаю…', 'loading…')}</span>`;
+  $('lb_prev').disabled = i <= 0; $('lb_next').disabled = LB.total ? i >= LB.total - 1 : false;
+  const m = await pywebview.api.frame_media(LB.job, i);
+  if (seq !== LB.seq) return;
+  LB.info = m;
+  if (!m.ok) { $('lb_media').innerHTML = `<span class="lbmsg">${esc(m.error || '')}</span>`; return; }
+  if (m.total && !LB.total) { LB.total = m.total; $('lb_n').textContent = String(i + 1).padStart(2, '0') + ' / ' + LB.total; $('lb_next').disabled = i >= LB.total - 1; }
+  $('lb_t').textContent = m.end ? `${fmtT(m.start)} – ${fmtT(m.end)}` : '';
+  $('lb_cap').innerHTML = (m.text ? esc(m.text) : '') + (m.prompt ? `<div class="pr">${esc(m.prompt)}</div>` : '');
+  const wantVideo = m.video && LB.kind !== 'image';
+  $('lb_sw').style.display = m.video && m.img ? '' : 'none';
+  $('lb_sw').textContent = wantVideo ? pt('Показать картинку', 'Show image') : pt('Показать видео ▶', 'Show video ▶');
+  $('lb_sw').onclick = () => { LB.kind = wantVideo ? 'image' : 'video'; showLB(); };
+  $('lb_ext').onclick = () => pywebview.api.open_frame(LB.job, i, wantVideo ? 'video' : 'image');
+  if (wantVideo) {
+    if (m.img) $('lb_media').innerHTML = `<img src="${m.img}">`;
+    const v = await pywebview.api.frame_video(LB.job, i);
+    if (seq !== LB.seq) return;
+    if (v.ok) $('lb_media').innerHTML = `<video src="${v.video}" controls autoplay loop playsinline></video>`;
+    else toast(esc(v.error || ''), 4000);
+  } else if (m.img) $('lb_media').innerHTML = `<img src="${m.img}">`;
+  else $('lb_media').innerHTML = `<span class="lbmsg">${pt('Этот кадр ещё не нарисован.', 'This frame is not drawn yet.')}</span>`;
+}
+function fmtT(x) { x = Math.max(0, x || 0); const m = Math.floor(x / 60), s = Math.floor(x % 60); return `${m}:${String(s).padStart(2, '0')}`; }
+function stepLB(d) { const n = LB.i + d; if (n < 0 || (LB.total && n >= LB.total)) return; LB.i = n; LB.kind = 'auto'; showLB(); }
+$('lb_prev').onclick = () => stepLB(-1); $('lb_next').onclick = () => stepLB(1);
+document.addEventListener('keydown', e => {
+  if (!$('lb').classList.contains('show')) return;
+  if (e.key === 'ArrowLeft') { stepLB(-1); e.preventDefault(); } else if (e.key === 'ArrowRight') { stepLB(1); e.preventDefault(); } else if (e.key === 'Escape') closeLB();
+});
 </script>
 </body>
 </html>

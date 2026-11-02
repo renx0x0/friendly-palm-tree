@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p14"
+VERSION = "1.7.1-p15"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1521,7 +1521,8 @@ class Api:
     def queue_add(self, item):
         src = (item or {}).get("source") or "mp3"
         opts = {"source": "script" if src == "script" else "mp3", "script": item.get("script") or "", "audio": item.get("audio") or "",
-                "rewrite": {**(item.get("rewrite") or {}), "on": src == "rewrite"}, "tts": item.get("tts")}
+                "rewrite": {**(item.get("rewrite") or {}), "on": src == "rewrite"}, "tts": item.get("tts"),
+                "voice_file": (item.get("voice_file") or "").strip().strip('"') if src == "script" else ""}
         err = self._validate_source(opts)
         if err:
             return {"ok": False, "error": err}
@@ -1535,6 +1536,7 @@ class Api:
         entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "source": src, "script": (item.get("script") or "").strip() or None,
                  "audio": (item.get("audio") or "").strip().strip('"') or None,
                  "rewrite": self._rewrite_opts(opts) if src == "rewrite" else None,
+                 "voice_file": opts["voice_file"] or None,
                  "voice": (item.get("voice") or "").strip(), "style": style_key(item.get("style"), ""), "status": "queued", "result": None, "error": None}
         with LOCK:
             QUEUE.append(entry)
@@ -1879,7 +1881,7 @@ class Api:
 
     def open_frame(self, job_id, i, kind="auto"):
         """Открыть кадр в обычном просмотрщике: видео (если оживлён) или картинку."""
-        d = self._job_path(job_id) if job_id else (STATE.get("job_dir") or pipeline.LAST_JOB_DIR)
+        d = self._frame_dir(job_id)
         if not d:
             return False
         i = int(i)
@@ -1889,6 +1891,51 @@ class Api:
                 os.startfile(p)
                 return True
         return False
+
+    def _frame_dir(self, job_id):
+        if job_id:
+            return self._job_path(job_id)
+        with LOCK:
+            return STATE.get("job_dir") or pipeline.LAST_JOB_DIR
+
+    def frame_media(self, job_id, i):
+        """Просмотр кадра в окне: картинка покрупнее, есть ли видео, текст сцены и промпт."""
+        import base64, io
+        d = self._frame_dir(job_id)
+        if not d:
+            return {"ok": False, "error": "Папка ролика не найдена."}
+        i = int(i)
+        img = os.path.join(d, "images", f"{i:04d}.png")
+        vid = os.path.join(d, "videos", f"{i:04d}.mp4")
+        scenes = pipeline.read_json(os.path.join(d, "scenes.json"), []) or []
+        sc = scenes[i] if 0 <= i < len(scenes) and isinstance(scenes[i], dict) else {}
+        url = None
+        if os.path.exists(img):
+            try:
+                from PIL import Image
+                im = Image.open(img).convert("RGB")
+                im.thumbnail((1920, 1920))
+                buf = io.BytesIO()
+                im.save(buf, "JPEG", quality=88)
+                url = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+            except Exception:
+                url = None
+        return {"ok": True, "i": i, "img": url, "video": os.path.exists(vid), "total": len(scenes),
+                "video_mb": round(os.path.getsize(vid) / 1048576, 1) if os.path.exists(vid) else 0,
+                "text": str(sc.get("text") or ""), "prompt": str(sc.get("raw_prompt") or sc.get("prompt") or ""),
+                "start": round(float(sc.get("start", 0) or 0), 1), "end": round(float(sc.get("end", 0) or 0), 1)}
+
+    def frame_video(self, job_id, i):
+        """Оживлённый клип целиком для плеера в окне (до 40 МБ; больше — открыть в обычном плеере)."""
+        import base64
+        d = self._frame_dir(job_id)
+        p = os.path.join(d, "videos", f"{int(i):04d}.mp4") if d else ""
+        if not p or not os.path.exists(p):
+            return {"ok": False, "error": "Видео нет."}
+        if os.path.getsize(p) > 40 * 1048576:
+            return {"ok": False, "big": True, "error": "Видео большое — откройте его в плеере."}
+        with open(p, "rb") as f:
+            return {"ok": True, "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
 
     def open_job_folder(self, job_id, sub=""):
         d = self._job_path(job_id)
