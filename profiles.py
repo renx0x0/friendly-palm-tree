@@ -20,7 +20,6 @@ import os
 import re
 import threading
 import time
-import unicodedata
 import concurrent.futures as cf
 
 import requests
@@ -245,8 +244,8 @@ def parse_reply(text):
 
 
 def _norm_letters(s):
-    s = unicodedata.normalize("NFKD", (s or "").lower())
-    return "".join(ch for ch in s if ch.isalnum())
+    """Только буквы и цифры в нижнем регистре: так сравниваются сценарий, SYNC и распознанные слова."""
+    return "".join(ch for ch in (s or "").lower() if ch.isalnum())
 
 
 def sync_ok(sync, part_text):
