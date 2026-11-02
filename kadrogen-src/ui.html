@@ -460,6 +460,49 @@
   #vo_dlg h3 { margin:0 0 10px; font:600 18px/1.3 "Exo 2", sans-serif; }
   #vo_dlg p { margin:0 0 22px; color:var(--ink2); }
   #vo_dlg .row { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
+
+  /* ===== кнопка «Главная» ===== */
+  .homeb { display:inline-flex; align-items:center; gap:8px; margin-left:18px; padding:7px 14px; font-size:11px; letter-spacing:.18em; vertical-align:middle; }
+  .homeb svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .topbar .logo { cursor:pointer; }
+  .tleft { display:flex; align-items:center; }
+  /* ===== кадры ролика ===== */
+  #fr_dlg, #sub_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.6); }
+  #fr_dlg.show, #sub_dlg.show { display:grid; }
+  #fr_dlg .box, #sub_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(1180px, calc(100% - 40px)); max-height:88vh; display:flex; flex-direction:column; }
+  #fr_dlg h3, #sub_dlg h3 { margin:0 0 4px; font:600 16px/1.3 "Exo 2", sans-serif; }
+  #fr_dlg .note { color:var(--ink2); font-size:13px; margin-bottom:12px; }
+  #fr_grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:8px; overflow-y:auto; min-height:120px; padding-right:4px; }
+  .gfr { position:relative; aspect-ratio:16 / 9; background:var(--line2); border:1px solid var(--line2); cursor:pointer; overflow:hidden; }
+  .gfr img { width:100%; height:100%; object-fit:cover; display:block; transition:.2s; }
+  .gfr:hover { border-color:var(--acc2); } .gfr:hover img { transform:scale(1.04); }
+  .gfr .n { position:absolute; left:6px; bottom:5px; font:600 10px/1 "Exo 2", sans-serif; letter-spacing:.2em; color:#fff; text-shadow:0 1px 6px #000; }
+  .gfr .v { position:absolute; right:6px; top:5px; font:700 10px/1 "Exo 2", sans-serif; letter-spacing:.14em; color:#fff; background:var(--acc2); padding:4px 6px; }
+  .gfr .im { position:absolute; right:6px; bottom:4px; font:600 10px/1 "Exo 2", sans-serif; color:#fff; background:rgba(0,0,0,.55); padding:4px 6px; display:none; }
+  .gfr.hasv:hover .im { display:block; }
+  .gfr.empty { cursor:default; display:grid; place-items:center; color:var(--ink2); font-size:11px; letter-spacing:.2em; }
+  #fr_dlg .row, #sub_dlg .row { display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  #fr_dlg button, #sub_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
+  .rjob .fr { padding:7px 10px; }
+  /* ===== вид субтитров ===== */
+  .opt .subcfg { padding:7px 12px; font-size:11px; letter-spacing:.16em; position:relative; z-index:2; }
+  #sub_dlg .sbody { flex:1 1 auto; display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(300px, 1fr); gap:20px; overflow:hidden; min-height:0; }
+  #sub_pv { position:relative; aspect-ratio:16 / 9; background:#22262c; border:1px solid var(--line); }
+  #sub_pv img { width:100%; height:100%; object-fit:contain; display:block; }
+  #sub_pv .busy { position:absolute; right:10px; top:8px; font-size:11px; letter-spacing:.2em; color:#fff; background:rgba(0,0,0,.5); padding:4px 8px; display:none; }
+  #sub_pv.loading .busy { display:block; }
+  #sub_err { color:var(--err); font-size:12px; margin-top:6px; min-height:16px; }
+  .spres { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .spres button { padding:7px 10px; font-size:11px; letter-spacing:.08em; }
+  .spres button.on { border-color:var(--acc2); color:var(--acc2); }
+  .sform { overflow-y:auto; padding-right:6px; display:grid; grid-template-columns:130px 1fr; gap:8px 10px; align-items:center; font-size:13px; color:var(--ink2); align-content:start; }
+  .sform .sec2 { grid-column:1 / -1; font:600 11px/1 "Exo 2", sans-serif; letter-spacing:.24em; text-transform:uppercase; color:var(--ink); margin-top:8px; }
+  .sform select, .sform input[type=number] { padding:6px 8px; font-size:13px; width:100%; box-sizing:border-box; }
+  .sform .ln { display:flex; align-items:center; gap:8px; } .sform .ln input[type=range] { flex:1; min-width:0; }
+  .sform .ln .vv { width:38px; text-align:right; color:var(--ink); font-variant-numeric:tabular-nums; }
+  .sform input[type=color] { width:38px; height:26px; padding:0; border:1px solid var(--line); background:none; cursor:pointer; flex:none; }
+  .sform .hint2 { grid-column:1 / -1; font-size:12px; color:var(--ink2); margin-top:-2px; }
+  @media (max-width: 900px) { #sub_dlg .sbody { grid-template-columns:1fr; overflow-y:auto; } }
 </style>
 </head>
 <body>
@@ -489,6 +532,13 @@
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
   <button class="ghost" id="vo_cancel"></button><button class="ghost" id="vo_tts"></button><button class="primary" id="vo_file"></button>
 </div></div></div>
+<div id="fr_dlg"><div class="box"><h3 id="fr_t"></h3><div class="note" id="fr_info"></div><div id="fr_grid"></div>
+  <div class="row"><button class="ghost" id="fr_more"></button><button class="ghost" id="fr_imgs"></button><button class="ghost" id="fr_vids"></button><button class="ghost" id="fr_res"></button>
+  <span style="flex:1"></span><button class="primary" id="fr_close" onclick="$('fr_dlg').classList.remove('show')"></button></div></div></div>
+<div id="sub_dlg"><div class="box"><h3 id="sd_t"></h3>
+  <div class="sbody"><div><div id="sub_pv"><img id="sub_img" alt=""><span class="busy" id="sub_busy"></span></div><div id="sub_err"></div><div class="spres" id="sub_pres"></div></div>
+  <div class="sform" id="sub_form"></div></div>
+  <div class="row"><span class="note" id="sd_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="sd_cancel"></button><button class="primary" id="sd_save"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -551,7 +601,7 @@
       <label class="opt" id="mk_tts" data-tipkey="tip_tts"><input type="checkbox" id="use_tts"><svg viewBox="0 0 64 64"><rect x="24" y="8" width="16" height="30" rx="8"/><path d="M14 30c0 10 8 18 18 18s18-8 18-18M32 48v10M22 58h20"/></svg><span class="t" data-i18n="o_tts"></span><span class="dot"></span></label>
       <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="motion" data-tipkey="tip_motion"><input type="checkbox" id="use_motion"><svg viewBox="0 0 64 64"><path d="M8 40c8-20 16-20 24 0s16 20 24 0"/><path d="M8 24c8-12 16-12 24 0s16 12 24 0"/></svg><span class="t" data-i18n="o_motion"></span><span class="dot"></span></label>
-      <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><span class="dot"></span></label>
+      <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
       <label class="opt sec" id="hd" data-tipkey="tip_hd"><input type="checkbox" id="use_hd"><svg viewBox="0 0 64 64"><rect x="6" y="14" width="52" height="36" rx="3"/><path d="M16 24v16M16 32h10M26 24v16M36 24v16h7a8 8 0 0 0 0-16z"/></svg><span class="t" data-i18n="o_hd"></span><span class="dot"></span></label>
       <label class="opt sec" id="qa" data-tipkey="tip_qa"><input type="checkbox" id="use_qa"><svg viewBox="0 0 64 64"><path d="M6 32c8-12 16-18 26-18s18 6 26 18c-8 12-16 18-26 18S14 44 6 32z"/><circle cx="32" cy="32" r="8"/><path d="M44 50l6 6 10-12"/></svg><span class="t" data-i18n="o_qa"></span><span class="dot"></span></label>
       <label class="opt sec" id="speed" data-tipkey="tip_speed"><input type="checkbox" id="use_speed"><svg viewBox="0 0 64 64"><path d="M8 44a24 24 0 0 1 48 0"/><path d="M32 44l12-16"/><circle cx="32" cy="44" r="3"/><path d="M14 44h4M46 44h4M20 30l3 3M44 30l-3 3"/></svg><span class="t" data-i18n="o_speed"></span><span class="dot"></span></label>
@@ -953,8 +1003,8 @@ function ago(ts) {
 function recentRow(r) {
   const st = r.status === 'running' ? `<span class="rs ok">${pt('делается сейчас', 'in progress')}</span>`
     : `<span class="rs${r.status === 'done' ? ' ok' : (r.status === 'error' ? ' bad' : '')}">${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''}${r.status === 'done' ? ' · ✓' : ''}</span>`;
-  const btn = r.status === 'running' ? `<button class="ghost" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
-    : `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`
+  const btn = r.status === 'running' ? framesBtn(r) + `<button class="ghost" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
+    : framesBtn(r) + `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
   return `<div class="rjob"><span class="rt" title="${esc(r.title)}">${esc(r.title)}</span>${r.profile ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
@@ -1502,6 +1552,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles();
@@ -1575,6 +1626,174 @@ document.addEventListener('click', () => { if (+$('vol').value > 0 && bgm.paused
 function fitVolbox() { const w = document.querySelector('.topctl').getBoundingClientRect().width; $('volbox').style.height = Math.round(w) + 'px'; }
 window.addEventListener('resize', fitVolbox); document.fonts && document.fonts.ready.then(fitVolbox);
 window.addEventListener('pywebviewready', () => loadConfig(false));
+
+// ===== «Главная»: из любого шага на первый экран; ролик при этом делается дальше =====
+const HOME_SVG = '<svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>';
+function goHome() {
+  if (cur === 1) return;
+  if (jobRunning) toast(pt('Ролик делается дальше в фоне — вернуться к нему можно по полоске сверху.', 'The video keeps going in the background — use the bar at the top to get back.'), 5000);
+  go(1);
+}
+document.querySelectorAll('.topbar .logo').forEach(lg => {
+  const w = document.createElement('div'); w.className = 'tleft';
+  lg.parentNode.insertBefore(w, lg); w.appendChild(lg);
+  const b = document.createElement('button'); b.className = 'ghost homeb'; b.type = 'button'; b.onclick = goHome;
+  b.innerHTML = HOME_SVG + '<span class="hl"></span>'; w.appendChild(b);
+  lg.onclick = goHome; lg.title = pt('На главную', 'Home');
+});
+function homeLabels() { document.querySelectorAll('.homeb .hl').forEach(x => x.textContent = pt('Главная', 'Home')); }
+homeLabels();
+
+// ===== кадры ролика: все картинки и оживлённые видео, клик — открыть =====
+let FR = {id: null, shown: 0, total: 0, busy: false};
+function framesBtn(r) {
+  return (r.images || r.videos) ? `<button class="ghost fr" title="${pt('Посмотреть картинки и видео', 'View images and videos')}" onclick="showFrames('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Кадры', 'Frames')}</button>` : '';
+}
+async function showFrames(id) {
+  const r = (RECENT || []).find(x => x.id === id) || {title: id};
+  $('rec_dlg').classList.remove('show');
+  FR = {id, shown: 0, total: 0, busy: false};
+  $('fr_t').textContent = r.title || id; $('fr_info').textContent = pt('загружаю…', 'loading…'); $('fr_grid').innerHTML = '';
+  $('fr_more').textContent = pt('Показать ещё', 'Show more'); $('fr_imgs').textContent = pt('Папка картинок', 'Images folder');
+  $('fr_vids').textContent = pt('Папка видео', 'Videos folder'); $('fr_res').textContent = pt('Готовый ролик ▶', 'Finished video ▶');
+  $('fr_close').textContent = pt('Закрыть', 'Close');
+  $('fr_imgs').onclick = () => pywebview.api.open_job_folder(id, 'images');
+  $('fr_vids').onclick = () => pywebview.api.open_job_folder(id, 'videos');
+  $('fr_more').onclick = () => moreFrames();
+  $('fr_res').style.display = 'none'; $('fr_vids').style.display = 'none';
+  $('fr_dlg').classList.add('show');
+  await moreFrames();
+}
+async function moreFrames() {
+  if (FR.busy) return; FR.busy = true;
+  try {
+    const g = await pywebview.api.job_frames(FR.id, FR.shown, 24);
+    if (!g.ok) { $('fr_info').textContent = g.error || ''; return; }
+    FR.total = g.total;
+    $('fr_info').textContent = `${pt('картинки', 'images')} ${g.images}/${g.total}${g.videos ? ` · ${pt('видео', 'videos')} ${g.videos}` : ''} · ${pt('нажмите на кадр, чтобы открыть его; ▶ — оживлённый', 'click a frame to open it; ▶ — animated')}`;
+    $('fr_vids').style.display = g.videos ? '' : 'none';
+    if (g.result) { $('fr_res').style.display = ''; $('fr_res').onclick = () => pywebview.api.open_path(g.result); }
+    const grid = $('fr_grid');
+    g.items.forEach(it => {
+      const d = document.createElement('div');
+      const num = String(it.i + 1).padStart(2, '0');
+      d.className = 'gfr' + (it.img ? '' : ' empty') + (it.video ? ' hasv' : '');
+      d.title = [it.text, it.prompt].filter(Boolean).join('\n\n');
+      d.innerHTML = it.img ? `<img src="${it.img}" loading="lazy"><span class="n">${num}</span>${it.video ? '<span class="v">▶ ' + pt('ВИДЕО', 'VIDEO') + '</span><span class="im">' + pt('картинка', 'image') + '</span>' : ''}`
+        : (it.video ? `<span>▶ ${num}</span>` : `<span>${num} · ${pt('нет', 'none')}</span>`);
+      if (it.img || it.video) d.onclick = e => pywebview.api.open_frame(FR.id, it.i, e.target.classList.contains('im') ? 'image' : 'auto');
+      grid.appendChild(d);
+    });
+    FR.shown += g.items.length;
+    $('fr_more').style.display = FR.shown < FR.total ? '' : 'none';
+    $('fr_more').textContent = `${pt('Показать ещё', 'Show more')} (${FR.total - FR.shown})`;
+  } finally { FR.busy = false; }
+}
+$('fr_grid').addEventListener('scroll', e => { const g = e.target; if (FR.shown < FR.total && g.scrollTop + g.clientHeight > g.scrollHeight - 200) moreFrames(); });
+// кадр на экране работы: клик по картинке — открыть её (или видео, если уже оживлён)
+$('frames').addEventListener('click', e => {
+  if (e.target.closest('.redo')) return;
+  const d = e.target.closest('.frame'); if (!d || !d.querySelector('img')) return;
+  pywebview.api.open_frame(null, parseInt(d.id.slice(2), 10), 'auto');
+});
+
+// ===== вид субтитров =====
+let SUB = null, SUBF = null, subTimer = null, subSeq = 0;
+const SUB_EFFECTS = [['none', 'Без эффекта', 'None'], ['fade', 'Плавное появление', 'Fade in'], ['pop', 'Выпрыгивание', 'Pop'], ['slide', 'Выезд снизу', 'Slide up'],
+                     ['karaoke', 'Караоке: подсветка слова', 'Karaoke word highlight'], ['words', 'Слова по одному', 'Word by word']];
+function subField(label, html) { return `<label>${label}</label><div class="ln">${html}</div>`; }
+function subRange(k, min, max, unit) { return subField(SUBL[k], `<input type="range" data-k="${k}" min="${min}" max="${max}" step="1"><span class="vv" data-v="${k}"></span>${unit ? `<span>${unit}</span>` : ''}`); }
+function subColor(k, extra) { return `<input type="color" data-k="${k}">${extra || ''}`; }
+let SUBL = {};
+function buildSubForm() {
+  SUBL = {font: pt('Шрифт', 'Font'), size: pt('Размер', 'Size'), outline: pt('Обводка', 'Outline'), shadow: pt('Тень', 'Shadow'), shadow_alpha: pt('Прозрачность тени', 'Shadow transparency'),
+          box_alpha: pt('Прозрачность', 'Transparency'), margin_v: pt('Отступ от края', 'Edge offset'), max_chars: pt('Символов в строке', 'Chars per line'), max_lines: pt('Строк', 'Lines')};
+  const fonts = (SUB.fonts || []).map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
+  $('sub_form').innerHTML =
+    `<div class="sec2">${pt('Текст', 'Text')}</div>`
+    + subField(SUBL.font, `<select data-k="font">${fonts}</select>`)
+    + `<div class="hint2">${pt('Свои шрифты (.ttf, .otf) кладите в папку <b>fonts</b> рядом с KadroGen.exe и откройте это окно заново.', 'Put your own fonts (.ttf, .otf) into the <b>fonts</b> folder next to KadroGen.exe and reopen this window.')}</div>`
+    + subRange('size', 20, 140, 'px')
+    + subField(pt('Цвет', 'Color'), subColor('color') + `<label class="jdc"><input type="checkbox" data-k="bold">${pt('жирный', 'bold')}</label><label class="jdc"><input type="checkbox" data-k="upper">${pt('ЗАГЛАВНЫЕ', 'UPPERCASE')}</label>`)
+    + `<div class="sec2">${pt('Обводка и тень', 'Outline and shadow')}</div>`
+    + subField(SUBL.outline, `<input type="range" data-k="outline" min="0" max="14" step="1"><span class="vv" data-v="outline"></span>` + subColor('outline_color'))
+    + subField(SUBL.shadow, `<input type="range" data-k="shadow" min="0" max="12" step="1"><span class="vv" data-v="shadow"></span>` + subColor('shadow_color'))
+    + subRange('shadow_alpha', 0, 100, '%')
+    + subField(pt('Плашка', 'Box'), `<label class="jdc"><input type="checkbox" data-k="box">${pt('фон под текстом', 'background behind text')}</label>` + subColor('box_color'))
+    + subRange('box_alpha', 0, 100, '%')
+    + `<div class="sec2">${pt('Положение', 'Position')}</div>`
+    + subField(pt('Где', 'Where'), `<select data-k="position"><option value="bottom">${pt('внизу', 'bottom')}</option><option value="middle">${pt('по центру', 'center')}</option><option value="top">${pt('вверху', 'top')}</option></select>`)
+    + subRange('margin_v', 0, 300, 'px')
+    + subField(pt('Ширина', 'Width'), `<select data-k="full_width"><option value="0">${pt('как по умолчанию (поля по бокам)', 'default (side margins)')}</option><option value="1">${pt('на всё видео', 'full video width')}</option></select>`)
+    + subRange('max_chars', 12, 80, '')
+    + subRange('max_lines', 1, 3, '')
+    + `<div class="hint2">${pt('Длинная строка + «на всё видео» — текст тянется почти от края до края.', 'Long lines + “full width” — text spans almost edge to edge.')}</div>`
+    + `<div class="sec2">${pt('Появление', 'Animation')}</div>`
+    + subField(pt('Эффект', 'Effect'), `<select data-k="effect">${SUB_EFFECTS.map(([v, r, e]) => `<option value="${v}">${pt(r, e)}</option>`).join('')}</select>`)
+    + subField(pt('Цвет подсветки', 'Highlight color'), subColor('highlight', `<span style="font-size:12px">${pt('для караоке', 'for karaoke')}</span>`));
+  $('sub_form').querySelectorAll('[data-k]').forEach(el => {
+    el.addEventListener(el.type === 'range' || el.type === 'color' ? 'input' : 'change', () => { readSubForm(); markPreset(); fillSubVals(); schedulePreview(); });
+  });
+}
+function fillSubForm() {
+  $('sub_form').querySelectorAll('[data-k]').forEach(el => {
+    const v = SUBF[el.dataset.k];
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (el.dataset.k === 'full_width') el.value = v ? '1' : '0';
+    else if (el.tagName === 'SELECT' && el.dataset.k === 'font' && ![...el.options].some(o => o.value === v)) { el.insertAdjacentHTML('afterbegin', `<option value="${esc(v)}">${esc(v)} (${pt('нет файла — будет Arial', 'missing — Arial')})</option>`); el.value = v; }
+    else el.value = v;
+  });
+  fillSubVals();
+}
+function fillSubVals() { $('sub_form').querySelectorAll('[data-v]').forEach(x => x.textContent = SUBF[x.dataset.v]); }
+function readSubForm() {
+  $('sub_form').querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    SUBF[k] = el.type === 'checkbox' ? el.checked : (el.type === 'range' ? +el.value : (k === 'full_width' ? el.value === '1' : el.value));
+  });
+  SUBF.classic = false;
+}
+function sameStyle(a, b) { return Object.keys(SUB.defaults).every(k => String(a[k]) === String(b[k])); }
+function markPreset() {
+  $('sub_pres').querySelectorAll('button').forEach(b => {
+    const name = b.dataset.p;
+    b.classList.toggle('on', name === 'Как было' ? !!SUBF.classic : (!SUBF.classic && sameStyle(SUBF, SUB.presets[name])));
+  });
+}
+function schedulePreview() { clearTimeout(subTimer); subTimer = setTimeout(renderSubPreview, 350); }
+async function renderSubPreview() {
+  const seq = ++subSeq; $('sub_pv').classList.add('loading');
+  const r = await pywebview.api.sub_preview(SUBF);
+  if (seq !== subSeq) return;
+  $('sub_pv').classList.remove('loading');
+  if (r.ok) { $('sub_img').src = r.img; $('sub_err').textContent = ''; } else $('sub_err').textContent = r.error || '';
+}
+async function openSubs() {
+  SUB = await pywebview.api.sub_style_get();
+  SUBF = Object.assign({}, SUB.style, {classic: SUB.classic});
+  $('sd_t').textContent = pt('Вид субтитров', 'Subtitle style');
+  $('sd_note').textContent = pt('Предпросмотр рисует тот же ffmpeg, что и сборку, на кадре вашего последнего ролика.', 'The preview is rendered by the same ffmpeg as the final video.');
+  $('sub_busy').textContent = pt('рисую…', 'rendering…');
+  $('sd_cancel').textContent = pt('Отмена', 'Cancel'); $('sd_save').textContent = pt('Сохранить', 'Save');
+  $('sub_pres').innerHTML = Object.keys(SUB.presets).map(n => `<button class="ghost" data-p="${esc(n)}">${esc(n)}</button>`).join('');
+  $('sub_pres').querySelectorAll('button').forEach(b => b.onclick = () => {
+    SUBF = Object.assign({}, SUB.presets[b.dataset.p], {classic: b.dataset.p === 'Как было'});
+    fillSubForm(); markPreset(); schedulePreview();
+  });
+  buildSubForm(); fillSubForm(); markPreset();
+  $('sd_cancel').onclick = () => $('sub_dlg').classList.remove('show');
+  $('sd_save').onclick = async () => {
+    await pywebview.api.sub_style_save(SUBF, !!SUBF.classic);
+    if (!$('use_subs').checked) { $('use_subs').checked = true; mark(); pywebview.api.save_config({subtitles: true}); }
+    $('sub_dlg').classList.remove('show'); subBtnLabel();
+    toast(pt('Вид субтитров сохранён — он будет в следующих роликах.', 'Subtitle style saved for the next videos.'), 4000);
+  };
+  $('sub_dlg').classList.add('show');
+  renderSubPreview();
+}
+function subBtnLabel() { $('sub_cfg_btn').textContent = pt('Вид ›', 'Style ›'); }
+$('sub_cfg_btn').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSubs(); });
+subBtnLabel();
 </script>
 </body>
 </html>

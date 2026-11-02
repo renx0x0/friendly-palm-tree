@@ -27,6 +27,7 @@ from nonstop_api import NonStop, NonStopError, MODELS as NONSTOP_MODELS
 from yougen_api import YouGen, YouGenError, IMAGE_MODELS as YOUGEN_MODELS
 from openai_api import OpenAIClient, DEFAULT_CHAT_MODEL as OPENAI_DEFAULT_MODEL
 import subtitles as subs
+import subs_style
 from google_api import GoogleAI, GoogleError
 from royaltechno_api import RoyalTechno, RoyalError, IMAGE_MODELS as ROYAL_MODELS
 from secretslider_api import SecretSlider, SliderError
@@ -312,6 +313,21 @@ def check_cancel():
 
 
 netutil.CANCEL_CHECK = check_cancel  # циклы ожидания в клиентах сервисов теперь тоже слышат «Стоп»
+
+
+def font_dirs():
+    """Папки со шрифтами для субтитров: внутри программы (_internal/fonts) и рядом с ней (fonts) — туда можно класть свои."""
+    out = []
+    for d in (os.path.join(getattr(sys, "_MEIPASS", app_dir()), "fonts"), os.path.join(app_dir(), "fonts")):
+        if d not in out:
+            out.append(d)
+    return out
+
+
+def sub_style_of(cfg):
+    """Свой вид субтитров из настроек или None — тогда старый вид («Как было»)."""
+    st = cfg.get("sub_style")
+    return st if isinstance(st, dict) and st and not st.get("classic") else None
 
 
 def ffmpeg_bin(name="ffmpeg"):
@@ -3364,7 +3380,13 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         os.makedirs(os.path.join(out_dir, "subtitles"), exist_ok=True)
         srt_path = os.path.join(out_dir, "subtitles", base + ".srt")
         subs.write_srt(tr["words"], srt_path)
-        subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
+        style_cfg = sub_style_of(cfg)
+        if style_cfg:
+            subs_style.write_ass(tr["words"], os.path.join(job_dir, "subs.ass"), style_cfg)
+            fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
+            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW)
+        else:
+            subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
         os.replace(out_mp4 + ".tmp.mp4", out_mp4)
         progress("subtitles", 1, 1, "субтитры наложены, .srt сохранён в папке output/subtitles")
     else:

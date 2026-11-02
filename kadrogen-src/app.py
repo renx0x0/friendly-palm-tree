@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p13"
+VERSION = "1.7.1-p14"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -758,7 +758,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -1801,6 +1801,108 @@ class Api:
             res = STATE.get("result")
         if res and os.path.exists(res):
             os.startfile(res)
+            return True
+        return False
+
+    # ===== вид субтитров =====
+    def sub_style_get(self):
+        cfg = load_cfg()
+        st = cfg.get("sub_style")
+        fonts = [f["name"] for f in pipeline.subs_style.list_fonts(pipeline.font_dirs())]
+        return {"style": pipeline.subs_style.normalize(st if isinstance(st, dict) else {}), "classic": not pipeline.sub_style_of(cfg),
+                "presets": {k: pipeline.subs_style.normalize(v) for k, v in pipeline.subs_style.PRESETS.items()},
+                "fonts": fonts, "defaults": pipeline.subs_style.DEFAULT}
+
+    def sub_style_save(self, style, classic=False):
+        cfg = load_cfg()
+        cfg["sub_style"] = {"classic": True} if classic else pipeline.subs_style.normalize(style or {})
+        save_cfg(cfg)
+        return {"ok": True}
+
+    def sub_preview(self, style):
+        """Кадр с субтитром тем же ffmpeg, что и при сборке. Фон — последняя картинка последнего ролика."""
+        import base64
+        work = os.path.join(data_dir(), "jobs", "_subs_preview")
+        out = os.path.join(work, "preview.jpg")
+        bg = None
+        with LOCK:
+            jd = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
+        dirs = [jd] if jd else []
+        root = os.path.join(data_dir(), "jobs")
+        if os.path.isdir(root):
+            dirs += sorted((os.path.join(root, n) for n in os.listdir(root)), key=lambda d: -os.path.getmtime(d))[:5]
+        for d in dirs:
+            imgs = sorted(f for f in os.listdir(os.path.join(d, "images")) if f.endswith(".png")) if d and os.path.isdir(os.path.join(d, "images")) else []
+            if imgs:
+                bg = os.path.join(d, "images", imgs[len(imgs) // 2])
+                break
+        try:
+            pipeline.subs_style.preview(pipeline.ffmpeg_bin(), style or {}, out, work, pipeline.font_dirs(), background=bg,
+                                        creationflags=pipeline.NO_WINDOW)
+            with open(out, "rb") as f:
+                return {"ok": True, "img": "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+
+    # ===== кадры готового ролика =====
+    def _job_path(self, job_id):
+        name = os.path.basename(str(job_id or ""))
+        d = os.path.join(data_dir(), "jobs", name)
+        return d if name and not name.startswith(".") and os.path.isdir(d) else None
+
+    def job_frames(self, job_id, offset=0, limit=24):
+        """Миниатюры кадров ролика порциями: номер, картинка, есть ли оживлённое видео."""
+        d = self._job_path(job_id)
+        if not d:
+            return {"ok": False, "error": "Папка ролика не найдена."}
+        img_dir, vid_dir = os.path.join(d, "images"), os.path.join(d, "videos")
+        scenes = pipeline.read_json(os.path.join(d, "scenes.json"), []) or []
+        imgs = {}
+        if os.path.isdir(img_dir):
+            for f in os.listdir(img_dir):
+                if f.endswith(".png") and f[:4].isdigit():
+                    imgs[int(f[:4])] = os.path.join(img_dir, f)
+        vids = set()
+        if os.path.isdir(vid_dir):
+            vids = {int(f[:4]) for f in os.listdir(vid_dir) if f.endswith(".mp4") and f[:4].isdigit()}
+        total = max([len(scenes)] + [i + 1 for i in imgs] + [i + 1 for i in vids])
+        items = []
+        for i in range(int(offset), min(total, int(offset) + int(limit))):
+            sc = scenes[i] if i < len(scenes) and isinstance(scenes[i], dict) else {}
+            items.append({"i": i, "img": make_thumb(imgs[i], 360) if i in imgs else None, "video": i in vids,
+                          "t": round(float(sc.get("start", 0) or 0), 1), "text": str(sc.get("text") or "")[:300],
+                          "prompt": str(sc.get("raw_prompt") or sc.get("prompt") or "")[:400]})
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
+        res = rec.get("result")
+        return {"ok": True, "total": total, "images": len(imgs), "videos": len(vids), "items": items,
+                "result": res if res and os.path.exists(res) else None}
+
+    def open_frame(self, job_id, i, kind="auto"):
+        """Открыть кадр в обычном просмотрщике: видео (если оживлён) или картинку."""
+        d = self._job_path(job_id) if job_id else (STATE.get("job_dir") or pipeline.LAST_JOB_DIR)
+        if not d:
+            return False
+        i = int(i)
+        vid, img = os.path.join(d, "videos", f"{i:04d}.mp4"), os.path.join(d, "images", f"{i:04d}.png")
+        for p in ((vid, img) if kind in ("auto", "video") else (img,)):
+            if os.path.exists(p):
+                os.startfile(p)
+                return True
+        return False
+
+    def open_job_folder(self, job_id, sub=""):
+        d = self._job_path(job_id)
+        if not d:
+            return False
+        p = os.path.join(d, sub) if sub in ("images", "videos") and os.path.isdir(os.path.join(d, sub)) else d
+        os.startfile(p)
+        return True
+
+    def open_path(self, path):
+        """Открыть готовый ролик (только из папок программы)."""
+        p = os.path.abspath(str(path or ""))
+        if os.path.exists(p) and os.path.normcase(p).startswith(os.path.normcase(os.path.abspath(data_dir()))):
+            os.startfile(p)
             return True
         return False
 
