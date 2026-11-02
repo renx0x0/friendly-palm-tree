@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p2"
+VERSION = "1.7.1-p3"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1304,6 +1304,17 @@ class Api:
         save_cfg(cfg)
         threading.Thread(target=run_queue, args=(common,), daemon=True).start()
         return {"ok": True}
+
+    def profile_state(self):
+        """Панель «Промпты по частям»: состояние частей профиля (без самих промптов)."""
+        return pipeline.profiles.BOARD.summary()
+
+    def profile_part(self, n):
+        """Промпты одной части — по клику на часть в панели."""
+        try:
+            return pipeline.profiles.BOARD.part(int(n))
+        except (TypeError, ValueError):
+            return {"n": n, "prompts": [], "problems": [], "status": "wait", "live": ""}
 
     def gallery(self, known):
         """Кадры сцен, которых окно ещё не видело. known — список индексов, уже показанных."""

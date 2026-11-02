@@ -259,6 +259,30 @@
   .brief .sentence b { font-weight:600; color:var(--acc2); }
 
   .proc { display:grid; grid-template-columns:320px 1fr; gap:24px; flex:1; min-height:0; }
+  .proc.with-parts { grid-template-columns:300px minmax(320px, 420px) 1fr; }
+  /* панель «Промпты по частям» (профили) */
+  #parts_panel { display:none; } .proc.with-parts #parts_panel { display:flex; }
+  #parts_panel .phint { color:var(--ink2); font-size:12px; margin:0 0 10px; }
+  .pp { border:1px solid var(--line); margin-bottom:8px; background:var(--bg); }
+  .pp .ph { display:flex; align-items:center; gap:10px; padding:9px 12px; cursor:pointer; user-select:none; }
+  .pp .ph:hover { background:var(--line2); }
+  .pp .ic { width:18px; height:18px; flex:none; display:grid; place-items:center; border-radius:50%; border:1.5px solid var(--line); font:700 11px/1 "Exo 2", sans-serif; color:#fff; }
+  .pp .pt { font:600 13px/1.2 "Exo 2", sans-serif; letter-spacing:.12em; text-transform:uppercase; white-space:nowrap; }
+  .pp .pm { color:var(--ink2); font-size:12px; white-space:nowrap; }
+  .pp .ps { margin-left:auto; flex:1; min-width:0; font-size:12px; color:var(--ink2); text-align:right; }
+  .pp .ar { color:var(--ink2); font-size:10px; transition:transform .2s; } .pp.open .ar { transform:rotate(90deg); }
+  .pp.s-done .ic { background:var(--ok); border-color:var(--ok); } .pp.s-done .ic::after { content:"✓"; } .pp.s-done .pt, .pp.s-done .ps { color:var(--ok); }
+  .pp.s-warn .ic { background:#e8a33a; border-color:#e8a33a; } .pp.s-warn .ic::after { content:"!"; } .pp.s-warn .ps { color:#e8a33a; }
+  .pp.s-error .ic { background:var(--err); border-color:var(--err); } .pp.s-error .ic::after { content:"✕"; } .pp.s-error .ps { color:var(--err); }
+  .pp.s-writing .ic { border-color:var(--acc2); border-top-color:transparent; animation:pspin 1s linear infinite; } .pp.s-writing .pt, .pp.s-writing .ps { color:var(--acc2); }
+  @keyframes pspin { to { transform:rotate(360deg); } }
+  .pp .pb { display:none; border-top:1px solid var(--line); padding:8px 12px 10px; max-height:46vh; overflow-y:auto; }
+  .pp.open .pb { display:block; }
+  .pp .pb ol { margin:0; padding-left:34px; } .pp .pb li { font-size:12px; line-height:1.45; color:var(--ink); margin:0 0 8px; user-select:text; }
+  .pp .pb li::marker { color:var(--acc2); font-weight:600; }
+  .pp .pb .live { margin:0; white-space:pre-wrap; font:12px/1.45 Consolas, "Courier New", monospace; color:var(--ink2); user-select:text; }
+  .pp .pb .prob { color:#e8a33a; font-size:12px; margin:0 0 8px; }
+  .pp .pb .note { color:var(--ink2); font-size:12px; margin:0 0 6px; }
   .ring { position:relative; width:180px; height:180px; margin:4px auto 16px; }
   .ring svg { transform:rotate(-90deg); }
   .ring circle { fill:none; stroke-width:3; }
@@ -502,6 +526,7 @@
         <div class="wait" id="p_wait"><div class="wr"><svg viewBox="0 0 24 24"><path d="M6 2h12M6 22h12M7 2v4l5 6 5-6V2M7 22v-4l5-6 5 6v4"/></svg><span class="wt" id="w_title"></span><span class="cd" id="w_cd"></span></div><small id="w_sub"></small></div>
         <div style="margin-top:auto; padding-top:16px; display:flex; gap:8px; flex-wrap:wrap"><button id="btn_cancel" class="danger" onclick="cancelJob()" data-i18n="stop"></button><button id="btn_again" class="ghost" onclick="go(4)" disabled data-i18n="again"></button><button id="btn_report" class="ghost" onclick="sendReport()" data-i18n="report"></button></div>
       </div>
+      <div class="panel" id="parts_panel"><h3 id="parts_title"></h3><div class="phint" id="parts_hint"></div><div id="parts"></div></div>
       <div class="panel"><h3 id="g_title"></h3><div class="frames" id="frames"></div>
         <div id="result" class="result"><b data-i18n="done"></b><div class="path" id="r_path"></div><button class="primary" onclick="pywebview.api.open_result()" data-i18n="open"></button> <button class="ghost" onclick="pywebview.api.open_output()" data-i18n="folder"></button></div>
         <div id="error" class="status err"></div><details><summary data-i18n="log"></summary><pre id="log"></pre></details>
@@ -913,7 +938,70 @@ async function poll() {
   else if (st.result && !st.queue_active) { $('result').classList.add('show'); $('r_path').textContent = st.result; $('g_title').textContent = t('frames_done'); }
   if (st.error) { $('error').textContent = t('error') + st.error; $('p_err').textContent = st.error; $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; $('btn_again').textContent = t('again'); }
   if (st.cancelled) $('error').textContent = t('stopped');
+  await updateParts();
   if (st.running || st.queue_active) setTimeout(poll, 1400); else { $('btn_again').disabled = false; $('btn_cancel').disabled = true; }
+}
+// ===== Панель «Промпты по частям»: статус каждой части профиля, по клику — её промпты или то, что модель пишет сейчас =====
+const pt = (ru, en) => L === 'ru' ? ru : en;
+const partsOpen = new Set(), partsCache = {};
+function plurN(n, f) { return plural(n, f).replace(/^\d+ /, ''); }
+function fmtMin(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} ${pt('мин', 'min')}` : `${s} ${pt('с', 's')}`; }
+function partStatus(p) {
+  const pr = n => `${n} ${pt(plurN(n, ['промпт', 'промпта', 'промптов']), n === 1 ? 'prompt' : 'prompts')}`;
+  if (p.status === 'done') return '✓ ' + pr(p.count) + (p.note === 'из кэша' ? pt(' · из кэша', ' · cached') : '');
+  if (p.status === 'warn') return pr(p.count) + pt(' · есть замечания', ' · with remarks');
+  if (p.status === 'error') return pt('ошибка', 'error');
+  if (p.status === 'writing') return (p.count ? pr(p.count) + ` ${pt('из', 'of')} ${p.per}` : pt('модель думает', 'model is thinking')) + ' · ' + fmtMin(p.elapsed) + (p.attempt > 1 ? ` · ${pt('попытка', 'try')} ${p.attempt}` : '');
+  return pt('ждёт', 'waiting');
+}
+async function updateParts() {
+  let ps;
+  try { ps = await pywebview.api.profile_state(); } catch (e) { return; }
+  const on = !!(ps && ps.profile && ps.parts && ps.parts.length);
+  document.querySelector('#screen6 .proc').classList.toggle('with-parts', !!(ps && ps.profile));
+  if (!ps || !ps.profile) return;
+  $('parts_title').textContent = pt('Промпты по частям', 'Prompts by part');
+  $('parts_hint').textContent = on ? `${pt('Профиль', 'Profile')} «${ps.profile}» · ${pt('нажмите на часть, чтобы посмотреть промпты', 'click a part to see its prompts')}` : pt('Сценарий ещё делится на части…', 'Splitting the script into parts…');
+  const box = $('parts');
+  if (box.dataset.n !== String(ps.parts.length) || box.dataset.p !== ps.profile) {
+    box.dataset.n = ps.parts.length; box.dataset.p = ps.profile; box.innerHTML = ''; partsOpen.clear();
+    for (const k in partsCache) delete partsCache[k];
+    ps.parts.forEach(p => {
+      const d = document.createElement('div'); d.className = 'pp'; d.id = 'pp' + p.n;
+      d.innerHTML = `<div class="ph"><span class="ic"></span><span class="pt"></span><span class="pm"></span><span class="ps"></span><span class="ar">&#9654;</span></div><div class="pb"></div>`;
+      d.querySelector('.ph').addEventListener('click', () => { if (partsOpen.has(p.n)) partsOpen.delete(p.n); else partsOpen.add(p.n); d.classList.toggle('open', partsOpen.has(p.n)); fillPart(p.n, true); });
+      box.appendChild(d);
+    });
+  }
+  for (const p of ps.parts) {
+    const d = $('pp' + p.n); if (!d) continue;
+    const changed = d.dataset.st !== p.status;
+    d.className = `pp s-${p.status}${partsOpen.has(p.n) ? ' open' : ''}`; d.dataset.st = p.status;
+    d.querySelector('.pt').textContent = `${pt('Часть', 'Part')} ${p.n}`;
+    d.querySelector('.pm').textContent = `${p.chars.toLocaleString('ru-RU')} ${pt('симв.', 'chars')}`;
+    d.querySelector('.ps').textContent = partStatus(p);
+    d._p = p;
+    if (partsOpen.has(p.n)) fillPart(p.n, changed);
+  }
+}
+async function fillPart(n, force) {
+  const d = $('pp' + n); if (!d || !partsOpen.has(n)) return;
+  const p = d._p || {}, b = d.querySelector('.pb');
+  if (p.status === 'writing') {
+    let pre = b.querySelector('.live');
+    if (!pre) { b.innerHTML = '<pre class="live"></pre>'; pre = b.querySelector('.live'); }
+    const atEnd = b.scrollTop + b.clientHeight >= b.scrollHeight - 30;
+    const txt = p.live || pt('Модель ещё не начала писать текст (думает)…', 'The model has not started writing yet (thinking)…');
+    if (pre.textContent !== txt) { pre.textContent = txt; if (atEnd) b.scrollTop = b.scrollHeight; }
+    return;
+  }
+  if (p.status === 'wait') { b.innerHTML = `<div class="note">${pt('Часть ещё в очереди.', 'This part is still queued.')}</div>`; return; }
+  if (!force && partsCache[n]) return;
+  const r = await pywebview.api.profile_part(n);
+  partsCache[n] = r;
+  const probs = (r.problems || []).length ? `<div class="prob">${pt('Замечания', 'Remarks')}: ${esc(r.problems.join('; '))}</div>` : '';
+  const note = p.status === 'error' ? `<div class="prob">${esc(p.note || '')}</div>` : '';
+  b.innerHTML = note + probs + ((r.prompts || []).length ? `<ol start="${r.first || 1}">${r.prompts.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : '');
 }
 async function loadConfig(keepScreen) {
   const st = await pywebview.api.get_state(); const c = st.config;

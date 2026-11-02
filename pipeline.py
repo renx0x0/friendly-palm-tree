@@ -2846,7 +2846,8 @@ def profile_scenes(prof, cfg, tr, duration, job_dir, progress):
     chat, chat_name = make_profile_chat(prof, cfg, progress)
     progress("scenes", 0, 0, f"профиль «{prof['name']}»: {len(parts)} частей по ~{len(text) // len(parts)} символов "
                              f"({source}), промпты пишет {chat_name}")
-    prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel)
+    profiles.BOARD.reset(prof["name"], parts, prof["prompts_per_part"])
+    prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel, profiles.BOARD)
     bounds = profiles.part_bounds(parts, tr["words"], duration, log)
     scenes = profiles.build_scenes(prof, parts, prompts, bounds)
     scenes_path = os.path.join(job_dir, "scenes.json")
@@ -2970,6 +2971,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     if FASTGEN_QUALITY not in IMAGE_CHAINS:
         FASTGEN_QUALITY = "speed"
     prof = load_active_profile(cfg, profile)
+    profiles.BOARD.reset(prof["name"] if prof else None)  # панель частей в окне: пусто, пока сценарий не поделён
     if prof:
         use_refs = False  # у профиля нет героев с портретами: всё описано в мастер-промпте
     audio_path, job_dir, base = resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite, voice_file)

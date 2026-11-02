@@ -62,6 +62,51 @@ class ProfileError(RuntimeError):
     pass
 
 
+class Board:
+    """Что сейчас происходит с частями — для панели в окне. Обновляется из потоков, читается окном раз в секунду."""
+    LIVE_TAIL = 4000
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.data = {"profile": None, "parts": []}
+
+    def reset(self, name=None, parts=None, per=50, first=1):
+        with self.lock:
+            self.data = {"profile": name, "parts": [
+                {"n": i + 1, "chars": len(p), "first": first + i * per, "per": per, "status": "wait", "started": None,
+                 "ended": None, "attempt": 0, "count": 0, "live": "", "prompts": None, "problems": [], "note": ""}
+                for i, p in enumerate(parts or [])]}
+
+    def update(self, n, **kw):
+        with self.lock:
+            for p in self.data["parts"]:
+                if p["n"] == n:
+                    p.update(kw)
+
+    def summary(self):
+        now = time.time()
+        with self.lock:
+            parts = []
+            for p in self.data["parts"]:
+                q = {k: v for k, v in p.items() if k not in ("prompts", "live")}
+                q["elapsed"] = int(((p["ended"] or now) - p["started"])) if p["started"] else 0
+                q["live"] = p["live"][-self.LIVE_TAIL:] if p["status"] == "writing" else ""
+                q["ready"] = p["prompts"] is not None
+                parts.append(q)
+            return {"profile": self.data["profile"], "parts": parts}
+
+    def part(self, n):
+        with self.lock:
+            for p in self.data["parts"]:
+                if p["n"] == n:
+                    return {"n": n, "first": p["first"], "prompts": list(p["prompts"] or []), "problems": list(p["problems"]),
+                            "status": p["status"], "live": p["live"]}
+        return {"n": n, "prompts": [], "problems": [], "status": "wait", "live": ""}
+
+
+BOARD = Board()
+
+
 # ---------------------------------------------------------------- загрузка профиля
 
 def profile_dirs(*bases):
@@ -283,6 +328,42 @@ class ChatError(RuntimeError):
     pass
 
 
+def read_sse(r, on_text=None, check_cancel=None):
+    """Ответ в формате server-sent events (OpenAI stream). → (весь текст, finish_reason). on_text(текст_пока) — не чаще 2 раз в секунду."""
+    pieces, finish, last_push = [], None, 0.0
+    try:
+        for raw in r.iter_lines():
+            if check_cancel:
+                check_cancel()
+            if not raw or not raw.startswith(b"data:"):
+                continue
+            payload = raw[5:].strip()
+            if payload == b"[DONE]":
+                break
+            try:
+                obj = json.loads(payload.decode("utf-8"))
+            except ValueError:
+                continue
+            if obj.get("error"):
+                raise ChatError(f"модель прервала ответ: {str(obj['error'])[:300]}")
+            for ch in obj.get("choices") or []:
+                piece = (ch.get("delta") or {}).get("content")
+                if isinstance(piece, list):
+                    piece = "".join(x.get("text", "") for x in piece if isinstance(x, dict))
+                if piece:
+                    pieces.append(piece)
+                finish = ch.get("finish_reason") or finish
+            if on_text and time.time() - last_push > 0.5:
+                last_push = time.time()
+                on_text("".join(pieces))
+    finally:
+        r.close()
+    text = "".join(pieces)
+    if on_text:
+        on_text(text)
+    return text, finish
+
+
 _BUSY_WORDS = ("slot", "concurr", "parallel", "in progress", "busy", "одновремен", "занят")
 
 
@@ -313,6 +394,7 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
     части пишутся из нескольких потоков). wait(sec, why) — ожидание с проверкой «Стоп»."""
     m = (model or "").lower()
     new_style = m.split("/")[-1].startswith(("gpt-5", "o1", "o3", "o4"))
+    stream_ok = [bool(prof.get("stream", True))]  # ответ по кусочкам: видно, что модель пишет; не умеет сервис — выключаем
 
     def sleep(sec, why):
         if wait:
@@ -320,7 +402,7 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
         else:
             time.sleep(sec)
 
-    def chat(text):
+    def chat(text, on_text=None):
         status = chat.status
         body = {"model": model, "messages": [{"role": "user", "content": text}]}
         if new_style and "openai.com" in url:
@@ -332,8 +414,13 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
         while True:
             if check_cancel:
                 check_cancel()
+            streaming = stream_ok[0]
+            if streaming:
+                body["stream"] = True
+            else:
+                body.pop("stream", None)
             try:
-                r = session().post(url, json=body, headers=extra_headers or None, timeout=900)
+                r = session().post(url, json=body, headers=extra_headers or None, timeout=900, stream=streaming)
             except requests.RequestException as e:
                 last, errors = str(e), errors + 1
                 if errors >= 4:
@@ -354,15 +441,36 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
                     raise ChatError(f"модель не отвечает: {last}")
                 sleep(10 * errors, "модель не отвечает, повторяю")
                 continue
+            if r.status_code >= 400 and streaming and "stream" in (r.text or "").lower():
+                stream_ok[0] = False
+                log(f"{service}: ответ по кусочкам не поддерживается — дальше обычным ответом")
+                continue
             if r.status_code >= 400:
                 raise ChatError(f"модель отказала (HTTP {r.status_code}): {r.text[:300]}")
-            try:
-                choice = r.json()["choices"][0]
-                content = choice["message"]["content"]
-            except (ValueError, KeyError, IndexError, TypeError):
-                raise ChatError(f"непонятный ответ модели: {r.text[:300]}")
-            if isinstance(content, list):  # некоторые модели отдают список частей
-                content = "".join(x.get("text", "") for x in content if isinstance(x, dict))
+            if "text/event-stream" in (r.headers.get("Content-Type") or ""):
+                try:
+                    content, finish = read_sse(r, on_text, check_cancel)
+                except requests.RequestException as e:
+                    last, errors = str(e), errors + 1
+                    if errors >= 4:
+                        raise ChatError(f"обрыв связи с моделью: {last[:200]}")
+                    sleep(10 * errors, "обрыв связи с моделью, повторяю")
+                    continue
+                if not content.strip():
+                    stream_ok[0] = False
+                    log(f"{service}: ответ по кусочкам пришёл пустым — повторяю обычным ответом")
+                    continue
+                choice = {"finish_reason": finish}
+            else:
+                try:
+                    choice = r.json()["choices"][0]
+                    content = choice["message"]["content"]
+                except (ValueError, KeyError, IndexError, TypeError):
+                    raise ChatError(f"непонятный ответ модели: {r.text[:300]}")
+                if isinstance(content, list):  # некоторые модели отдают список частей
+                    content = "".join(x.get("text", "") for x in content if isinstance(x, dict))
+                if on_text:
+                    on_text(content or "")
             if choice.get("finish_reason") == "length":
                 log("ответ модели обрезан по лимиту max_tokens — увеличьте max_tokens в profile.json, если это повторяется")
             return content or ""
@@ -372,8 +480,12 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
 
 # ---------------------------------------------------------------- промпты по частям
 
-def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=print, check_cancel=None):
+_NUM_LINE = re.compile(r"(?m)^\s*(?:\*\*)?\s*\d{1,4}\s*[.)]\s*\S")
+
+
+def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=print, check_cancel=None, board=None):
     """Промпты для одной части: из кэша или от модели (с проверкой и повторами). → [str]"""
+    board = board or Board()
     filled, first, last = fill_template(prof, part_no, parts_total, part_text)
     key = hashlib.sha1(filled.encode("utf-8")).hexdigest()
     os.makedirs(cache_dir, exist_ok=True)
@@ -382,6 +494,8 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
         with open(cpath, encoding="utf-8") as f:
             cached = json.load(f)
         if cached.get("key") == key and cached.get("prompts"):
+            board.update(part_no, status="warn" if cached.get("problems") else "done", prompts=cached["prompts"],
+                         problems=cached.get("problems") or [], count=len(cached["prompts"]), note="из кэша")
             return cached["prompts"]
     except (OSError, ValueError):
         pass
@@ -389,7 +503,16 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
     for attempt in range(1, prof["attempts"] + 1):
         if check_cancel:
             check_cancel()
-        reply = chat(filled)
+        board.update(part_no, status="writing", attempt=attempt, started=time.time(), ended=None, live="", count=0,
+                     note="" if attempt == 1 else f"попытка {attempt}: " + "; ".join(best[3] if best else []))
+
+        def on_text(t, n=part_no):
+            board.update(n, live=t, count=len(_NUM_LINE.findall(t)))
+        try:
+            reply = chat(filled, on_text)
+        except Exception as e:
+            board.update(part_no, status="error", ended=time.time(), note=str(e)[:200])
+            raise
         with open(os.path.join(cache_dir, f"part_{part_no:02d}_answer{attempt}.txt"), "w", encoding="utf-8") as f:
             f.write(reply)
         prompts, sync = parse_reply(reply)
@@ -401,17 +524,20 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
             break
         log(f"часть {part_no}: {'; '.join(problems)} — попытка {attempt} из {prof['attempts']}")
     if best is None:
+        board.update(part_no, status="error", ended=time.time(), note="модель не вернула ни одного промпта")
         raise ProfileError(f"Часть {part_no}: модель не вернула ни одного промпта. Ответ сохранён в {cache_dir}")
     _, prompts, sync, problems = best
     if problems:
         log(f"часть {part_no}: беру лучший ответ ({len(prompts)} промптов), замечания: {'; '.join(problems)}")
     texts = [t for _, t in prompts]
+    board.update(part_no, status="warn" if problems else "done", ended=time.time(), prompts=texts, problems=problems,
+                 count=len(texts), live="")
     with open(cpath, "w", encoding="utf-8") as f:
         json.dump({"key": key, "prompts": texts, "sync": sync, "problems": problems}, f, ensure_ascii=False, indent=1)
     return texts
 
 
-def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=None):
+def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=None, board=None):
     """Промпты для всех частей; части пишутся параллельно (prof['parallel']).
     Пока модель пишет, раз в 10 с на экране: какие части в работе, сколько минут ждём, последнее сообщение сервиса."""
     n = len(parts)
@@ -449,7 +575,7 @@ def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=
         with lock:
             active[k + 1] = time.time()
         try:
-            res = part_prompts(chat, prof, k + 1, n, parts[k], cache_dir, log, check_cancel)
+            res = part_prompts(chat, prof, k + 1, n, parts[k], cache_dir, log, check_cancel, board)
         finally:
             with lock:
                 active.pop(k + 1, None)
