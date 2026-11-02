@@ -435,6 +435,13 @@
   #rec_dlg { position:fixed; inset:0; z-index:60; display:none; place-items:center; background:rgba(0,0,0,.55); }
   #rec_dlg.show { display:grid; } #rec_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:24px 28px; width:min(900px, calc(100% - 48px)); max-height:80vh; overflow-y:auto; }
   #rec_dlg h3 { margin:0 0 12px; font:600 16px/1.3 "Exo 2", sans-serif; } #rec_dlg .row { display:flex; justify-content:flex-end; margin-top:10px; }
+  #paste_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.55); }
+  #paste_dlg.show { display:grid; } #paste_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(980px, calc(100% - 48px)); }
+  #paste_dlg h3 { margin:0 0 10px; font:600 15px/1.3 "Exo 2", sans-serif; } #paste_dlg textarea { width:100%; height:56vh; font:12px/1.45 Consolas, monospace; }
+  #paste_dlg .row { display:flex; gap:10px; margin-top:12px; } #paste_dlg button { padding:10px 18px; font-size:12px; }
+  .pp .pbar { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 8px; } .pp .pbar button { padding:6px 10px; font-size:10px; letter-spacing:.12em; }
+  .pp.s-manual .ic { border-color:#e8a33a; } .pp.s-manual .pt, .pp.s-manual .ps { color:#e8a33a; }
+  .pmrow { justify-content:center; color:var(--ink2); }
   #job_dlg { position:fixed; inset:0; z-index:61; display:none; place-items:center; background:rgba(0,0,0,.55); }
   #job_dlg.show { display:grid; } #job_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:24px 28px; width:min(640px, calc(100% - 48px)); }
   #job_dlg h3 { margin:0 0 6px; font:600 16px/1.3 "Exo 2", sans-serif; } #job_dlg .note { color:var(--ink2); font-size:13px; margin-bottom:14px; }
@@ -467,6 +474,8 @@
 <div class="volbox" id="volbox"><div class="vwrap" title="Музыка"><input type="range" id="vol" min="0" max="100" value="50"></div><div class="nxt" id="nxt" title="Следующий трек"><svg viewBox="0 0 24 24"><path d="M5 5l9 7-9 7z"/><path d="M18 5v14"/></svg></div></div>
 <audio id="bgm" preload="auto"></audio>
 <div id="credit"></div>
+<div id="paste_dlg"><div class="box"><h3 id="pd_t"></h3><textarea id="pd_text" spellcheck="false"></textarea>
+  <div class="row"><span style="flex:1"></span><button class="ghost" id="pd_cancel"></button><button class="primary" id="pd_save"></button></div></div></div>
 <div id="job_dlg"><div class="box"><h3 id="jd_t"></h3><div class="note" id="jd_info"></div>
   <div class="jdg"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
   <label class="jdc"><input type="checkbox" id="jd_rimg"><span id="jd_t_rimg"></span></label>
@@ -520,6 +529,7 @@
     <div class="qrow srow" id="fgimg_row"><span class="lbl"><span data-i18n="fgimg_lbl"></span><span class="q" data-tipkey="tip_fgm">?</span></span><select id="fgimg_sel"></select><span class="arr">&#9660;</span></div>
     <div class="qrow srow" id="fgvid_row"><span class="lbl"><span data-i18n="fgvid_lbl"></span><span class="q" data-tipkey="tip_fgm">?</span></span><select id="fgvid_sel"></select><span class="arr">&#9660;</span></div>
     </div>
+    <label class="jdc pmrow" id="pm_row"><input type="checkbox" id="use_pm"><span id="pm_t"></span></label>
     <div class="crow hidden" id="custom_row"><textarea id="custom_style" spellcheck="false"></textarea></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
@@ -722,11 +732,16 @@ function fillFg() {
 $('fgimg_sel').addEventListener('change', () => { fgImg = $('fgimg_sel').value; pywebview.api.save_config({fg_image_model: fgImg}); });
 $('fgvid_sel').addEventListener('change', () => { fgVid = $('fgvid_sel').value; pywebview.api.save_config({fg_video_model: fgVid}); });
 let profileName = '', PROFILES = [];
+let profileManual = false;
 function fillProfiles() {
+  $('pm_row').style.display = profileName ? '' : 'none';
+  $('use_pm').checked = profileManual;
+  $('pm_t').textContent = pt('Промпты пишу сам в своём чате и вставляю в программу (fast-gen для промптов не используется)', 'I write prompts in my own chat and paste them in (fast-gen is not used for prompts)');
   const opts = [['', t('prof_none')]].concat(PROFILES.map(p => [p, p]));
   $('prof_sel').innerHTML = opts.map(([v, n]) => `<option value="${esc(v)}"${v === profileName ? ' selected' : ''}>${esc(n)}</option>`).join('');
   $('style_sel').disabled = !!profileName;
 }
+$('use_pm').addEventListener('change', () => { profileManual = $('use_pm').checked; pywebview.api.save_config({profile_manual: profileManual}); });
 $('prof_sel').addEventListener('change', () => { profileName = $('prof_sel').value; fillProfiles(); pywebview.api.save_config({profile: profileName}); });
 function fillStyles() {
   $('style_sel').innerHTML = styleOpts(false).map(([v, n]) => `<option value="${v}"${v === styleKey ? ' selected' : ''}>${esc(n)}</option>`).join('');
@@ -1131,9 +1146,10 @@ function plurN(n, f) { return plural(n, f).replace(/^\d+ /, ''); }
 function fmtMin(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} ${pt('мин', 'min')}` : `${s} ${pt('с', 's')}`; }
 function partStatus(p) {
   const pr = n => `${n} ${pt(plurN(n, ['промпт', 'промпта', 'промптов']), n === 1 ? 'prompt' : 'prompts')}`;
-  if (p.status === 'done') return '✓ ' + pr(p.count) + (p.note === 'из кэша' ? pt(' · из кэша', ' · cached') : '');
+  if (p.status === 'done') return '✓ ' + pr(p.count) + (p.note === 'из кэша' ? pt(' · из кэша', ' · cached') : (p.note === 'свои промпты' ? pt(' · свои', ' · yours') : ''));
   if (p.status === 'warn') return pr(p.count) + pt(' · есть замечания', ' · with remarks');
   if (p.status === 'error') return pt('ошибка', 'error');
+  if (p.status === 'manual') return pt('ждёт ваш ответ из чата', 'waiting for your chat answer');
   if (p.status === 'writing') return (p.count ? pr(p.count) + ` ${pt('из', 'of')} ${p.per}` : pt('модель думает', 'model is thinking')) + ' · ' + fmtMin(p.elapsed) + (p.attempt > 1 ? ` · ${pt('попытка', 'try')} ${p.attempt}` : '');
   return pt('ждёт', 'waiting');
 }
@@ -1144,7 +1160,9 @@ async function updateParts() {
   document.querySelector('#screen6 .proc').classList.toggle('with-parts', !!(ps && ps.profile));
   if (!ps || !ps.profile) return;
   $('parts_title').textContent = pt('Промпты по частям', 'Prompts by part');
-  $('parts_hint').textContent = on ? `${pt('Профиль', 'Profile')} «${ps.profile}» · ${pt('нажмите на часть, чтобы посмотреть промпты', 'click a part to see its prompts')}` : pt('Сценарий ещё делится на части…', 'Splitting the script into parts…');
+  $('parts_hint').textContent = !on ? pt('Сценарий ещё делится на части…', 'Splitting the script into parts…')
+    : ps.manual ? `${pt('Профиль', 'Profile')} «${ps.profile}» · ${pt('промпты пишете вы: откройте часть → «Скопировать запрос для чата» → вставьте ответ', 'you write the prompts: open a part → copy request → paste answer')}`
+    : `${pt('Профиль', 'Profile')} «${ps.profile}» · ${pt('нажмите на часть, чтобы посмотреть промпты или вставить свои', 'click a part to see prompts or paste your own')}`;
   const box = $('parts');
   if (box.dataset.n !== String(ps.parts.length) || box.dataset.p !== ps.profile) {
     box.dataset.n = ps.parts.length; box.dataset.p = ps.profile; box.innerHTML = ''; partsOpen.clear();
@@ -1170,21 +1188,58 @@ async function updateParts() {
 async function fillPart(n, force) {
   const d = $('pp' + n); if (!d || !partsOpen.has(n)) return;
   const p = d._p || {}, b = d.querySelector('.pb');
+  if (!b.querySelector('.pbar')) {
+    b.innerHTML = `<div class="pbar"><button class="ghost small" onclick="copyReq(${n})">${pt('Скопировать запрос для чата', 'Copy request for chat')}</button>`
+      + `<button class="ghost small" onclick="pasteDlg(${n})">${pt('Вставить ответ', 'Paste answer')}</button></div><div class="pc"></div>`;
+  }
+  const c = b.querySelector('.pc');
   if (p.status === 'writing') {
-    let pre = b.querySelector('.live');
-    if (!pre) { b.innerHTML = '<pre class="live"></pre>'; pre = b.querySelector('.live'); }
+    let pre = c.querySelector('.live');
+    if (!pre) { c.innerHTML = '<pre class="live"></pre>'; pre = c.querySelector('.live'); }
     const atEnd = b.scrollTop + b.clientHeight >= b.scrollHeight - 30;
     const txt = p.live || pt('Модель ещё не начала писать текст (думает)…', 'The model has not started writing yet (thinking)…');
     if (pre.textContent !== txt) { pre.textContent = txt; if (atEnd) b.scrollTop = b.scrollHeight; }
     return;
   }
-  if (p.status === 'wait') { b.innerHTML = `<div class="note">${pt('Часть ещё в очереди.', 'This part is still queued.')}</div>`; return; }
+  if (p.status === 'manual') { c.innerHTML = `<div class="note">${pt('Нажмите «Скопировать запрос для чата», вставьте его в свой чат, а ответ целиком — сюда кнопкой «Вставить ответ».', 'Copy the request, paste it into your chat, then paste the whole answer here.')}</div>`; return; }
+  if (p.status === 'wait') { c.innerHTML = `<div class="note">${pt('Часть ещё в очереди. Можно заранее вставить свой ответ из чата.', 'This part is still queued. You can paste your own answer in advance.')}</div>`; return; }
   if (!force && partsCache[n]) return;
   const r = await pywebview.api.profile_part(n);
   partsCache[n] = r;
   const probs = (r.problems || []).length ? `<div class="prob">${pt('Замечания', 'Remarks')}: ${esc(r.problems.join('; '))}</div>` : '';
   const note = (p.status === 'error' ? `<div class="prob">${esc(p.note || '')}</div>` : '') + (r.model ? `<div class="note">${pt('Модель', 'Model')}: ${esc(r.model)}</div>` : '');
-  b.innerHTML = note + probs + ((r.prompts || []).length ? `<ol start="${r.first || 1}">${r.prompts.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : '');
+  c.innerHTML = note + probs + ((r.prompts || []).length ? `<ol start="${r.first || 1}">${r.prompts.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : '');
+}
+async function copyReq(n) {
+  const r = await pywebview.api.profile_request(n);
+  if (!r.ok) { toast(esc(r.error), 6000); return; }
+  let ok = r.copied;
+  if (!ok) { try { await navigator.clipboard.writeText(r.text); ok = true; } catch (e) {} }
+  if (ok) toast(pt(`Запрос части ${n} скопирован (${r.chars.toLocaleString('ru-RU')} символов). Вставьте его в чат, а ответ — кнопкой «Вставить ответ».`, `Request for part ${n} copied. Paste it into your chat, then paste the answer back.`), 7000);
+  else pasteDlg(n, r.text);
+}
+function pasteDlg(n, readonlyText) {
+  const ro = typeof readonlyText === 'string';
+  $('pd_t').textContent = ro ? pt(`Часть ${n}: запрос для чата — выделите всё и скопируйте`, `Part ${n}: request for chat — select all and copy`)
+                             : pt(`Часть ${n}: вставьте ответ из чата целиком`, `Part ${n}: paste the whole chat answer`);
+  $('pd_text').value = ro ? readonlyText : ''; $('pd_text').readOnly = ro;
+  $('pd_text').placeholder = pt('001. Hand-drawn chalkboard illustration …\n\n002. …\n\nSYNC\nпоследнее предложение части', '001. …\n\nSYNC\nlast sentence');
+  $('pd_cancel').textContent = ro ? pt('Закрыть', 'Close') : pt('Отмена', 'Cancel');
+  $('pd_save').style.display = ro ? 'none' : ''; $('pd_save').textContent = pt('Сохранить', 'Save');
+  $('pd_cancel').onclick = () => $('paste_dlg').classList.remove('show');
+  $('pd_save').onclick = async () => {
+    const text = $('pd_text').value;
+    const chk = await pywebview.api.profile_paste(n, text, true);
+    if (!chk.ok) { toast(esc(chk.error), 7000); return; }
+    if ((chk.problems || []).length && !confirm(pt(`Есть замечания: ${chk.problems.join('; ')}.\n\nВсё равно взять эти ${chk.count} промптов?`, `Remarks: ${chk.problems.join('; ')}.\n\nUse these ${chk.count} prompts anyway?`))) return;
+    const r = await pywebview.api.profile_paste(n, text);
+    if (!r.ok) { toast(esc(r.error), 7000); return; }
+    $('paste_dlg').classList.remove('show'); delete partsCache[n];
+    toast(pt(`Часть ${n}: принято ${r.count} промптов.`, `Part ${n}: ${r.count} prompts accepted.`)
+      + (r.need_restart ? pt(' Ролик уже рисует картинки — чтобы перерисовать кадры этой части, нажмите «Стоп», затем «Продолжить» в «Недавних роликах».', ' To redraw this part, press Stop, then Continue.') : ''), 9000);
+    updateParts();
+  };
+  $('paste_dlg').classList.add('show'); setTimeout(() => $('pd_text').focus(), 50);
 }
 async function loadConfig(keepScreen) {
   const st = await pywebview.api.get_state(); const c = st.config;
@@ -1201,7 +1256,7 @@ async function loadConfig(keepScreen) {
   r = document.querySelector(`input[name=fgq][value=${c.quality || 'speed'}]`); if (r) r.checked = true;
   $('use_tts').checked = c.source === 'script' || !!c.rewrite; $('use_subs').checked = !!c.subtitles; $('use_motion').checked = !!c.motion; $('use_hd').checked = !!c.hd_images; $('use_qa').checked = !!c.qa_images; $('use_speed').checked = !!c.speed_copies; qaEngine = c.qa_engine || 'gemini'; qaModel = c.qa_model || ''; mark();
   $('vf').value = c.video_first || 0; drawVf();
-  PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; fillProfiles();
+  PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
@@ -1449,7 +1504,7 @@ async function loadVoices() {
   renderVoiceList(r.voices.map(v => ({id: v.id, name: `${v.name}${v.lang ? ' · ' + v.lang : ''}${v.gender ? ' · ' + v.gender : ''}`})));
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
-function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid,
+function opts() { syncAll(); return {audio: audioPath, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),

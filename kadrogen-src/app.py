@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p10"
+VERSION = "1.7.1-p11"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -746,7 +746,7 @@ class _Failed(Exception):
     pass
 
 
-JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model",
+JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual",
                 "tts_service", "tts_voice", "style", "image_providers")
 
 
@@ -992,6 +992,7 @@ class Api:
             "style": style_key(cfg.get("style"), pipeline.DEFAULT_STYLE),
             "custom_style": cfg.get("custom_style", ""), "video_prompt": cfg.get("video_prompt", ""),
             "fg_models": pipeline.fastgen_models(), "fg_image_model": cfg.get("fg_image_model", ""), "fg_video_model": cfg.get("fg_video_model", ""),
+            "profile_manual": bool(cfg.get("profile_manual", False)),
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -1056,6 +1057,8 @@ class Api:
         for k in ("fg_image_model", "fg_video_model"):
             if k in data:
                 cfg[k] = str(data.get(k) or "").strip()[:120]
+        if "profile_manual" in data:
+            cfg["profile_manual"] = bool(data.get("profile_manual"))
         if "custom_style" in data:
             cfg["custom_style"] = " ".join(str(data.get("custom_style") or "").split())
         if "queue_styles" in data:
@@ -1426,6 +1429,8 @@ class Api:
         for k in ("fg_image_model", "fg_video_model"):
             if k in opts:
                 cfg[k] = str(opts.get(k) or "").strip()[:120]
+        if "profile_manual" in opts:
+            cfg["profile_manual"] = bool(opts.get("profile_manual"))
         if voice:
             rec = [x for x in cfg.get("tts_recent", []) if x.get("id") != voice]
             rec.insert(0, {"id": voice, "service": tts})
@@ -1624,6 +1629,28 @@ class Api:
     def profile_state(self):
         """Панель «Промпты по частям»: состояние частей профиля (без самих промптов)."""
         return pipeline.profiles.BOARD.summary()
+
+    def profile_request(self, n):
+        """«Скопировать запрос для чата»: мастер-промпт с этой частью — в буфер обмена (и в окно, если буфер недоступен)."""
+        try:
+            text = pipeline.profiles.BOARD.request_text(int(n))
+        except (TypeError, ValueError):
+            text = None
+        if not text:
+            return {"ok": False, "error": "Нет ролика с профилем: запустите ролик — части появятся в этой панели."}
+        copied = False
+        try:
+            copied = bool(set_clipboard(text))
+        except Exception:
+            pass
+        return {"ok": True, "copied": copied, "text": text, "chars": len(text)}
+
+    def profile_paste(self, n, text, dry=False):
+        """«Вставить ответ»: свои промпты из чата для части n (dry — только проверить, не сохраняя)."""
+        try:
+            return pipeline.profiles.BOARD.paste(int(n), str(text or ""), bool(dry))
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     def profile_part(self, n):
         """Промпты одной части — по клику на часть в панели."""

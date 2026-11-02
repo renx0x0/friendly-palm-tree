@@ -74,9 +74,10 @@ class Board:
         self.lock = threading.Lock()
         self.data = {"profile": None, "parts": []}
 
-    def reset(self, name=None, parts=None, per=50, first=1):
+    def reset(self, name=None, parts=None, per=50, first=1, prof=None, cache_dir=None, manual=False):
         with self.lock:
-            self.data = {"profile": name, "parts": [
+            self.prof, self.cache_dir, self.texts, self.prompts_done = prof, cache_dir, list(parts or []), False
+            self.data = {"profile": name, "manual": bool(manual), "parts": [
                 {"n": i + 1, "chars": len(p), "first": first + i * per, "per": per, "status": "wait", "started": None,
                  "ended": None, "attempt": 0, "count": 0, "live": "", "prompts": None, "problems": [], "note": "", "model": ""}
                 for i, p in enumerate(parts or [])]}
@@ -97,7 +98,8 @@ class Board:
                 q["live"] = p["live"][-self.LIVE_TAIL:] if p["status"] == "writing" else ""
                 q["ready"] = p["prompts"] is not None
                 parts.append(q)
-            return {"profile": self.data["profile"], "parts": parts}
+            return {"profile": self.data["profile"], "manual": self.data.get("manual", False),
+                    "can_paste": bool(self.cache_dir and self.prof), "parts": parts}
 
     def part(self, n):
         with self.lock:
@@ -106,6 +108,46 @@ class Board:
                     return {"n": n, "first": p["first"], "prompts": list(p["prompts"] or []), "problems": list(p["problems"]),
                             "status": p["status"], "live": p["live"], "model": p.get("model", "")}
         return {"n": n, "prompts": [], "problems": [], "status": "wait", "live": ""}
+
+
+    def request_text(self, n):
+        """Запрос для чата: мастер-промпт с подставленной частью — ровно то, что ушло бы в модель."""
+        with self.lock:
+            prof, texts = self.prof, self.texts
+        if not prof or not (1 <= n <= len(texts)):
+            return None
+        return fill_template(prof, n, len(texts), texts[n - 1])[0]
+
+    def paste(self, n, text, dry=False):
+        """Свой ответ из чата для части n: проверка как у ответа модели, сохранение в задание (dry — только проверить).
+        → {"ok", "count", "problems", "need_restart"}"""
+        with self.lock:
+            prof, texts, cache_dir, done = self.prof, self.texts, self.cache_dir, self.prompts_done
+        if not prof or not cache_dir or not (1 <= n <= len(texts)):
+            return {"ok": False, "error": "Нет ролика с профилем: запустите ролик — части появятся в этой панели."}
+        _, first, last = fill_template(prof, n, len(texts), texts[n - 1])
+        prompts, sync = parse_reply(text)
+        if not prompts:
+            return {"ok": False, "error": "Не нашёл ни одного промпта. Нужны строки вида «001. Hand-drawn …»."}
+        problems = check_reply(prompts, sync, first, last, texts[n - 1], prof["check_sync"],
+                               prof.get("prompt_rules") or [], prof["max_bad_prompts"])
+        if dry:
+            return {"ok": True, "count": len(prompts), "problems": problems, "need_restart": done, "dry": True}
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(manual_path(cache_dir, n), "w", encoding="utf-8") as f:
+            f.write(text)
+        try:  # старые промпты этой части больше не нужны — при следующем запуске возьмутся вставленные
+            os.remove(os.path.join(cache_dir, f"part_{n:02d}.json"))
+        except OSError:
+            pass
+        texts_ = [t for _, t in prompts]
+        self.update(n, status="warn" if problems else "done", prompts=texts_, problems=problems, count=len(texts_),
+                    note="свои промпты", model="вставлено вручную", live="", ended=time.time())
+        return {"ok": True, "count": len(texts_), "problems": problems, "need_restart": done}
+
+
+def manual_path(cache_dir, n):
+    return os.path.join(cache_dir, f"part_{n:02d}_manual.txt")
 
 
 BOARD = Board()
@@ -560,6 +602,29 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
     key = hashlib.sha1(filled.encode("utf-8")).hexdigest()
     os.makedirs(cache_dir, exist_ok=True)
     cpath = os.path.join(cache_dir, f"part_{part_no:02d}.json")
+    mpath = manual_path(cache_dir, part_no)
+
+    def use_manual():
+        """Свой ответ из чата (кнопка «Вставить ответ») важнее ответа модели и кэша."""
+        with open(mpath, encoding="utf-8") as f:
+            prompts, sync = parse_reply(f.read())
+        problems = check_reply(prompts, sync, first, last, part_text, prof["check_sync"],
+                               prof.get("prompt_rules") or [], prof["max_bad_prompts"])
+        texts = [t for _, t in prompts]
+        board.update(part_no, status="warn" if problems else "done", ended=time.time(), prompts=texts, problems=problems,
+                     count=len(texts), live="", note="свои промпты", model="вставлено вручную")
+        log(f"часть {part_no}: свои промпты из чата, {len(texts)} шт." + (f", замечания: {'; '.join(problems)}" if problems else ""))
+        return texts
+
+    if os.path.exists(mpath):
+        return use_manual()
+    if chat is None:  # промпты пишет сам пользователь — ждём, пока он вставит ответ в панели
+        board.update(part_no, status="manual", note="ждёт ваш ответ из чата", started=time.time())
+        while not os.path.exists(mpath):
+            if check_cancel:
+                check_cancel()
+            time.sleep(1)
+        return use_manual()
     try:
         with open(cpath, encoding="utf-8") as f:
             cached = json.load(f)
@@ -580,6 +645,8 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
             board.update(n, live=t, count=len(_NUM_LINE.findall(t)))
         try:
             reply = chat(filled, on_text)
+            if os.path.exists(mpath):  # пока модель писала, пользователь вставил свой ответ — берём его
+                return use_manual()
         except ChatError as e:  # сервис так и не ответил — это неудачная попытка части, а не конец ролика
             last_err = str(e)
             log(f"часть {part_no}: {last_err} — попытка {attempt} из {prof['attempts']}")
@@ -635,7 +702,10 @@ def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=
         s = f"профиль «{prof['name']}»: готово частей {d} из {n}"
         if act:
             now = time.time()
-            s += " · модель пишет " + ", ".join(f"часть {k} ({int((now - t0) // 60)} мин)" for k, t0 in act)
+            if chat is None:
+                s += " · ждут ваш ответ из чата: " + ", ".join(f"часть {k}" for k, _ in act)
+            else:
+                s += " · модель пишет " + ", ".join(f"часть {k} ({int((now - t0) // 60)} мин)" for k, t0 in act)
         if msg and time.time() - at < 90:
             s += " · " + msg
         return d, s
@@ -649,7 +719,8 @@ def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=
         with lock:
             note[0], note[1] = msg, time.time()
 
-    chat.status = set_status
+    if chat is not None:
+        chat.status = set_status
     progress("prompts", 0, n, f"профиль «{prof['name']}»: пишу промпты, частей {n}")
 
     failed = threading.Event()  # одна часть не написалась — остальные не начинаем: ролик всё равно остановится
@@ -675,13 +746,15 @@ def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=
 
     t = threading.Thread(target=ticker, daemon=True)
     t.start()
-    try:
-        with cf.ThreadPoolExecutor(max_workers=min(prof["parallel"], n)) as ex:
+    try:  # вручную части не пишутся «по очереди»: можно вставлять в любом порядке
+        with cf.ThreadPoolExecutor(max_workers=n if chat is None else min(prof["parallel"], n)) as ex:
             futs = [ex.submit(one, k) for k in range(n)]
             for f in futs:
                 f.result()
     finally:
         stop.set()
+    with board.lock:
+        board.prompts_done = True
     return result
 
 

@@ -3002,6 +3002,8 @@ def make_profile_chat(prof, cfg, progress):
             clear_wait("llm")
 
     engine = (prof.get("llm") or "fastgen").lower()
+    if engine == "manual" or cfg.get("profile_manual"):  # промпты пишет пользователь в своём чате и вставляет в окне
+        return None, "вы сами (вставка ответа из чата)"
     if engine == "fastgen":
         key = cfg.get("fastgen_api_key") or (provider_keys(cfg, "fastgen") or [""])[0]
         if not key:
@@ -3047,9 +3049,10 @@ def profile_scenes(prof, cfg, tr, duration, job_dir, progress):
     chat, chat_name = make_profile_chat(prof, cfg, progress)
     progress("scenes", 0, 0, f"профиль «{prof['name']}»: {len(parts)} частей по ~{len(text) // len(parts)} символов "
                              f"({source}), промпты пишет {chat_name}")
-    profiles.BOARD.reset(prof["name"], parts, prof["prompts_per_part"])
+    cache_dir = os.path.join(job_dir, "profile")
+    profiles.BOARD.reset(prof["name"], parts, prof["prompts_per_part"], prof=prof, cache_dir=cache_dir, manual=chat is None)
     try:
-        prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel, profiles.BOARD)
+        prompts = profiles.all_prompts(chat, prof, parts, cache_dir, progress, log, check_cancel, profiles.BOARD)
     except profiles.ProfileError as e:
         raise Retryable(str(e))
     bounds = profiles.part_bounds(parts, tr["words"], duration, log)
