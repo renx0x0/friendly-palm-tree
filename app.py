@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p4"
+VERSION = "1.7.1-p5"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -100,6 +100,15 @@ def style_key(v, default=None):
     return v if v in pipeline.STYLES or v == pipeline.CUSTOM_STYLE else default
 
 
+def job_title(opts):
+    rw = opts.get("rewrite") or {}
+    if rw.get("on"):
+        return (rw.get("url") or " ".join((rw.get("text") or "").split()[:7]) or "рерайт")[:80]
+    if opts.get("source") == "script":
+        return " ".join((opts.get("script") or "").split()[:7]).lstrip("—–-:;,. ")[:80] or "сценарий"
+    return os.path.basename((opts.get("audio") or "").strip().strip('"')) or "озвучка"
+
+
 def run_queue(common):
     """Задания по очереди, одно за другим. Общие настройки у всех одни, у каждого задания свои текст/файл и голос."""
     global QUEUE_STOP
@@ -115,6 +124,26 @@ def run_queue(common):
                               "result": None, "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0,
                               "queue": {"id": item["id"], "pos": pos, "total": len(QUEUE), "title": item.get("title", "")}})
             queue_save()
+            if item.get("opts"):  # поставлено во время работы — со своими настройками
+                err, args, _ = Api()._job(item["opts"])
+                if err:
+                    with LOCK:
+                        item["status"], item["error"] = "error", err
+                    queue_save()
+                    continue
+                run_job(**args)
+                with LOCK:
+                    if STATE.get("cancelled"):
+                        item["status"] = "stopped"
+                    elif STATE.get("error"):
+                        item["status"], item["error"] = "error", STATE["error"]
+                    else:
+                        item["status"], item["result"] = "done", STATE.get("result")
+                    stopped = STATE.get("cancelled")
+                queue_save()
+                if stopped:
+                    break
+                continue
             rw = item.get("rewrite") if item.get("source") == "rewrite" else None
             script = item.get("script") if item.get("source") == "script" else None
             audio = item.get("audio") if item.get("source") == "mp3" else None
@@ -643,26 +672,92 @@ def keep_awake(on):
         pass
 
 
+RETRY_DELAYS = (120, 300, 600, 1200, 1800)  # повтор ролика после сбоя сервиса: 2, 5, 10, 20, 30 мин
+FIX_DELAYS = (300, 900)                      # доводка собранного ролика: подменённые картинки и неоживлённые сцены
+LAST_RUN = {}                                # последний запуск — для кнопки «Повторить»
+
+
+class _Failed(Exception):
+    pass
+
+
+def _pause(sec, why):
+    """Пауза перед повтором с обратным отсчётом в окне. False — нажали «Стоп»."""
+    pipeline.log(why)
+    with LOCK:
+        STATE["message"] = why
+        STATE["log"].append(f"{time.strftime('%H:%M:%S')}  {why}")
+    pipeline.WAIT.clear()
+    pipeline.set_wait("retry", time.time() + sec)
+    pipeline.WAIT["why"] = why
+    try:
+        end = time.time() + sec
+        while time.time() < end:
+            if pipeline.CANCEL.is_set():
+                return False
+            time.sleep(1)
+        return True
+    finally:
+        pipeline.clear_wait("retry")
+
+
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
             profile=None, voice_file=None):
+    """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
+    подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
+    LAST_RUN.clear()
+    LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
+                         script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file))
     keep_awake(True)
+    tries = fixes = 0
     try:
         apply_engine(provider)
         d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile)
         with LOCK:
             STATE["job_dir"] = d
-        out = pipeline.make_video(audio, progress_cb=progress_cb, provider=provider, mode=mode, style_key=style,
-                                  use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
-                                  tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file)
-        with LOCK:  # у профиля папка задания своя — после старта окно смотрит туда
-            STATE["job_dir"] = pipeline.LAST_JOB_DIR or STATE.get("job_dir")
-        with LOCK:
-            STATE["result"] = out
+        auto = load_cfg().get("auto_retry", True)
+        while True:
+            err = None
+            try:
+                out = pipeline.make_video(audio, progress_cb=progress_cb, provider=provider, mode=mode, style_key=style,
+                                          use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
+                                          tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file)
+            except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
+                err = str(e)
+            except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
+                raise
+            except Exception as e:  # сбой сети или сервиса
+                err = f"{type(e).__name__}: {e}"
+                with LOCK:
+                    STATE["log"].append(traceback.format_exc()[-1500:])
+            if err is None:
+                with LOCK:  # у профиля папка задания своя — окно смотрит туда
+                    STATE["result"] = out
+                    STATE["job_dir"] = pipeline.LAST_JOB_DIR or STATE.get("job_dir")
+                bad = dict(pipeline.LAST_FAILURES)
+                if not (auto and (bad["images"] or bad["videos"]) and fixes < len(FIX_DELAYS)):
+                    break
+                what = " и ".join(x for x in (f"картинок подменено соседними: {bad['images']}" if bad["images"] else "",
+                                              f"сцен не оживилось: {bad['videos']}" if bad["videos"] else "") if x)
+                sec = FIX_DELAYS[fixes]
+                fixes += 1
+                if not _pause(sec, f"ролик готов, но {what} — через {sec // 60} мин доделаю их и пересоберу ролик "
+                                   f"(доводка {fixes} из {len(FIX_DELAYS)}; «Стоп» — оставить как есть)"):
+                    break
+                with LOCK:
+                    STATE["result"] = None
+                continue
+            if not auto or tries >= len(RETRY_DELAYS):
+                raise _Failed(err if tries == 0 else f"{err} (после {tries} повторов)")
+            sec = RETRY_DELAYS[tries]
+            tries += 1
+            if not _pause(sec, f"сбой: {err[:300]} — повтор {tries} из {len(RETRY_DELAYS)} через {sec // 60} мин, всё готовое сохранено"):
+                raise pipeline.Cancelled()
     except pipeline.Cancelled:
         with LOCK:
             STATE["cancelled"] = True
             STATE["message"] = "остановлено"
-    except SystemExit as e:
+    except (_Failed, SystemExit) as e:
         with LOCK:
             STATE["error"] = str(e)
     except Exception as e:
@@ -674,6 +769,51 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
             STATE["running"] = False
             STATE["ended_at"] = time.time()
         keep_awake(False)
+
+
+def job_chain(args):
+    """Ролик, а после него — задания, поставленные в очередь во время работы (у каждого свои настройки)."""
+    api, item, chained = Api(), None, False
+    try:
+        while args:
+            run_job(**args)
+            if item is not None:
+                with LOCK:
+                    if STATE.get("cancelled"):
+                        item["status"] = "stopped"
+                    elif STATE.get("error"):
+                        item["status"], item["error"] = "error", STATE["error"]
+                    else:
+                        item["status"], item["result"] = "done", STATE.get("result")
+                queue_save()
+            args, item = None, None
+            while True:
+                with LOCK:
+                    if STATE.get("cancelled") or QUEUE_STOP:
+                        break
+                    nxt = next((x for x in QUEUE if x.get("status") == "queued" and x.get("opts")), None)
+                    if nxt is None:
+                        break
+                    nxt["status"] = "running"
+                err, a, title = api._job(nxt["opts"])
+                if err:
+                    with LOCK:
+                        nxt["status"], nxt["error"] = "error", err
+                    queue_save()
+                    continue
+                with LOCK:
+                    pos = QUEUE.index(nxt) + 1
+                    STATE.update({"running": True, "queue_active": True, "stage": "start", "done": 0, "total": 0, "message": "следующий ролик из очереди",
+                                  "log": [], "result": None, "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0,
+                                  "title": title, "queue": {"id": nxt["id"], "pos": pos, "total": len(QUEUE), "title": title}})
+                queue_save()
+                args, item, chained = a, nxt, True
+                break
+    finally:
+        if chained:
+            with LOCK:
+                STATE["queue_active"] = False
+                STATE["running"] = False
 
 
 def _vtuple(v):
@@ -715,7 +855,7 @@ class Api:
         st["queue_items"] = queue_public()
         st["elapsed"] = int(((not st.get("running") and st.get("ended_at")) or time.time()) - st["started_at"]) if st.get("started_at") else 0
         w = dict(pipeline.WAIT)
-        st["wait"] = ({"kind": w.get("kind"), "left": max(0, int(w["until"] - time.time())) if w.get("until") else None,
+        st["wait"] = ({"kind": w.get("kind"), "why": w.get("why", ""), "left": max(0, int(w["until"] - time.time())) if w.get("until") else None,
                        "since": int(time.time() - w.get("since", time.time()))} if w and st["running"] else None)
         st["config"] = {
             "fastgen": mask(cfg.get("fastgen_api_key", "")),
@@ -1150,14 +1290,19 @@ class Api:
         threading.Thread(target=run_rewrite, args=(rw,), daemon=True).start()
         return {"ok": True}
 
-    def start(self, opts):
+    def _job(self, opts):
+        """Проверить запуск и записать его настройки в config.json. → (ошибка, аргументы run_job, название)."""
         audio = (opts.get("audio") or "").strip().strip('"')
         provider = pipeline.normalize_providers(opts.get("providers"))
         mode, style, subtitles = opts.get("mode", "images"), style_key(opts.get("style"), pipeline.DEFAULT_STYLE), bool(opts.get("subtitles"))
-        use_refs = (load_cfg().get("quality") == "quality")
+        cfg = load_cfg()
+        use_refs = (cfg.get("quality") == "quality")
+        profile = opts.get("profile")
+        if profile is None:
+            profile = cfg.get("profile", "")
         custom_style = " ".join(str(opts.get("custom_style") or "").split())
-        if style == pipeline.CUSTOM_STYLE and not custom_style and not load_cfg().get("profile"):  # с профилем стиль не нужен
-            return {"ok": False, "error": "Опишите свой стиль на экране «Режим» или выберите стиль из списка."}
+        if style == pipeline.CUSTOM_STYLE and not custom_style and not profile:  # с профилем стиль не нужен
+            return "Опишите свой стиль на экране «Режим» или выберите стиль из списка.", None, None
         motion = bool(opts.get("motion"))
         hd = bool(opts.get("hd"))
         video_first = _vf(opts.get("video_first"))
@@ -1168,25 +1313,72 @@ class Api:
             script = None
         err = self._validate(opts, provider)
         if err:
-            return {"ok": False, "error": err}
-        with LOCK:
-            if STATE["running"] or STATE["preparing"]:
-                return {"ok": False, "error": "Уже идёт создание видео."}
-            STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "запуск",
-                          "log": [], "result": None, "error": None, "cancelled": False, "started_at": time.time()})
-        cfg = load_cfg()
+            return err, None, None
         tts = opts.get("tts") or cfg.get("tts_service") or "voicegen"
         voice = (opts.get("voice") or "").strip()
         cfg.update({"image_providers": provider, "mode": mode, "style": style, "custom_style": custom_style, "use_refs": use_refs, "subtitles": subtitles, "motion": motion, "hd_images": hd,
                     "qa_images": bool(opts.get("qa", cfg.get("qa_images", False))), "speed_copies": bool(opts.get("speed", cfg.get("speed_copies", False))),
-                    "source": opts.get("source", cfg.get("source", "mp3")), "tts_service": tts, "tts_voice": voice, "video_first": video_first})
+                    "source": opts.get("source", cfg.get("source", "mp3")), "tts_service": tts, "tts_voice": voice, "video_first": video_first, "profile": profile})
         if voice:
             rec = [x for x in cfg.get("tts_recent", []) if x.get("id") != voice]
             rec.insert(0, {"id": voice, "service": tts})
             cfg["tts_recent"] = rec[:12]
         save_cfg(cfg)
-        threading.Thread(target=run_job, args=(audio, provider, mode, style, use_refs, subtitles, motion, script, rw, tts, voice, video_first, hd),
-                         kwargs={"voice_file": voice_file}, daemon=True).start()
+        args = dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
+                    script=script, rewrite=rw, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file)
+        return None, args, job_title(opts)
+
+    def _enqueue(self, opts):
+        """Запуск во время работы: ролик встаёт в очередь со своими настройками и начнётся сам после текущего."""
+        o = dict(opts)
+        if o.get("profile") is None:
+            o["profile"] = load_cfg().get("profile", "")
+        err = self._validate(o, pipeline.normalize_providers(o.get("providers")))
+        if err:
+            return {"ok": False, "error": err}
+        title = job_title(o)
+        src = "rewrite" if (o.get("rewrite") or {}).get("on") else ("script" if o.get("source") == "script" else "mp3")
+        entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "source": src, "script": (o.get("script") or "").strip() or None,
+                 "audio": (o.get("audio") or "").strip().strip('"') or None, "rewrite": None, "voice": (o.get("voice") or "").strip(),
+                 "style": style_key(o.get("style"), ""), "status": "queued", "result": None, "error": None, "opts": o}
+        with LOCK:
+            QUEUE.append(entry)
+            pos = sum(1 for x in QUEUE if x.get("status") == "queued")
+        queue_save()
+        return {"ok": True, "queued": True, "pos": pos, "title": title, "items": queue_public()}
+
+    def start(self, opts):
+        global QUEUE_STOP
+        with LOCK:
+            busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
+        if busy:
+            return self._enqueue(opts)
+        err, args, title = self._job(opts)
+        if err:
+            return {"ok": False, "error": err}
+        with LOCK:
+            busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
+            if not busy:
+                STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "запуск", "log": [], "result": None,
+                              "error": None, "cancelled": False, "started_at": time.time(), "title": title, "queue": None})
+        if busy:
+            return self._enqueue(opts)
+        QUEUE_STOP = False
+        threading.Thread(target=job_chain, args=(args,), daemon=True).start()
+        return {"ok": True}
+
+    def retry_last(self):
+        """Кнопка «Повторить»: тот же ролик с теми же настройками; всё готовое возьмётся из задания."""
+        global QUEUE_STOP
+        with LOCK:
+            if STATE["running"] or STATE["preparing"] or STATE.get("queue_active"):
+                return {"ok": False, "error": "Уже идёт создание видео."}
+            if not LAST_RUN:
+                return {"ok": False, "error": "Повторять нечего: программа перезапускалась. Запустите ролик заново — готовое возьмётся из задания."}
+            STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "повтор", "log": [], "result": None,
+                          "error": None, "cancelled": False, "started_at": time.time(), "queue": None})
+        QUEUE_STOP = False
+        threading.Thread(target=job_chain, args=(dict(LAST_RUN),), daemon=True).start()
         return {"ok": True}
 
     # ---------- очередь заданий ----------

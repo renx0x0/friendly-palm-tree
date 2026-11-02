@@ -258,7 +258,12 @@
   .brief .sentence { font:400 42px/1.4 "Exo 2", sans-serif; letter-spacing:.03em; color:var(--ink); animation:fadein .6s; text-align:center; }
   .brief .sentence b { font-weight:600; color:var(--acc2); }
 
-  #volbox { display:none !important; }  /* фоновая музыка выключена */
+  #volbox { display:none !important; }
+  .runpill { position:fixed; top:18px; left:50%; transform:translateX(-50%); z-index:60; display:none; align-items:center; gap:10px; max-width:min(760px, 90vw);
+             padding:8px 16px; background:var(--bg2); border:1.5px solid var(--acc2); box-shadow:0 0 18px rgba(0,180,230,.25); cursor:pointer; font-size:13px; color:var(--ink); }
+  .runpill.on { display:flex; } .runpill:hover { background:var(--line2); }
+  .runpill .dotl { width:8px; height:8px; flex:none; background:var(--acc2); border-radius:50%; animation:pulse 1.2s ease-in-out infinite; }
+  .runpill .tx { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .runpill .go { color:var(--acc2); white-space:nowrap; }  /* фоновая музыка выключена */
   .proc { display:grid; grid-template-columns:320px 1fr; gap:24px; flex:1; min-height:0; }
   .proc.with-parts { grid-template-columns:300px minmax(320px, 420px) 1fr; }
   /* панель «Промпты по частям» (профили) */
@@ -420,6 +425,7 @@
 </head>
 <body>
 <div class="bgl"><i></i><i></i></div>
+<div class="runpill" id="runpill" onclick="go(6)"><span class="dotl"></span><span class="tx" id="runpill_tx"></span><span class="go" id="runpill_go"></span></div>
 <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
 <div class="topctl">
   <div class="ctl help" id="helpbtn" onclick="pywebview.api.open_help()" data-i18n="help"></div>
@@ -528,7 +534,7 @@
         <div class="bar"><i id="stage_bar"></i></div>
         <div class="time" id="p_time"></div><div id="p_err"></div>
         <div class="wait" id="p_wait"><div class="wr"><svg viewBox="0 0 24 24"><path d="M6 2h12M6 22h12M7 2v4l5 6 5-6V2M7 22v-4l5-6 5 6v4"/></svg><span class="wt" id="w_title"></span><span class="cd" id="w_cd"></span></div><small id="w_sub"></small></div>
-        <div style="margin-top:auto; padding-top:16px; display:flex; gap:8px; flex-wrap:wrap"><button id="btn_cancel" class="danger" onclick="cancelJob()" data-i18n="stop"></button><button id="btn_again" class="ghost" onclick="go(4)" disabled data-i18n="again"></button><button id="btn_report" class="ghost" onclick="sendReport()" data-i18n="report"></button></div>
+        <div style="margin-top:auto; padding-top:16px; display:flex; gap:8px; flex-wrap:wrap"><button id="btn_cancel" class="danger" onclick="cancelJob()" data-i18n="stop"></button><button id="btn_retry" class="ghost" onclick="retryJob()" style="display:none"></button><button id="btn_again" class="ghost" onclick="go(4)" disabled data-i18n="again"></button><button id="btn_report" class="ghost" onclick="sendReport()" data-i18n="report"></button></div>
       </div>
       <div class="panel" id="parts_panel"><h3 id="parts_title"></h3><div class="phint" id="parts_hint"></div><div id="parts"></div></div>
       <div class="panel"><h3 id="g_title"></h3><div class="frames" id="frames"></div>
@@ -634,6 +640,7 @@ function go(n) {
     from.classList.remove('leaving', 'active'); cur = n;
     for (let i = 1; i <= 6; i++) $('screen' + i).classList.toggle('active', i === n);
     if (n === 4) renderAccess();
+    $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
 function provs() { return Array.from(document.querySelectorAll('input[name=prov]:checked')).map(x => x.value); }
@@ -686,7 +693,7 @@ let queueMode = false;
 async function startAll() {
   await saveKeys(); $('s_prep').textContent = ''; $('s_prep2').textContent = '';
   await queueRefresh();
-  if (queueItems.some(q => q.status === 'queued') || (queueItems.length && formHasContent())) {
+  if (!jobRunning && (queueItems.some(q => q.status === 'queued') || (queueItems.length && formHasContent()))) {
     if (formHasContent() && !(await queueAdd())) return;
     queueMode = true; renderReview(null); go(5); return;
   }
@@ -785,7 +792,8 @@ function showWait(w) {
   const box = $('p_wait');
   if (!w) { box.classList.remove('on'); waitLeft = null; clearInterval(waitTick); waitTick = null; return; }
   const k = w.kind === 'llm' ? 'llm' : 'fastgen';
-  $('w_title').textContent = t('wait_' + k); $('w_sub').textContent = t('wait_' + k + '_sub');
+  if (w.kind === 'retry') { $('w_title').textContent = pt('Пауза перед повтором', 'Pause before retry'); $('w_sub').textContent = w.why || ''; }
+  else { $('w_title').textContent = t('wait_' + k); $('w_sub').textContent = t('wait_' + k + '_sub'); }
   waitLeft = w.left; drawWait();
   if (!waitTick) waitTick = setInterval(() => { if (waitLeft !== null && waitLeft > 0) { waitLeft--; drawWait(); } }, 1000);
   box.classList.add('on');
@@ -897,6 +905,12 @@ function buildFrames(n) { total = n; known = new Set(); const f = $('frames'); f
 async function start(o) {
   const r = await pywebview.api.start(o || opts());
   if (!r.ok) { $('s_prep2').textContent = r.error; return; }
+  if (r.queued) {
+    queueItems = r.items || queueItems;
+    toast(pt(`В очереди №${r.pos}: «${esc(r.title)}». Начнётся сам, когда закончится текущий ролик.`,
+             `Queued #${r.pos}: “${esc(r.title)}”. It starts by itself when the current video is done.`), 7000);
+    go(6); return;
+  }
   $('result').classList.remove('show'); $('error').textContent = ''; $('btn_again').disabled = true; $('btn_cancel').disabled = false; $('g_title').textContent = t('frames'); shownPct = 0;
   buildStages(mode()); buildFrames(total || 0); go(6); poll();
 }
@@ -908,8 +922,11 @@ function queueSummary(st) {
   const items = st.queue_items || [], done = items.filter(x => x.status === 'done').length;
   return `<b>${t('q_summary').replace('{d}', done).replace('{n}', items.length)}</b><div class="qlist">${items.map((x, i) => `<div><span>${i + 1}. ${esc(x.title)}</span><span class="${x.status}">${QST()[x.status] || x.status}</span></div>`).join('')}</div>`;
 }
+let jobRunning = false, pollGen = 0;
 async function poll() {
+  const gen = ++pollGen;  // новый вызов poll() заменяет прежний цикл, а не запускает второй
   const st = await pywebview.api.get_state();
+  jobRunning = !!(st.running || st.queue_active);
   if (st.queue) {
     $('p_queue').textContent = `${t('q_job')} ${st.queue.pos} ${t('q_of')} ${st.queue.total} · ${st.queue.title}`;
     if (st.queue.id !== lastQueueId) { lastQueueId = st.queue.id; buildFrames(0); $('result').classList.remove('show'); $('error').textContent = ''; shownPct = 0; }
@@ -943,7 +960,22 @@ async function poll() {
   if (st.error) { $('error').textContent = t('error') + st.error; $('p_err').textContent = st.error; $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; $('btn_again').textContent = t('again'); }
   if (st.cancelled) $('error').textContent = t('stopped');
   await updateParts();
-  if (st.running || st.queue_active) setTimeout(poll, 1400); else { $('btn_again').disabled = false; $('btn_cancel').disabled = true; }
+  const queued = (st.queue_items || []).filter(q => q.status === 'queued').length;
+  $('runpill_tx').textContent = `${pt('Идёт', 'Running')}: ${st.title || (st.queue && st.queue.title) || pt('ролик', 'video')} · ${(t('stages')[st.stage] || st.stage_name || '').toLowerCase()} ${pct}%`
+    + (queued ? ` · ${pt('в очереди', 'queued')}: ${queued}` : '');
+  $('runpill_go').textContent = pt('открыть ›', 'open ›');
+  $('runpill').classList.toggle('on', jobRunning && cur !== 6);
+  $('btn_retry').textContent = pt('Повторить', 'Retry');
+  $('btn_retry').style.display = !jobRunning && (st.error || st.cancelled) ? '' : 'none';
+  if (jobRunning) { $('btn_again').disabled = false; $('btn_again').textContent = pt('Следующий ролик', 'Next video'); }
+  if (gen !== pollGen) return;
+  if (jobRunning) setTimeout(poll, 1400); else { $('btn_again').disabled = false; $('btn_cancel').disabled = true; }
+}
+async function retryJob() {
+  const r = await pywebview.api.retry_last();
+  if (!r.ok) { toast(esc(r.error), 7000); return; }
+  $('result').classList.remove('show'); $('error').textContent = ''; $('p_err').textContent = ''; $('btn_cancel').disabled = false; $('btn_retry').style.display = 'none';
+  poll();
 }
 // ===== Панель «Промпты по частям»: статус каждой части профиля, по клику — её промпты или то, что модель пишет сейчас =====
 const pt = (ru, en) => L === 'ru' ? ru : en;

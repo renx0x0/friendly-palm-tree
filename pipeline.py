@@ -190,6 +190,14 @@ def clear_wait(kind=None):
         WAIT.clear()
 
 
+class Retryable(SystemExit):
+    """Остановка, которую стоит повторить позже: сервис не отдаёт картинки, модель не написала часть.
+    Окно показывает её как обычную ошибку, а автоповтор запускает ролик снова через паузу."""
+
+
+LAST_FAILURES = {"images": 0, "videos": 0}  # что не получилось в последнем собранном ролике — для доводки
+
+
 class Cancelled(Exception):
     pass
 
@@ -1903,7 +1911,7 @@ def generate_all_images(ctx, scenes, style, job_dir, progress, refs, on_image=No
                f"Всё готовое сохранено. Запустите это же видео ещё раз позже или добавьте ключ другого сервиса — "
                f"программа продолжит с того же места и дорисует только недостающие {len(missing)}.")
         log(msg)
-        raise SystemExit(msg)
+        raise Retryable(msg)
 
     last_good = None
     for s in scenes:
@@ -2850,7 +2858,7 @@ def profile_scenes(prof, cfg, tr, duration, job_dir, progress):
     try:
         prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel, profiles.BOARD)
     except profiles.ProfileError as e:
-        raise SystemExit(str(e))
+        raise Retryable(str(e))
     bounds = profiles.part_bounds(parts, tr["words"], duration, log)
     scenes = profiles.build_scenes(prof, parts, prompts, bounds)
     scenes_path = os.path.join(job_dir, "scenes.json")
@@ -2961,6 +2969,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     """profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию."""
     global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR
     HD_IMAGES = bool(hd)
+    LAST_FAILURES.update({"images": 0, "videos": 0})
     progress = Progress(progress_cb)
     CANCEL.clear()
     clear_wait()
@@ -3081,6 +3090,12 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             progress("render", 100, 100, f"копии скорости не сделались: {str(e)[:120]}")
     clear_wait()
     cleanup_job(job_dir)
+    img_state = read_json(os.path.join(job_dir, "images.json"), {}) or {}
+    bad_img = sum(1 for v in img_state.values() if isinstance(v, dict) and not v.get("ok"))
+    anim = animated_scenes(scenes, mode, video_first) if (mode in ("video", "mixed") or video_first) else []
+    have_vid = [s for s in anim if os.path.exists(os.path.join(job_dir, "videos", f"{s['index']:04d}.mp4"))]
+    bad_vid = len(anim) - len(have_vid) if have_vid else 0  # ни одного клипа — оживление недоступно, повторять бессмысленно
+    LAST_FAILURES.update({"images": bad_img, "videos": bad_vid})
     progress("done", 1, 1, f"готово: {out_mp4}")
     return out_mp4
 
