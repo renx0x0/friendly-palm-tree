@@ -4,7 +4,7 @@
 
 | Папка | Что внутри |
 |---|---|
-| `builds/<версия>/` | Готовая версия для установки: `KadroGen.exe`, `ui.html`, `fastgen_models.json`, `profiles/` и `ЧТО_НОВОГО.txt` |
+| `builds/<версия>/` | Готовая версия, разложенная как папка программы: `KadroGen.exe`, `_internal/ui.html`, `fastgen_models.json`, `profiles/` и `ЧТО_НОВОГО.txt` |
 | `kadrogen-src/` | Исходники с правками (`app.py`, `pipeline.py`, `profiles.py`, `ui.html`) и вся история изменений |
 | `kadrogen-src/profiles/` | Профили: мастер-промпт и настройки для каждой ниши |
 | `kadrogen-src/base/` | Оригинальный `KadroGen.exe` 1.7.1 — основа, в которую подставляются изменённые модули |
@@ -13,7 +13,9 @@
 ## Как установить версию
 
 1. Закрыть KadroGen.
-2. Из `builds/<версия>/` положить в папку программы (где лежат `ffmpeg` и DLL): `KadroGen.exe`, `ui.html`, `fastgen_models.json`.
-3. Папку `profiles` копировать, только если менялись профили (свои правки `master_prompt.txt` не затирать).
+2. Скопировать содержимое `builds/<версия>/` поверх папки программы (где `KadroGen.exe`, `_internal`, `ffmpeg`):
+   - `KadroGen.exe` и `fastgen_models.json` — в папку программы;
+   - `_internal/ui.html` — в `_internal` (интерфейс программа берёт оттуда);
+   - `profiles/` — в папку программы, только если менялись профили (свои правки `master_prompt.txt` не затирать).
 
 Ставится только поверх KadroGen 1.7.1. Автообновление от автора в этой сборке выключено.
