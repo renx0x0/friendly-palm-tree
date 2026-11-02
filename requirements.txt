@@ -1,0 +1,8 @@
+pywebview==6.2.1
+pythonnet==3.1.0
+requests==2.34.2
+edge-tts==7.2.8
+yt-dlp==2026.8.19
+youtube-transcript-api==1.2.4
+pillow==12.3.0
+pyinstaller==6.22.2
