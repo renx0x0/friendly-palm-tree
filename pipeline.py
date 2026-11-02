@@ -2847,7 +2847,10 @@ def profile_scenes(prof, cfg, tr, duration, job_dir, progress):
     progress("scenes", 0, 0, f"профиль «{prof['name']}»: {len(parts)} частей по ~{len(text) // len(parts)} символов "
                              f"({source}), промпты пишет {chat_name}")
     profiles.BOARD.reset(prof["name"], parts, prof["prompts_per_part"])
-    prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel, profiles.BOARD)
+    try:
+        prompts = profiles.all_prompts(chat, prof, parts, os.path.join(job_dir, "profile"), progress, log, check_cancel, profiles.BOARD)
+    except profiles.ProfileError as e:
+        raise SystemExit(str(e))
     bounds = profiles.part_bounds(parts, tr["words"], duration, log)
     scenes = profiles.build_scenes(prof, parts, prompts, bounds)
     scenes_path = os.path.join(job_dir, "scenes.json")

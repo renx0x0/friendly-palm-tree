@@ -42,6 +42,7 @@ DEFAULTS = {
     "number_width": 3,          # 001, 002… в {{FIRST}} / {{LAST}}
     "llm": "fastgen",           # fastgen | openai (любой OpenAI-совместимый адрес: openai_base_url в config.json)
     "llm_model": "",            # пусто — модель из настроек KadroGen
+    "llm_fallback_model": "",   # запасная модель того же сервиса, если основная раз за разом падает (пусто — не переключать)
     "max_tokens": 32000,
     "temperature": 0.7,
     "parallel": 2,              # сколько частей писать одновременно
@@ -394,7 +395,24 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
     части пишутся из нескольких потоков). wait(sec, why) — ожидание с проверкой «Стоп»."""
     m = (model or "").lower()
     new_style = m.split("/")[-1].startswith(("gpt-5", "o1", "o3", "o4"))
-    stream_ok = [bool(prof.get("stream", True))]  # ответ по кусочкам: видно, что модель пишет; не умеет сервис — выключаем
+    stream_ok = [bool(prof.get("stream", True))]
+    cur_model = [model]
+    backoff = (15, 30, 60, 90, 120)  # паузы между повторами при сбоях сервиса: всего около 5 минут
+
+    def on_fail(errors, why):
+        """Повторить ещё раз или сдаться. При третьем сбое подряд — запасная модель, если она задана."""
+        if errors > len(backoff):
+            raise ChatError(why)
+        fb = (prof.get("llm_fallback_model") or "").strip()
+        if errors == 3 and fb and cur_model[0] != fb:
+            log(f"{service}: модель {cur_model[0]} не отвечает — перехожу на запасную {fb}")
+            cur_model[0] = fb
+        sec = backoff[errors - 1]
+        msg = f"{service}: {why} — повтор {errors} из {len(backoff)} через {sec} с"
+        log(msg)
+        if chat.status:
+            chat.status(msg)
+        sleep(sec, msg)  # ответ по кусочкам: видно, что модель пишет; не умеет сервис — выключаем
 
     def sleep(sec, why):
         if wait:
@@ -402,9 +420,21 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
         else:
             time.sleep(sec)
 
+    def server_error(r):
+        """Короткое объяснение ошибки сервиса: русский текст из ответа, если он есть."""
+        try:
+            j = r.json()
+            msg = ((j.get("translations") or {}).get("ru") or j.get("error") or j.get("message") or "")
+            if isinstance(msg, dict):
+                msg = msg.get("message") or ""
+            code = j.get("code") or ""
+            return f"{msg} ({code})" if code and msg else (msg or code or (r.text or "")[:120])
+        except ValueError:
+            return " ".join((r.text or "").split())[:120] or f"HTTP {r.status_code}"
+
     def chat(text, on_text=None):
         status = chat.status
-        body = {"model": model, "messages": [{"role": "user", "content": text}]}
+        body = {"model": cur_model[0], "messages": [{"role": "user", "content": text}]}
         if new_style and "openai.com" in url:
             body["max_completion_tokens"] = prof["max_tokens"]
         else:
@@ -415,6 +445,7 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
             if check_cancel:
                 check_cancel()
             streaming = stream_ok[0]
+            body["model"] = cur_model[0]
             if streaming:
                 body["stream"] = True
             else:
@@ -422,10 +453,8 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
             try:
                 r = session().post(url, json=body, headers=extra_headers or None, timeout=900, stream=streaming)
             except requests.RequestException as e:
-                last, errors = str(e), errors + 1
-                if errors >= 4:
-                    raise ChatError(f"модель не отвечает: {last[:200]}")
-                sleep(10 * errors, "нет связи с моделью, повторяю")
+                errors += 1
+                on_fail(errors, f"нет связи ({str(e)[:120]})")
                 continue
             if r.status_code == 429 and waited < 3 * 3600:
                 why, sec = explain_429(r, service)
@@ -436,10 +465,10 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
                 waited += sec
                 continue
             if r.status_code >= 500 or r.status_code == 429:
-                last, errors = f"HTTP {r.status_code}: {r.text[:200]}", errors + 1
-                if errors >= 4:
-                    raise ChatError(f"модель не отвечает: {last}")
-                sleep(10 * errors, "модель не отвечает, повторяю")
+                errors += 1
+                why = server_error(r)
+                log(f"{service}: HTTP {r.status_code}: {(r.text or '')[:400]}")
+                on_fail(errors, why)
                 continue
             if r.status_code >= 400 and streaming and "stream" in (r.text or "").lower():
                 stream_ok[0] = False
@@ -451,10 +480,8 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
                 try:
                     content, finish = read_sse(r, on_text, check_cancel)
                 except requests.RequestException as e:
-                    last, errors = str(e), errors + 1
-                    if errors >= 4:
-                        raise ChatError(f"обрыв связи с моделью: {last[:200]}")
-                    sleep(10 * errors, "обрыв связи с моделью, повторяю")
+                    errors += 1
+                    on_fail(errors, f"обрыв связи ({str(e)[:120]})")
                     continue
                 if not content.strip():
                     stream_ok[0] = False
@@ -499,7 +526,7 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
             return cached["prompts"]
     except (OSError, ValueError):
         pass
-    best = None
+    best, last_err = None, None
     for attempt in range(1, prof["attempts"] + 1):
         if check_cancel:
             check_cancel()
@@ -510,6 +537,10 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
             board.update(n, live=t, count=len(_NUM_LINE.findall(t)))
         try:
             reply = chat(filled, on_text)
+        except ChatError as e:  # сервис так и не ответил — это неудачная попытка части, а не конец ролика
+            last_err = str(e)
+            log(f"часть {part_no}: {last_err} — попытка {attempt} из {prof['attempts']}")
+            continue
         except Exception as e:
             board.update(part_no, status="error", ended=time.time(), note=str(e)[:200])
             raise
@@ -524,8 +555,10 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
             break
         log(f"часть {part_no}: {'; '.join(problems)} — попытка {attempt} из {prof['attempts']}")
     if best is None:
-        board.update(part_no, status="error", ended=time.time(), note="модель не вернула ни одного промпта")
-        raise ProfileError(f"Часть {part_no}: модель не вернула ни одного промпта. Ответ сохранён в {cache_dir}")
+        why = last_err or "модель не вернула ни одного промпта"
+        board.update(part_no, status="error", ended=time.time(), note=why[:200])
+        raise ProfileError(f"Часть {part_no} из {parts_total} не написалась: {why}. Готовые части сохранены — "
+                           f"запустите этот же ролик ещё раз, программа продолжит с этой части.")
     _, prompts, sync, problems = best
     if problems:
         log(f"часть {part_no}: беру лучший ответ ({len(prompts)} промптов), замечания: {'; '.join(problems)}")
@@ -571,11 +604,18 @@ def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=
     chat.status = set_status
     progress("prompts", 0, n, f"профиль «{prof['name']}»: пишу промпты, частей {n}")
 
+    failed = threading.Event()  # одна часть не написалась — остальные не начинаем: ролик всё равно остановится
+
     def one(k):
+        if failed.is_set():
+            return
         with lock:
             active[k + 1] = time.time()
         try:
             res = part_prompts(chat, prof, k + 1, n, parts[k], cache_dir, log, check_cancel, board)
+        except BaseException:
+            failed.set()
+            raise
         finally:
             with lock:
                 active.pop(k + 1, None)
