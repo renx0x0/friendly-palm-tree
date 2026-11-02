@@ -283,7 +283,31 @@ class ChatError(RuntimeError):
     pass
 
 
-def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check_cancel=None, log=print, progress=None):
+_BUSY_WORDS = ("slot", "concurr", "parallel", "in progress", "busy", "одновремен", "занят")
+
+
+def explain_429(r, service="fast-gen"):
+    """Что значит «429» в ответе: занято / лимит / просто «подождите». → (текст для экрана, сколько ждать секунд)."""
+    text = (r.text or "").strip()
+    low = text.lower()
+    try:
+        after = int(float(r.headers.get("Retry-After", "")))
+    except (TypeError, ValueError):
+        after = 0
+    short = " ".join(text.split())[:120]
+    if any(w in low for w in _BUSY_WORDS):
+        wait, msg = 20, f"{service} занят: одновременных запросов больше, чем разрешено ключу"
+    elif any(w in low for w in ("token", "hour", "quota", "limit", "лимит")):
+        wait, msg = 60, f"{service}: лимит ({short})"
+    else:
+        wait, msg = 30, f"{service} просит подождать (429: {short or 'без пояснения'})"
+    if after:
+        wait = after
+    wait = max(5, min(600, wait))
+    return f"{msg} — жду {wait} с, продолжу сам", wait
+
+
+def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check_cancel=None, log=print, status=None, service="fast-gen"):
     """chat(text) -> str через OpenAI-совместимый /chat/completions (fast-gen или OpenAI).
     session — функция без аргументов, отдающая requests.Session с заголовком авторизации (на каждый запрос своя:
     части пишутся из нескольких потоков). wait(sec, why) — ожидание с проверкой «Стоп»."""
@@ -297,13 +321,14 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
             time.sleep(sec)
 
     def chat(text):
+        status = chat.status
         body = {"model": model, "messages": [{"role": "user", "content": text}]}
         if new_style and "openai.com" in url:
             body["max_completion_tokens"] = prof["max_tokens"]
         else:
             body["max_tokens"] = prof["max_tokens"]
             body["temperature"] = prof["temperature"]
-        last, errors, limit_waits = None, 0, 0
+        last, errors, waited = None, 0, 0.0
         while True:
             if check_cancel:
                 check_cancel()
@@ -315,12 +340,13 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
                     raise ChatError(f"модель не отвечает: {last[:200]}")
                 sleep(10 * errors, "нет связи с моделью, повторяю")
                 continue
-            if r.status_code == 429 and limit_waits < 90:
-                limit_waits += 1
-                why = "лимит токенов для текстов исчерпан, жду минуту (продолжу автоматически)"
-                if progress:
-                    progress("prompts", 0, 0, why)
-                sleep(60, why)
+            if r.status_code == 429 and waited < 3 * 3600:
+                why, sec = explain_429(r, service)
+                log(f"{why}. Ответ сервера: {(r.text or '')[:400]}")
+                if status:
+                    status(why)
+                sleep(sec, why)
+                waited += sec
                 continue
             if r.status_code >= 500 or r.status_code == 429:
                 last, errors = f"HTTP {r.status_code}: {r.text[:200]}", errors + 1
@@ -340,6 +366,7 @@ def make_chat(prof, session, url, model, *, extra_headers=None, wait=None, check
             if choice.get("finish_reason") == "length":
                 log("ответ модели обрезан по лимиту max_tokens — увеличьте max_tokens в profile.json, если это повторяется")
             return content or ""
+    chat.status = status
     return chat
 
 
@@ -385,24 +412,62 @@ def part_prompts(chat, prof, part_no, parts_total, part_text, cache_dir, log=pri
 
 
 def all_prompts(chat, prof, parts, cache_dir, progress, log=print, check_cancel=None):
-    """Промпты для всех частей; части пишутся параллельно (prof['parallel'])."""
+    """Промпты для всех частей; части пишутся параллельно (prof['parallel']).
+    Пока модель пишет, раз в 10 с на экране: какие части в работе, сколько минут ждём, последнее сообщение сервиса."""
     n = len(parts)
     result = [None] * n
     done = [0]
+    active = {}            # номер части -> время начала
+    note = [None, 0.0]     # последнее сообщение сервиса (лимит, «занят»), время
     lock = threading.Lock()
+    stop = threading.Event()
+
+    def line():
+        with lock:
+            d, act, (msg, at) = done[0], sorted(active.items()), note
+        s = f"профиль «{prof['name']}»: готово частей {d} из {n}"
+        if act:
+            now = time.time()
+            s += " · модель пишет " + ", ".join(f"часть {k} ({int((now - t0) // 60)} мин)" for k, t0 in act)
+        if msg and time.time() - at < 90:
+            s += " · " + msg
+        return d, s
+
+    def ticker():
+        while not stop.wait(10):
+            d, s = line()
+            progress("prompts", d, n, s)
+
+    def set_status(msg):
+        with lock:
+            note[0], note[1] = msg, time.time()
+
+    chat.status = set_status
     progress("prompts", 0, n, f"профиль «{prof['name']}»: пишу промпты, частей {n}")
 
     def one(k):
-        res = part_prompts(chat, prof, k + 1, n, parts[k], cache_dir, log, check_cancel)
+        with lock:
+            active[k + 1] = time.time()
+        try:
+            res = part_prompts(chat, prof, k + 1, n, parts[k], cache_dir, log, check_cancel)
+        finally:
+            with lock:
+                active.pop(k + 1, None)
         with lock:
             result[k] = res
             done[0] += 1
-            progress("prompts", done[0], n, f"профиль «{prof['name']}»: готово частей {done[0]} из {n}")
+        d, msg = line()
+        progress("prompts", d, n, msg)
 
-    with cf.ThreadPoolExecutor(max_workers=min(prof["parallel"], n)) as ex:
-        futs = [ex.submit(one, k) for k in range(n)]
-        for f in futs:
-            f.result()
+    t = threading.Thread(target=ticker, daemon=True)
+    t.start()
+    try:
+        with cf.ThreadPoolExecutor(max_workers=min(prof["parallel"], n)) as ex:
+            futs = [ex.submit(one, k) for k in range(n)]
+            for f in futs:
+                f.result()
+    finally:
+        stop.set()
     return result
 
 

@@ -2807,7 +2807,7 @@ def make_profile_chat(prof, cfg, progress):
             raise SystemExit(f"Профиль «{prof['name']}» пишет промпты через fast-gen, но ключ fast-gen не введён.")
         model = prof.get("llm_model") or cfg.get("llm_model") or DEFAULT_LLM_MODEL
         return profiles.make_chat(prof, lambda: FastGen(key).s, BASE_URL + "/v1/chat/completions", model,
-                                  wait=wait, check_cancel=check_cancel, log=log, progress=progress), f"fast-gen ({model})"
+                                  wait=wait, check_cancel=check_cancel, log=log, service="fast-gen"), f"fast-gen ({model})"
     if engine == "openai":
         key = cfg.get("openai_api_key")
         if not key:
@@ -2819,7 +2819,7 @@ def make_profile_chat(prof, cfg, progress):
             s.headers["Authorization"] = f"Bearer {key}"
             return s
         return profiles.make_chat(prof, session, endpoints.base("openai") + "/chat/completions", model,
-                                  wait=wait, check_cancel=check_cancel, log=log, progress=progress), f"OpenAI ({model})"
+                                  wait=wait, check_cancel=check_cancel, log=log, service="OpenAI"), f"OpenAI ({model})"
     raise SystemExit(f"Профиль «{prof['name']}»: неизвестная модель llm={engine!r} (можно fastgen или openai)")
 
 
