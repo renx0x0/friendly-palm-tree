@@ -6,6 +6,7 @@
 Запуск из консоли:  python pipeline.py файл.mp3 [--provider fastgen|nonstop|both] [--mode images|video] [--style cinematic] [--refs]
 """
 import concurrent.futures as cf
+import functools
 import collections
 import hashlib
 import json
@@ -1816,7 +1817,7 @@ def take_redo():
 
 def redo_files(job_dir, index):
     """Удаляет картинку сцены и всё, что из неё сделано (клип с движением, оживление), чтобы нарисовать заново."""
-    for rel in (f"images/{index:04d}.png", f"videos/{index:04d}.mp4", f"clips/{index:04d}.mp4", f"clips_m/{index:04d}.mp4"):
+    for rel in [f"images/{index:04d}.png", f"videos/{index:04d}.mp4"] + [f"{d}/{index:04d}.mp4" for d in clip_dirs(job_dir)]:
         try:
             os.remove(os.path.join(job_dir, rel))
         except OSError:
@@ -1835,7 +1836,7 @@ class Prerender:
     def __init__(self, scenes, img_dir, job_dir, mode, motion, video_first=0):
         self.pool = cf.ThreadPoolExecutor(max_workers=max(1, min(3, (os.cpu_count() or 2) // 2)))
         self.img_dir = img_dir
-        self.clips_dir = os.path.join(job_dir, "clips" + ("_m" if motion else ""))
+        self.clips_dir = os.path.join(job_dir, clips_name(motion))
         os.makedirs(self.clips_dir, exist_ok=True)
         self.extra = TRANSITION if motion else 0.0
         self.skip = set()  # сцены, которые будут оживляться видео — их клип делается позже
@@ -2348,13 +2349,34 @@ def redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_f
 
 # ============ шаг 5: сборка видео ============
 
-def kenburns_path(i, duration):
-    """Цикл: статика, зум, статика, влево, статика, вправо."""
+def kenburns_path(i, duration, mode=None):
+    """Движение картинки сцены. mode (по умолчанию KB_MODE):
+    classic — цикл как было: статика, зум, статика, влево, статика, вправо;
+    static — всё стоит; soft — каждый кадр медленно наезжает на 6 %;
+    full — каждый кадр двигается: наезд, проезды в разные стороны, отъезд, диагонали."""
     D = max(duration, 0.1)
+    mode = mode or KB_MODE
 
     def lin(t):
-        return min(1.0, max(0.0, t / D))
+        x = min(1.0, max(0.0, t / D))
+        return x * x * (3 - 2 * x) if mode == "full" else x  # в «максимуме» движение плавно разгоняется и тормозит
 
+    if mode == "static":
+        return None
+    if mode == "soft":
+        return lambda t: (1.0 + 0.06 * lin(t), 0.5, 0.5)
+    if mode == "full":
+        kinds = [
+            lambda t: (1.0 + 0.15 * lin(t), 0.5, 0.5),
+            lambda t: (1.12, 1.0 - lin(t), 0.5),
+            lambda t: (1.15 - 0.15 * lin(t), 0.5, 0.5),
+            lambda t: (1.12, lin(t), 0.5),
+            lambda t: (1.12, 0.5, 1.0 - lin(t)),
+            lambda t: (1.0 + 0.12 * lin(t), 0.2 + 0.6 * lin(t), 0.3),
+            lambda t: (1.12, 0.5, lin(t)),
+            lambda t: (1.12 - 0.08 * lin(t), 0.8 - 0.6 * lin(t), 0.7),
+        ]
+        return kinds[i % len(kinds)]
     kinds = [
         None,
         lambda t: (1.0 + 0.12 * lin(t), 0.5, 0.5),
@@ -2381,7 +2403,7 @@ def _fit_16_9(im):
     return im
 
 
-def render_scene_clip(img_path, i, duration, out_path):
+def render_scene_clip(img_path, i, duration, out_path, kb=None):
     if os.path.exists(out_path):
         try:
             if os.path.getmtime(out_path) >= os.path.getmtime(img_path):
@@ -2392,7 +2414,7 @@ def render_scene_clip(img_path, i, duration, out_path):
     duration = max(0.3, float(duration))
     from PIL import Image
 
-    path = kenburns_path(i, duration)
+    path = kenburns_path(i, duration, kb)
     tmp = out_path + ".tmp.mp4"
     im = _fit_16_9(Image.open(img_path).convert("RGB"))
     if path is None:
@@ -2454,10 +2476,103 @@ def render_video_clip(src_mp4, duration, out_path):
 
 
 TRANSITIONS = ["fade", "slideleft", "circleopen", "wipeleft", "dissolve", "smoothleft", "fadeblack", "zoomin"]
+TRANS_CLASSIC = list(TRANSITIONS)
+# все переходы xfade из ffmpeg 4.4+ (имя для ffmpeg, название в окне)
+XFADE_ALL = [("fade", "Затемнение"), ("dissolve", "Растворение"), ("fadeblack", "Через чёрный"), ("fadewhite", "Через белый"),
+             ("fadegrays", "Через серый"), ("slideleft", "Сдвиг влево"), ("slideright", "Сдвиг вправо"), ("slideup", "Сдвиг вверх"),
+             ("slidedown", "Сдвиг вниз"), ("smoothleft", "Плавно влево"), ("smoothright", "Плавно вправо"), ("smoothup", "Плавно вверх"),
+             ("smoothdown", "Плавно вниз"), ("wipeleft", "Шторка влево"), ("wiperight", "Шторка вправо"), ("wipeup", "Шторка вверх"),
+             ("wipedown", "Шторка вниз"), ("wipetl", "Шторка в угол ↖"), ("wipebr", "Шторка в угол ↘"), ("circleopen", "Круг раскрывается"),
+             ("circleclose", "Круг закрывается"), ("circlecrop", "Круг через чёрный"), ("rectcrop", "Прямоугольник"),
+             ("radial", "Радар"), ("vertopen", "Раскрытие по вертикали"), ("horzopen", "Раскрытие по горизонтали"),
+             ("diagtl", "Диагональ ↖"), ("diagbr", "Диагональ ↘"), ("hlslice", "Полосы влево"), ("vdslice", "Полосы вниз"),
+             ("pixelize", "Пикселизация"), ("hblur", "Размытие"), ("distance", "Перетекание"), ("squeezeh", "Сжатие"),
+             ("zoomin", "Наезд")]
+XFADE_NAMES = {k for k, _ in XFADE_ALL}
+TRANS_SOFT = ["fade", "dissolve", "fadeblack"]
+TRANS_PRESETS = {
+    "classic": {"set": TRANS_CLASSIC, "order": "cycle", "duration": 0.5, "kb": "classic"},
+    "soft": {"set": TRANS_SOFT, "order": "random", "duration": 0.6, "kb": "soft"},
+    "full": {"set": [k for k, _ in XFADE_ALL], "order": "random", "duration": 0.5, "kb": "full"},
+    "none": {"set": [], "order": "cycle", "duration": 0.5, "kb": "classic"},
+}
+TRANS_ORDER = "cycle"  # cycle — по кругу; random — вперемешку (у каждого стыка свой, без повтора подряд)
+KB_MODE = "classic"
+
+
+def trans_settings(cfg):
+    """Настройки переходов из config.json → {preset, set, order, duration, kb}. Пусто — «как сейчас»."""
+    t = cfg.get("transitions") if isinstance(cfg.get("transitions"), dict) else {}
+    preset = t.get("preset") if t.get("preset") in TRANS_PRESETS or t.get("preset") == "custom" else "classic"
+    base = dict(TRANS_PRESETS.get(preset) or TRANS_PRESETS["classic"])
+    if preset == "custom":
+        base["set"] = [x for x in (t.get("set") or []) if x in XFADE_NAMES]
+        base["order"] = t.get("order") if t.get("order") in ("cycle", "random") else "cycle"
+        try:
+            base["duration"] = max(0.2, min(2.0, float(t.get("duration", 0.5))))
+        except (TypeError, ValueError):
+            base["duration"] = 0.5
+        base["kb"] = t.get("kb") if t.get("kb") in ("classic", "static", "soft", "full") else "classic"
+    base["preset"] = preset
+    base["set"] = list(base["set"])
+    return base
+
+
+def apply_trans(cfg, motion):
+    """Применить настройки переходов к сборке. → включены ли переходы (пустой набор = склейка встык)."""
+    global TRANSITIONS, TRANSITION, TRANS_ORDER, KB_MODE
+    st = trans_settings(cfg)
+    TRANSITIONS = st["set"] or list(TRANS_CLASSIC)
+    TRANSITION = round(st["duration"], 2)
+    TRANS_ORDER = st["order"]
+    KB_MODE = st["kb"]
+    return bool(motion and st["set"])
+
+
+def trans_kind(k, kinds=None, order=None):
+    """Переход для стыка номер k (0 — между первой и второй сценой)."""
+    kinds = kinds or TRANSITIONS
+    if (order or TRANS_ORDER) != "random" or len(kinds) < 2:
+        return kinds[k % len(kinds)]
+    n, b = len(kinds), k // len(kinds)
+    if b >= 900:
+        return kinds[(k * 7) % n]
+    for x in range(0, b, 50):  # прогреть кэш по порядку — без глубокой рекурсии
+        _bag(x, n)
+    return kinds[_bag(b, n)[k % n]]
+
+
+@functools.lru_cache(maxsize=4096)
+def _bag(b, n):
+    """Каждые n стыков — все переходы по разу в перемешанном порядке; на стыке «мешков» без повтора."""
+    import random
+    order = list(range(n))
+    random.Random(b * 7919 + 13).shuffle(order)
+    if b and order[0] == _bag(b - 1, n)[-1]:
+        order.append(order.pop(0))
+    return tuple(order)
+
+
+def clips_name(motion):
+    """Папка клипов: своя для каждой длины перехода и вида движения, чтобы не взять клипы прошлой сборки с другой длиной."""
+    name = "clips" + ("_m" if motion else "")
+    if motion and abs(TRANSITION - 0.5) > 1e-3:
+        name += f"_{int(round(TRANSITION * 100))}"
+    if KB_MODE != "classic":
+        name += "_" + KB_MODE
+    return name
+
+
+def clip_dirs(job_dir):
+    """Все папки клипов задания (clips, clips_m, clips_m_80_full…)."""
+    try:
+        return [n for n in os.listdir(job_dir) if n.startswith("clips") and os.path.isdir(os.path.join(job_dir, n))]
+    except OSError:
+        return []
 
 
 def assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=False):
-    clips_dir = os.path.join(job_dir, "clips" + ("_m" if motion else ""))
+    clips_dir = os.path.join(job_dir, clips_name(motion))
     os.makedirs(clips_dir, exist_ok=True)
     n = len(scenes)
     workers = max(1, min(4, (os.cpu_count() or 2) // 2))
@@ -2518,11 +2633,45 @@ def xfade_chain(clips, durations, kind0=0):
     parts, prev, offset = [], "[0:v]", 0.0
     for k in range(1, len(clips)):
         offset += durations[k - 1]
-        kind = TRANSITIONS[(kind0 + k - 1) % len(TRANSITIONS)]
+        kind = trans_kind(kind0 + k - 1)
         out = f"[v{k}]" if k < len(clips) - 1 else "[vout]"
         parts.append(f"{prev}[{k}:v]xfade=transition={kind}:duration={TRANSITION}:offset={offset - TRANSITION:.3f}{out}")
         prev = out
     return args, ";".join(parts)
+
+
+def trans_preview(t, images, work_dir, seconds=1.6):
+    """Короткий ролик из 3 кадров с выбранными переходами и движением — для предпросмотра в окне. → путь к mp4."""
+    st = trans_settings({"transitions": t or {}})
+    os.makedirs(work_dir, exist_ok=True)
+    T = st["duration"] if st["set"] else 0.0
+    clips = []
+    for k, img in enumerate(images[:3]):
+        out = os.path.join(work_dir, f"p{k}.mp4")
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+        render_scene_clip(img, k + 1, seconds + T, out, kb=st["kb"])  # с 1: в «как сейчас» первый кадр двигается
+        clips.append(out)
+    res = os.path.join(work_dir, "preview.mp4")
+    args = []
+    for c in clips:
+        args += ["-i", c]
+    if st["set"] and len(clips) > 1:
+        parts, prev, offset = [], "[0:v]", 0.0
+        for k in range(1, len(clips)):
+            offset += seconds
+            kind = trans_kind(k - 1, st["set"], st["order"])
+            out = f"[v{k}]"
+            parts.append(f"{prev}[{k}:v]xfade=transition={kind}:duration={T}:offset={offset - T:.3f}{out}")
+            prev = out
+        fc = ";".join(parts) + f";{prev}scale=960:540[vout]"
+    else:
+        fc = "".join(f"[{k}:v]" for k in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=0,scale=960:540[vout]"
+    run_ffmpeg(args + ["-filter_complex", fc, "-map", "[vout]", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
+                       "-pix_fmt", "yuv420p", "-movflags", "+faststart", res])
+    return res
 
 
 def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, progress=None):
@@ -2784,7 +2933,7 @@ def cleanup_job(job_dir):
     Картинки, оживлённые клипы, озвучка и json остаются — повторный запуск по-прежнему ничего не рисует заново.
     Раньше не удалялось ничего: сорокаминутный ролик оставлял около 5 ГБ."""
     freed = 0
-    for name in ("clips", "clips_m", "groups"):
+    for name in clip_dirs(job_dir) + ["groups"]:
         p = os.path.join(job_dir, name)
         if os.path.isdir(p):
             freed += dir_size(p)
@@ -3080,7 +3229,7 @@ def apply_new_scenes(job_dir, scenes):
             redo_files(job_dir, s["index"])
             redrawn += 1
         elif abs(float(o.get("duration") or 0) - s["duration"]) > 0.02:
-            for sub in ("clips", "clips_m"):
+            for sub in clip_dirs(job_dir):
                 try:
                     os.remove(os.path.join(job_dir, sub, f"{s['index']:04d}.mp4"))
                 except OSError:
@@ -3269,6 +3418,10 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     except (TypeError, ValueError):
         VIDEO_ZOOM = 1.04
     VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
+    motion = apply_trans(cfg, motion)
+    if motion or KB_MODE != "classic":
+        log(f"переходы: {'вперемешку' if TRANS_ORDER == 'random' else 'по кругу'} из {len(TRANSITIONS)} по {TRANSITION} с, движение картинок: {KB_MODE}"
+            if motion else f"переходы выключены, движение картинок: {KB_MODE}")
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:

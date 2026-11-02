@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p15"
+VERSION = "1.7.1-p16"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -569,6 +569,7 @@ def make_thumb(path, size=480):
     except Exception:
         return None
 LOCK = threading.Lock()
+PREVIEW_LOCK = threading.Lock()
 WINDOW = None
 
 
@@ -758,7 +759,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "sub_style", "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "transitions", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -1845,6 +1846,67 @@ class Api:
                 return {"ok": True, "img": "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()}
         except Exception as e:
             return {"ok": False, "error": str(e)[:300]}
+
+    # ===== переходы и движение картинок =====
+    def trans_get(self):
+        cfg = load_cfg()
+        st = pipeline.trans_settings(cfg)
+        return {"settings": st, "all": [{"id": k, "name": n} for k, n in pipeline.XFADE_ALL],
+                "presets": {k: dict(v, set=list(v["set"])) for k, v in pipeline.TRANS_PRESETS.items()}, "motion": bool(cfg.get("motion"))}
+
+    def trans_save(self, t):
+        cfg = load_cfg()
+        t = dict(t or {})
+        st = pipeline.trans_settings({"transitions": t})
+        cfg["transitions"] = {"preset": st["preset"]} if st["preset"] != "custom" else \
+            {"preset": "custom", "set": st["set"], "order": st["order"], "duration": st["duration"], "kb": st["kb"]}
+        save_cfg(cfg)
+        return {"ok": True, "settings": st}
+
+    def _preview_images(self, n=3):
+        """n картинок подряд из последнего ролика — для предпросмотров. Нет роликов — рисуем пробные."""
+        with LOCK:
+            jd = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
+        root = os.path.join(data_dir(), "jobs")
+        dirs = [jd] if jd else []
+        if os.path.isdir(root):
+            dirs += sorted((os.path.join(root, x) for x in os.listdir(root) if not x.startswith("_")), key=lambda d: -os.path.getmtime(d))[:6]
+        for d in dirs:
+            idir = os.path.join(d, "images") if d else ""
+            imgs = sorted(f for f in os.listdir(idir) if f.endswith(".png")) if idir and os.path.isdir(idir) else []
+            if len(imgs) >= n:
+                k = max(0, len(imgs) // 2 - 1)
+                return [os.path.join(idir, f) for f in imgs[k:k + n]]
+        from PIL import Image, ImageDraw
+        work = os.path.join(data_dir(), "jobs", "_trans_preview")
+        os.makedirs(work, exist_ok=True)
+        out = []
+        for k in range(n):
+            p = os.path.join(work, f"sample{k}.png")
+            if not os.path.exists(p):
+                im = Image.new("RGB", (1376, 768), (40 + 50 * k, 70 + 20 * k, 120 - 30 * k))
+                dr = ImageDraw.Draw(im)
+                for x in range(0, 1376, 86):
+                    dr.line([(x, 0), (x, 768)], fill=(230, 230, 230), width=2)
+                dr.ellipse([520, 220, 856, 556], outline=(255, 220, 0), width=10)
+                im.save(p)
+            out.append(p)
+        return out
+
+    def trans_preview(self, t):
+        """Три кадра последнего ролика с выбранными переходами и движением — mp4 для плеера в окне."""
+        import base64
+        if not PREVIEW_LOCK.acquire(blocking=False):
+            return {"ok": False, "busy": True}
+        try:
+            work = os.path.join(data_dir(), "jobs", "_trans_preview")
+            p = pipeline.trans_preview(t or {}, self._preview_images(3), work)
+            with open(p, "rb") as f:
+                return {"ok": True, "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+        finally:
+            PREVIEW_LOCK.release()
 
     # ===== кадры готового ролика =====
     def _job_path(self, job_id):
