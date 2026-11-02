@@ -278,6 +278,9 @@
   @keyframes pspin { to { transform:rotate(360deg); } }
   .pp .pb { display:none; border-top:1px solid var(--line); padding:8px 12px 10px; max-height:46vh; overflow-y:auto; }
   .pp.open .pb { display:block; }
+  .pp .pb { scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+  .pp .pb::-webkit-scrollbar { width:6px; } .pp .pb::-webkit-scrollbar-track { background:transparent; }
+  .pp .pb::-webkit-scrollbar-thumb { background:var(--line); } .pp .pb::-webkit-scrollbar-thumb:hover { background:var(--acc2); }
   .pp .pb ol { margin:0; padding-left:34px; } .pp .pb li { font-size:12px; line-height:1.45; color:var(--ink); margin:0 0 8px; user-select:text; }
   .pp .pb li::marker { color:var(--acc2); font-weight:600; }
   .pp .pb .live { margin:0; white-space:pre-wrap; font:12px/1.45 Consolas, "Courier New", monospace; color:var(--ink2); user-select:text; }
