@@ -195,6 +195,66 @@ def fg_limits(key):
     return out
 
 
+_FG_USAGE = {"at": 0.0, "key": None, "data": None, "logged": False}
+_LIMIT_KINDS = (("img", "картинки"), ("image", "картинки"), ("video", "видео"), ("text", "тексты"), ("token", "тексты"),
+                ("llm", "тексты"), ("chat", "тексты"), ("tts", "озвучка"), ("voice", "озвучка"), ("speech", "озвучка"), ("audio", "озвучка"))
+
+
+def _limit_kind(name):
+    n = name.lower()
+    return next((label for k, label in _LIMIT_KINDS if k in n), None)
+
+
+def _days_left(obj):
+    """Сколько дней до конца тарифа, если сервер это сообщает (поле с expire/until/ends в названии)."""
+    import datetime
+    stack = [obj]
+    while stack:
+        o = stack.pop()
+        if isinstance(o, dict):
+            for k, v in o.items():
+                kl = k.lower()
+                if isinstance(v, (dict, list)):
+                    stack.append(v)
+                elif any(w in kl for w in ("expire", "until", "ends", "end_at", "valid_to")) and v:
+                    try:
+                        if isinstance(v, (int, float)):
+                            t = datetime.datetime.fromtimestamp(v / (1000 if v > 1e11 else 1), datetime.timezone.utc)
+                        else:
+                            t = datetime.datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+                            if t.tzinfo is None:
+                                t = t.replace(tzinfo=datetime.timezone.utc)
+                        return max(0, (t - datetime.datetime.now(datetime.timezone.utc)).days)
+                    except (ValueError, OSError, OverflowError):
+                        pass
+                elif "days" in kl and isinstance(v, (int, float)):
+                    return int(v)
+        elif isinstance(o, list):
+            stack.extend(o)
+    return None
+
+
+def fg_usage_summary(u):
+    """Лимиты fast-gen на час и сколько осталось — для строки лимитов в окне."""
+    lim = u.get("account_limits") or {}
+    hourly = (u.get("current_usage") or {}).get("hourly_usage") or {}
+    used_by = {}
+    for hk, hv in hourly.items():
+        kind = _limit_kind(hk)
+        if kind and isinstance(hv, (int, float)) and kind not in used_by:
+            used_by[kind] = hv
+    items, seen = [], set()
+    for k, v in lim.items():
+        kind = _limit_kind(k)
+        if not kind or kind in seen or not isinstance(v, (int, float)) or "thread" in k.lower() or not v:
+            continue
+        seen.add(kind)
+        used = used_by.get(kind)
+        items.append({"label": kind, "limit": int(v), "used": None if used is None else int(used),
+                      "left": None if used is None else max(0, int(v - used))})
+    return {"items": items, "days": _days_left(u)}
+
+
 def estimate_plan(opts):
     """Прогноз до запуска: сколько сцен, кредитов и времени, с учётом часового лимита fast-gen.
     Сцены считаются по длительности (в среднем 5,7 с на сцену по реальным роликам), точное число даст распознавание."""
@@ -895,6 +955,7 @@ class Api:
             "mode": cfg.get("mode", "images"),
             "style": style_key(cfg.get("style"), pipeline.DEFAULT_STYLE),
             "custom_style": cfg.get("custom_style", ""), "video_prompt": cfg.get("video_prompt", ""),
+            "fg_models": pipeline.fastgen_models(), "fg_image_model": cfg.get("fg_image_model", ""), "fg_video_model": cfg.get("fg_video_model", ""),
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -956,6 +1017,9 @@ class Api:
             cfg["style"] = data["style"]
         if "video_prompt" in data:
             cfg["video_prompt"] = str(data.get("video_prompt") or "").strip()[:4000]
+        for k in ("fg_image_model", "fg_video_model"):
+            if k in data:
+                cfg[k] = str(data.get(k) or "").strip()[:120]
         if "custom_style" in data:
             cfg["custom_style"] = " ".join(str(data.get("custom_style") or "").split())
         if "queue_styles" in data:
@@ -1323,6 +1387,9 @@ class Api:
                     "source": opts.get("source", cfg.get("source", "mp3")), "tts_service": tts, "tts_voice": voice, "video_first": video_first, "profile": profile})
         if "video_prompt" in opts:
             cfg["video_prompt"] = str(opts.get("video_prompt") or "").strip()[:4000]
+        for k in ("fg_image_model", "fg_video_model"):
+            if k in opts:
+                cfg[k] = str(opts.get(k) or "").strip()[:120]
         if voice:
             rec = [x for x in cfg.get("tts_recent", []) if x.get("id") != voice]
             rec.insert(0, {"id": voice, "service": tts})
@@ -1500,6 +1567,23 @@ class Api:
         save_cfg(cfg)
         threading.Thread(target=run_queue, args=(common,), daemon=True).start()
         return {"ok": True}
+
+    def fg_usage(self):
+        """Строка лимитов fast-gen в окне: осталось в этом часе / лимит в час. Обновляется не чаще раза в минуту."""
+        key = load_cfg().get("fastgen_api_key", "")
+        if not key:
+            return {"ok": False}
+        c = _FG_USAGE
+        if c["key"] != key or time.time() - c["at"] > 60 or c["data"] is None:
+            try:
+                u = FastGen(key).usage()
+            except Exception as e:
+                return {"ok": False, "error": str(e)[:200]}
+            if not c["logged"]:  # один раз за запуск — полный ответ в журнал, чтобы сверить названия полей
+                pipeline.log("fast-gen usage: " + json.dumps(u, ensure_ascii=False)[:3000])
+                c["logged"] = True
+            c.update({"at": time.time(), "key": key, "data": u})
+        return {"ok": True, **fg_usage_summary(c["data"])}
 
     def profile_state(self):
         """Панель «Промпты по частям»: состояние частей профиля (без самих промптов)."""

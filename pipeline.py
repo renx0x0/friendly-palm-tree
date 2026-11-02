@@ -65,12 +65,65 @@ VIDEO_CREDITS = {"flower_video_from_image": 1, "flow_video_from_keyframes": 1}
 OMNI_SECONDS = (6, 8, 10)  # Omni Flash делает клип ровно 4/6/8/10 с за 1 кредит — для длинных сцен не нужен «замороженный хвост»
 
 
+FG_IMAGE_MODEL = ""  # модель картинок fast-gen, выбранная для ролика ("" — автоматически, цепочкой)
+FG_VIDEO_MODEL = ""  # модель оживления fast-gen
+OMNI_OP = "flow_video_omni_flash_from_keyframes"
+DEFAULT_FG_MODELS = {
+    "image": [{"op": "flower_image_generate", "name": "Flower Nano Banana 2", "credits": 1},
+              {"op": "gemini_nano_banana_2_image_generate", "name": "Gemini Nano Banana 2", "credits": 1},
+              {"op": "nano_banana_2_image_generate", "name": "Nano Banana 2.1 (Flow)", "credits": 4},
+              {"op": "nano_banana_pro_image_generate", "name": "Nano Banana Pro (Flow)", "credits": 4},
+              {"op": "nano_banana_2_lite_image_generate", "name": "Nano Banana 2 Lite (Flow)", "credits": 4},
+              {"op": "openai_image_generate", "name": "ChatGPT Image", "credits": 4}],
+    "video": [{"op": "flower_video_from_image", "name": "Flower Omni Flash 1.1", "credits": 1},
+              {"op": "flow_video_from_keyframes", "name": "Veo 3.1 Fast (Flow)", "credits": 1},
+              {"op": OMNI_OP, "name": "Omni Flash 1.1 (Flow), клип 6/8/10 с", "credits": 1, "by_duration": True}],
+}
+
+
+def fastgen_models():
+    """Модели fast-gen для выбора в окне: fastgen_models.json рядом с программой (его можно дописывать), иначе встроенный список."""
+    for d in (data_dir(), app_dir()):
+        p = os.path.join(d, "fastgen_models.json")
+        if os.path.isfile(p):
+            try:
+                with open(p, encoding="utf-8-sig") as f:
+                    data = json.load(f)
+                out = {k: [m for m in data.get(k) or [] if isinstance(m, dict) and m.get("op")] for k in ("image", "video")}
+                if out["image"] or out["video"]:
+                    return out
+            except (OSError, ValueError) as e:
+                log(f"fastgen_models.json не прочитан: {e}")
+    return DEFAULT_FG_MODELS
+
+
+def apply_fg_models(cfg):
+    """Выбор моделей fast-gen для этого ролика + их цены в кредитах (для лимита в час)."""
+    global FG_IMAGE_MODEL, FG_VIDEO_MODEL
+    models = fastgen_models()
+    for m in models.get("image", []):
+        if m.get("credits"):
+            IMAGE_CREDITS[m["op"]] = int(m["credits"])
+    for m in models.get("video", []):
+        if m.get("credits"):
+            VIDEO_CREDITS[m["op"]] = int(m["credits"])
+    FG_IMAGE_MODEL = str(cfg.get("fg_image_model") or "").strip()
+    FG_VIDEO_MODEL = str(cfg.get("fg_video_model") or "").strip()
+    return FG_IMAGE_MODEL, FG_VIDEO_MODEL
+
+
 def video_chain_for(scene):
     dur = float(scene.get("duration") or 0)
-    if dur <= 5.0:
-        return list(VIDEO_CHAIN_FASTGEN)
     n = next((s for s in OMNI_SECONDS if s >= dur), OMNI_SECONDS[-1])
-    return [(f"flow_video_omni_flash_from_keyframes_{n}s", 1)] + list(VIDEO_CHAIN_FASTGEN)
+    if dur <= 5.0:
+        chain = list(VIDEO_CHAIN_FASTGEN)
+    else:
+        chain = [(f"{OMNI_OP}_{n}s", 1)] + list(VIDEO_CHAIN_FASTGEN)
+    if FG_VIDEO_MODEL:  # выбранная модель — первой; если не отдаст клип, дальше обычная цепочка
+        op = f"{OMNI_OP}_{n}s" if FG_VIDEO_MODEL == OMNI_OP else FG_VIDEO_MODEL
+        VIDEO_CREDITS.setdefault(op, VIDEO_CREDITS.get(FG_VIDEO_MODEL, 1))
+        chain = [(op, 2)] + [x for x in chain if x[0] != op]
+    return chain
 YOUGEN_CHAIN = [("nano-banana-2", 2), ("nano-banana-pro", 1), ("nano-banana-2-lite", 1)]
 ROYAL_CHAIN = [("nano-banana-2", 2), ("nano-banana-pro", 1)]
 PROVIDERS = ("fastgen", "nonstop", "yougen", "royal", "slider", "google")
@@ -1188,6 +1241,8 @@ def gen_fastgen_image(api, gate, scene, out_path, progress, refs, chain=None):
     chain = chain or (IMAGE_CHAINS_REFS if refs else IMAGE_CHAINS)[FASTGEN_QUALITY]
     if HD_IMAGES:  # увеличение 2x умеет только Nano Banana через Flow — дешёвый канал Gemini пропускаем
         chain = [(o, n) for o, n in chain if o != "gemini_nano_banana_2_image_generate"] or chain
+    if FG_IMAGE_MODEL:  # выбранная модель — первой; если не отдаст картинку, дальше обычная цепочка
+        chain = [(FG_IMAGE_MODEL, 3)] + [(o, n) for o, n in chain if o != FG_IMAGE_MODEL]
     inputs = [{"filename": os.path.basename(p), "input": file_to_data_uri(upload_copy(p))} for p in refs]
     started = time.time()
     for op, tries in chain:
@@ -3016,6 +3071,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     take_redo()
     cfg = load_config()
     VIDEO_PROMPT = " ".join(str(cfg.get("video_prompt") or "").split())
+    fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:
         raise SystemExit(f"Неизвестный режим: {mode}")
@@ -3055,7 +3111,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         elif cfg.get("openai_api_key"):
             llm.fallback = LLM("openai", OpenAIClient(cfg["openai_api_key"]), cfg.get("openai_model"))
     llm.progress = progress
-    progress("start", 0, 0, f"речь: {engine} · тексты: {llm_name} ({llm.model}) · fast-gen: {FASTGEN_QUALITY}")
+    progress("start", 0, 0, f"речь: {engine} · тексты: {llm_name} ({llm.model}) · fast-gen: {FASTGEN_QUALITY}"
+                            + (f" · модель картинок: {fg_img}" if fg_img else "") + (f" · модель видео: {fg_vid}" if fg_vid else ""))
 
     tr = transcribe(engine, text_api, audio_path, job_dir, progress, duration)
     refs, ref_pool = {}, None
