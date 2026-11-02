@@ -1133,7 +1133,7 @@ async function fillPart(n, force) {
   const r = await pywebview.api.profile_part(n);
   partsCache[n] = r;
   const probs = (r.problems || []).length ? `<div class="prob">${pt('Замечания', 'Remarks')}: ${esc(r.problems.join('; '))}</div>` : '';
-  const note = p.status === 'error' ? `<div class="prob">${esc(p.note || '')}</div>` : '';
+  const note = (p.status === 'error' ? `<div class="prob">${esc(p.note || '')}</div>` : '') + (r.model ? `<div class="note">${pt('Модель', 'Model')}: ${esc(r.model)}</div>` : '');
   b.innerHTML = note + probs + ((r.prompts || []).length ? `<ol start="${r.first || 1}">${r.prompts.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : '');
 }
 async function loadConfig(keepScreen) {
