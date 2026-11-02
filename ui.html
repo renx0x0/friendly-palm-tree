@@ -258,6 +258,7 @@
   .brief .sentence { font:400 42px/1.4 "Exo 2", sans-serif; letter-spacing:.03em; color:var(--ink); animation:fadein .6s; text-align:center; }
   .brief .sentence b { font-weight:600; color:var(--acc2); }
 
+  #volbox { display:none !important; }  /* фоновая музыка выключена */
   .proc { display:grid; grid-template-columns:320px 1fr; gap:24px; flex:1; min-height:0; }
   .proc.with-parts { grid-template-columns:300px minmax(320px, 420px) 1fr; }
   /* панель «Промпты по частям» (профили) */
@@ -1276,7 +1277,8 @@ function opts() { syncAll(); return {audio: audioPath, source, script: F.script,
 const bgm = $('bgm'); let musicTimer = null, tracks = [], trackIdx = 0;
 const MUSIC_GAP = 90000;
 function musicGain(v) { return v <= 0 ? 0 : Math.pow(v / 100, 2) * 0.45; }  // 50 → 0.11, 100 → 0.45 (на четверть тише, чем раньше)
-function setTracks(list) { tracks = list || []; if (tracks.length) { trackIdx = Math.floor(Math.random() * tracks.length); bgm.src = 'music/' + tracks[trackIdx]; } }
+function setTracks(list) { tracks = []; bgm.removeAttribute('src'); return;  // фоновая музыка выключена
+  tracks = list || []; if (tracks.length) { trackIdx = Math.floor(Math.random() * tracks.length); bgm.src = 'music/' + tracks[trackIdx]; } }
 function playTrack(i) { if (!tracks.length) return; trackIdx = (i + tracks.length) % tracks.length; bgm.src = 'music/' + tracks[trackIdx]; bgm.currentTime = 0; bgm.play().catch(() => {}); }
 function applyMusic(v) {
   bgm.volume = musicGain(v);
