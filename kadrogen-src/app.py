@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p25"
+VERSION = "1.7.1-p26"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2113,16 +2113,36 @@ class Api:
             out.append(p)
         return out
 
-    def trans_preview(self, t):
-        """Три кадра последнего ролика с выбранными переходами и движением — mp4 для плеера в окне."""
+    def _preview_video(self, n=1):
+        """Оживлённые клипы из последних роликов — для предпросмотра переходов на видео-сцены. n>1 — список подряд идущих."""
+        with LOCK:
+            jd = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
+        root = os.path.join(data_dir(), "jobs")
+        dirs = [jd] if jd else []
+        if os.path.isdir(root):
+            dirs += sorted((os.path.join(root, x) for x in os.listdir(root) if not x.startswith("_")), key=lambda d: -os.path.getmtime(d))[:10]
+        for d in dirs:
+            vd = os.path.join(d, "videos") if d else ""
+            vids = sorted(f for f in os.listdir(vd) if f.endswith(".mp4") and f[:4].isdigit()) if vd and os.path.isdir(vd) else []
+            if vids:
+                k = max(0, min(len(vids) - n, len(vids) // 2 - n // 2))
+                got = [os.path.join(vd, f) for f in vids[k:k + n]]
+                return got if n > 1 else got[0]
+        return [] if n > 1 else None
+
+    def trans_preview(self, t, kind="images"):
+        """Предпросмотр переходов: kind="images" — три картинки; "video" — картинка → оживлённый клип → картинка."""
         import base64
         if not PREVIEW_LOCK.acquire(blocking=False):
             return {"ok": False, "busy": True}
         try:
             work = os.path.join(data_dir(), "jobs", "_trans_preview")
-            p = pipeline.trans_preview(t or {}, self._preview_images(3), work)
+            kind = kind if kind in ("video", "videos") else "images"
+            video = self._preview_video() if kind == "video" else (self._preview_video(3) if kind == "videos" else None)
+            p = pipeline.trans_preview(t or {}, self._preview_images(3), work, kind=kind, video=video)
             with open(p, "rb") as f:
-                return {"ok": True, "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
+                return {"ok": True, "kind": kind, "real_video": bool(video),
+                        "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
         except Exception as e:
             return {"ok": False, "error": str(e)[:300]}
         finally:

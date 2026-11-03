@@ -539,6 +539,8 @@
   #tr_pv video { width:100%; height:100%; display:block; object-fit:contain; }
   #tr_pv .busy { position:absolute; right:10px; top:8px; font-size:11px; letter-spacing:.2em; color:#fff; background:rgba(0,0,0,.55); padding:4px 8px; display:none; }
   #tr_pv.loading .busy { display:block; }
+  .trk { display:flex; align-items:center; gap:6px; margin-bottom:8px; } .trk button { padding:6px 12px; font-size:11px; letter-spacing:.12em; }
+  .trk button.on { border-color:var(--acc2); color:var(--acc2); } .trk { flex-wrap:wrap; } .trk span { flex-basis:100%; font-size:12px; color:var(--ink2); min-height:16px; }
   #tr_err { color:var(--err); font-size:12px; margin-top:6px; min-height:16px; }
   #tr_desc { color:var(--ink2); font-size:13px; line-height:1.45; margin-top:4px; }
   .tform { overflow-y:auto; padding-right:6px; display:grid; grid-template-columns:150px 1fr; gap:8px 10px; align-items:center; font-size:13px; color:var(--ink2); align-content:start; }
@@ -660,7 +662,7 @@
   <div class="lbcap" id="lb_cap"></div>
   <div class="lbed"><textarea id="lb_prompt" spellcheck="false"></textarea><div class="r"><span class="n" id="lb_en"></span><button class="ghost" id="lb_ecancel"></button><button class="primary" id="lb_ego"></button></div></div></div>
 <div id="tr_dlg"><div class="box"><h3 id="tr_t"></h3>
-  <div class="tbody"><div><div id="tr_pv"><video id="tr_video" autoplay loop muted playsinline></video><span class="busy" id="tr_busy"></span></div><div id="tr_err"></div>
+  <div class="tbody"><div><div class="trk" id="tr_kind"><button class="ghost on" data-k="images"></button><button class="ghost" data-k="video"></button><button class="ghost" data-k="videos"></button><span id="tr_kn"></span></div><div id="tr_pv"><video id="tr_video" autoplay loop muted playsinline></video><span class="busy" id="tr_busy"></span></div><div id="tr_err"></div>
     <div class="spres" id="tr_pres"></div><div id="tr_desc"></div></div>
   <div class="tform" id="tr_form"></div></div>
   <div class="row"><span class="note" id="tr_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="tr_cancel"></button><button class="primary" id="tr_save"></button></div></div></div>
@@ -2024,7 +2026,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ===== переходы и движение картинок =====
-let TR = null, TRF = null, trTimer = null, trBusy = false, trAgain = false;
+let TR = null, TRF = null, trTimer = null, trBusy = false, trAgain = false, TRK = 'images';
 const TR_PRESETS = [['classic', 'Как сейчас', 'As now', 'Восемь переходов по кругу, по 0,5 с; картинки: стоит, наезд, стоит, проезд… — как было всегда.', 'Eight transitions in a loop, 0.5 s; images as before.'],
                     ['soft', 'Мягкие', 'Soft', 'Только затемнение, растворение и через чёрный, вперемешку; каждая картинка медленно наезжает. Спокойно, не отвлекает.', 'Only fades and dissolves; every image slowly zooms in.'],
                     ['full', 'Максимум', 'Maximum', 'Все 35 переходов вперемешку (каждый по разу, потом заново); каждая картинка двигается — наезд, отъезд, проезды, диагонали.', 'All 35 transitions shuffled; every image moves.'],
@@ -2071,7 +2073,7 @@ function trRender() {
   $('tr_all').onclick = () => { TRF.set = TR.all.map(x => x.id); changed(); };
   $('tr_soft').onclick = () => { TRF.set = TR.presets.soft.set.slice(); changed(); };
   $('tr_noneb').onclick = () => { TRF.set = []; changed(); };
-  $('tr_vown').onchange = () => { TRF.video_set = $('tr_vown').checked ? ['circleopen', 'zoomin', 'radial'] : []; changed(); };
+  $('tr_vown').onchange = () => { TRF.video_set = $('tr_vown').checked ? ['circleopen', 'zoomin', 'radial'] : []; if (TRF.video_set.length) { TRK = 'video'; $('tr_kind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.k === 'video')); } changed(); };
   if ($('tr_vsoft')) $('tr_vsoft').onclick = () => { TRF.video_set = TR.presets.soft.set.slice(); changed(); };
   if ($('tr_vall')) $('tr_vall').onclick = () => { TRF.video_set = TR.all.map(x => x.id); changed(); };
   $('tr_form').querySelectorAll('[data-v]').forEach(c => c.onchange = () => {
@@ -2088,8 +2090,19 @@ async function trPreview() {
   if (trBusy) { trAgain = true; return; }
   trBusy = true; $('tr_pv').classList.add('loading'); $('tr_err').textContent = '';
   try {
-    const r = await pywebview.api.trans_preview(Object.assign({}, TRF, {preset: TRF.preset === 'custom' ? 'custom' : TRF.preset}));
-    if (r.ok) { $('tr_video').src = r.video; $('tr_video').play().catch(() => {}); }
+    const r = await pywebview.api.trans_preview(Object.assign({}, TRF, {preset: TRF.preset === 'custom' ? 'custom' : TRF.preset}), TRK);
+    if (r.ok) {
+      $('tr_video').src = r.video; $('tr_video').play().catch(() => {});
+      $('tr_kn').textContent = r.kind === 'videos'
+        ? (r.real_video ? pt('три оживлённых клипа подряд — как в режиме «Только видео»', 'three animated clips in a row')
+                        : pt('оживлённых клипов ещё нет — вместо клипов показаны кадры', 'no animated clips yet — stills shown'))
+          + (TRF.video_set.length ? '' : pt(' · своих переходов для видео нет — такие же, как у картинок', ' · same transitions as images'))
+        : r.kind === 'video'
+        ? (r.real_video ? pt('картинка → оживлённый клип из вашего ролика → картинка', 'image → animated clip → image')
+                        : pt('оживлённых клипов ещё нет — вместо клипа показан кадр', 'no animated clips yet — a still is shown'))
+          + (TRF.video_set.length ? '' : pt(' · своих переходов для видео нет — такие же, как у картинок', ' · same transitions as images'))
+        : pt('три картинки подряд — переходы между картинками', 'three images — image transitions');
+    }
     else if (!r.busy) $('tr_err').textContent = r.error || '';
   } finally {
     trBusy = false; $('tr_pv').classList.remove('loading');
@@ -2111,6 +2124,10 @@ async function openTrans() {
     $('tr_dlg').classList.remove('show'); $('tr_video').removeAttribute('src');
     toast(on ? pt('Переходы сохранены и включены.', 'Transitions saved and enabled.') : pt('Сохранено: сцены встык, без переходов.', 'Saved: hard cuts.'), 4000);
   };
+  TRK = {video: 'videos', mixed: 'video'}[mode()] || (vf() ? 'video' : 'images');  // по режиму ролика на шаге 02
+  const kb = $('tr_kind').querySelectorAll('button');
+  kb[0].textContent = pt('Картинки', 'Images'); kb[1].textContent = pt('Картинки + видео', 'Images + video'); kb[2].textContent = pt('Только видео', 'Video only');
+  kb.forEach(b => { b.classList.toggle('on', b.dataset.k === TRK); b.onclick = () => { TRK = b.dataset.k; kb.forEach(x => x.classList.toggle('on', x === b)); trPreview(); }; });
   trRender(); $('tr_dlg').classList.add('show'); trPreview();
 }
 $('tr_cfg_btn').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openTrans(); });

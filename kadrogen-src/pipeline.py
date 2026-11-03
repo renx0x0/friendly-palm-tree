@@ -2877,32 +2877,40 @@ def xfade_chain(clips, durations, kind0=0, kinds=None):
     return args, ";".join(parts)
 
 
-def trans_preview(t, images, work_dir, seconds=1.6):
-    """Короткий ролик из 3 кадров с выбранными переходами и движением — для предпросмотра в окне. → путь к mp4."""
+def trans_preview(t, images, work_dir, seconds=1.6, kind="images", video=None):
+    """video — путь к клипу или список клипов (для kind="videos" берутся по очереди)."""
+    """Короткий ролик для предпросмотра в окне. → путь к mp4.
+    kind="images" — три картинки подряд: видны переходы между картинками;
+    kind="video" — картинка → оживлённый клип (video, если есть) → картинка: переход на видео-сцену и обратно."""
     st = trans_settings({"transitions": t or {}})
     os.makedirs(work_dir, exist_ok=True)
     T = st["duration"] if st["set"] else 0.0
+    vids = {1} if kind == "video" else ({0, 1, 2} if kind == "videos" else set())
+    durs = [seconds, (3.0 if kind == "video" else seconds), seconds] if kind != "videos" else [2.6, 2.6, 2.6]
+    vlist = [v for v in (video if isinstance(video, (list, tuple)) else [video]) if v and os.path.exists(v)]
     clips = []
     for k, img in enumerate(images[:3]):
-        out = os.path.join(work_dir, f"p{k}.mp4")
+        out = os.path.join(work_dir, f"{kind}_p{k}.mp4")
         try:
             os.remove(out)
         except OSError:
             pass
-        render_scene_clip(img, k + 1, seconds + T, out, kb=st["kb"])  # с 1: в «как сейчас» первый кадр двигается
+        if k in vids and vlist:
+            render_video_clip(vlist[k % len(vlist)] if kind == "videos" else vlist[0], durs[k] + T, out)
+        else:
+            render_scene_clip(img, k + 1, durs[k] + T, out, kb=st["kb"])  # с 1: в «как сейчас» первый кадр двигается
         clips.append(out)
-    res = os.path.join(work_dir, "preview.mp4")
+    res = os.path.join(work_dir, f"preview_{kind}.mp4")
     args = []
     for c in clips:
         args += ["-i", c]
     if st["set"] and len(clips) > 1:
-        pk = cut_kinds(len(clips), {1}, st["set"], st["video_set"], st["order"])  # второй кадр — как видео-сцена
+        pk = cut_kinds(len(clips), vids, st["set"], st["video_set"], st["order"])
         parts, prev, offset = [], "[0:v]", 0.0
         for k in range(1, len(clips)):
-            offset += seconds
-            kind = pk[k]
+            offset += durs[k - 1]
             out = f"[v{k}]"
-            parts.append(f"{prev}[{k}:v]xfade=transition={kind}:duration={T}:offset={offset - T:.3f}{out}")
+            parts.append(f"{prev}[{k}:v]xfade=transition={pk[k]}:duration={T}:offset={offset - T:.3f}{out}")
             prev = out
         fc = ";".join(parts) + f";{prev}scale=960:540[vout]"
     else:
