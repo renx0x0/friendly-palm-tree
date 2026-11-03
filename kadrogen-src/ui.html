@@ -598,6 +598,22 @@
   .asmbar .dotl { width:8px; height:8px; flex:none; background:#e8a33a; border-radius:50%; animation:pulse 1.2s ease-in-out infinite; }
   .asmbar button { padding:6px 10px; font-size:10px; letter-spacing:.14em; }
   .qpar { margin:4px 0 8px; color:var(--ink2); font-size:12px; } .qs.assembling { color:#e8a33a; }
+
+  /* ===== подстановки мастер-промпта: понятные кнопки с живыми значениями ===== */
+  .pchips span { display:inline-flex; flex-direction:column; gap:3px; padding:6px 9px; font:12px/1.2 "Exo 2", sans-serif; text-align:left; }
+  .pchips span b { font-weight:600; color:var(--ink); } .pchips span i { font-style:normal; color:var(--acc2); font-weight:600; }
+  .pchips span code { font:10.5px/1 Consolas, monospace; color:var(--ink2); }
+  .pchips span.used { border-color:var(--acc2); background:rgba(0,150,230,.06); } .pchips span.used b::before { content:"✓ "; color:var(--acc2); }
+  .psample { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:var(--ink2); }
+  .psample input { width:90px; padding:4px 6px; font-size:12px; } .psample .lk { color:var(--acc2); cursor:pointer; margin-left:auto; }
+  #pf_nums { font-size:12px; color:#e8a33a; } #pf_nums button { padding:3px 8px; font-size:11px; letter-spacing:.06em; margin-left:6px; }
+  #pfv_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:center; background:rgba(0,0,0,.6); }
+  #pfv_dlg.show { display:grid; } #pfv_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:20px 24px; width:min(1000px, calc(100% - 40px)); height:min(820px, 90vh); display:flex; flex-direction:column; }
+  #pfv_dlg .row1 { display:flex; gap:10px; align-items:center; } #pfv_dlg h3 { margin:0; font:600 16px/1.3 "Exo 2", sans-serif; }
+  #pfv_dlg select { padding:6px 8px; font-size:13px; } #pfv_dlg button { padding:8px 14px; font-size:11px; letter-spacing:.16em; }
+  #pfv_dlg .note { color:var(--ink2); font-size:12px; margin:8px 0; }
+  #pfv_text { flex:1; overflow:auto; margin:0; padding:12px; white-space:pre-wrap; font:12.5px/1.45 Consolas, monospace; background:var(--bg2); border:1px solid var(--line); color:var(--ink); }
+  #pfv_text mark { background:rgba(0,150,230,.22); color:inherit; padding:0 2px; }
 </style>
 </head>
 <body>
@@ -649,7 +665,8 @@
 <div id="pf_dlg"><div class="box"><h3 id="pf_t"></h3>
   <div class="pbody"><div id="pf_list"></div>
     <div class="pmain"><input type="text" id="pf_name" spellcheck="false" autocomplete="off"><div class="pnote" id="pf_mlbl"></div>
-      <textarea id="pf_master" spellcheck="false"></textarea><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div></div>
+      <textarea id="pf_master" spellcheck="false"></textarea>
+      <div class="psample" id="pf_sample"></div><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div><div id="pf_nums"></div></div>
     <div class="pform" id="pf_form"></div></div>
   <div class="row"><button class="danger" id="pf_del"></button><span class="note" id="pf_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="pf_cancel"></button><button class="primary" id="pf_save"></button></div></div></div>
 <div id="rx_dlg"><div class="box"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div>
@@ -658,6 +675,8 @@
     <label id="rx_l2"></label><select id="rx_tr"></select><label id="rx_l3"></label><select id="rx_sub"></select></div>
   <div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div>
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
+<div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
+  <div class="note" id="pfv_n"></div><pre id="pfv_text"></pre></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -2163,6 +2182,7 @@ function pfRenderForm() {
     + sel('transitions', pt('Переходы', 'Transitions'), PF_TRANS)
     + `<div class="h">${pt('Если выбрано — у роликов этого профиля всегда эти переходы, что бы ни стояло в «Моушн-дизайн».', 'If set, videos of this profile always use these transitions.')}</div>`;
   $('pf_form').querySelectorAll('[data-kv]').forEach(e => e.addEventListener('input', () => PF.dirty = true));
+  $('pf_form').querySelectorAll('[data-k="chars_per_part"], [data-k="min_parts"], [data-k="max_parts"], [data-k="prompts_per_part"]').forEach(e => e.addEventListener('input', pfChips));
   $('pf_form').querySelectorAll('[data-kv]').forEach(e => e.addEventListener('change', () => PF.dirty = true));
   $('pf_form').querySelectorAll('[data-k]').forEach(e => e.addEventListener(e.type === 'checkbox' || e.tagName === 'SELECT' ? 'change' : 'input', () => PF.dirty = true));
 }
@@ -2172,15 +2192,81 @@ function pfCollect() {
   st.voice = {}; $('pf_form').querySelectorAll('[data-kv]').forEach(e => { st.voice[e.dataset.kv] = e.value; });
   return {name: $('pf_name').value, old_name: PF.cur, master: $('pf_master').value, settings: st};
 }
+const PH_INFO = {
+  '{{PART_NUMBER}}': ['Номер части', 'Part number', 'какая это часть по счёту'],
+  '{{PARTS_TOTAL}}': ['Всего частей', 'Parts total', 'на сколько частей поделился сценарий'],
+  '{{PROMPTS_PER_PART}}': ['Промптов в части', 'Prompts per part', 'из настройки «Промптов на часть» справа'],
+  '{{PROMPTS_TOTAL}}': ['Промптов всего', 'Prompts total', 'частей × промптов в части'],
+  '{{FIRST}}': ['Номер первого промпта', 'First number', 'с какого номера модель начинает эту часть'],
+  '{{LAST}}': ['Номер последнего промпта', 'Last number', 'каким номером заканчивает'],
+  '{{PART_TEXT}}': ['Текст части', 'Part text', 'сюда встанет кусок сценария'],
+};
+const NUM_WORDS = {10: 'ten', 15: 'fifteen', 20: 'twenty', 25: 'twenty-five', 30: 'thirty', 40: 'forty', 50: 'fifty', 60: 'sixty', 70: 'seventy', 75: 'seventy-five',
+                   80: 'eighty', 90: 'ninety', 100: 'one hundred', 120: 'one hundred and twenty', 150: 'one hundred and fifty', 200: 'two hundred'};
+function pfNums() {  // живые значения из настроек справа и длины примера
+  const v = k => { const e = $('pf_form') && $('pf_form').querySelector(`[data-k="${k}"]`); return e ? +e.value || 0 : +(PF.data.settings[k] || 0); };
+  const cpp = Math.max(200, v('chars_per_part') || 4500), minp = Math.max(1, v('min_parts') || 1), maxp = Math.max(0, v('max_parts')), per = Math.max(1, v('prompts_per_part') || 50);
+  const len = Math.max(0, +PF.sample || 25000);
+  let n = Math.max(minp, Math.floor(len / cpp)); if (maxp) n = Math.min(n, maxp); n = Math.max(1, n);
+  const w = Math.max(3, String(n * per).length), z = x => String(x).padStart(w, '0');
+  return {n, per, len, w, z, chars: Math.round(len / n)};
+}
+function pfValues(x, part) {
+  const first = (part - 1) * x.per + 1;
+  return {'{{PART_NUMBER}}': String(part), '{{PARTS_TOTAL}}': String(x.n), '{{PROMPTS_PER_PART}}': String(x.per), '{{PROMPTS_TOTAL}}': String(x.n * x.per),
+          '{{FIRST}}': x.z(first), '{{LAST}}': x.z(first + x.per - 1)};
+}
+function pfShort(x, k) {
+  const list = f => { const a = []; for (let p = 1; p <= Math.min(x.n, 3); p++) a.push(f(p)); return a.join(' · ') + (x.n > 3 ? ' …' : ''); };
+  return {'{{PART_NUMBER}}': x.n > 1 ? `1…${x.n}` : '1', '{{PARTS_TOTAL}}': String(x.n), '{{PROMPTS_PER_PART}}': String(x.per), '{{PROMPTS_TOTAL}}': String(x.n * x.per),
+          '{{FIRST}}': list(p => x.z((p - 1) * x.per + 1)), '{{LAST}}': list(p => x.z(p * x.per)), '{{PART_TEXT}}': `~${x.chars.toLocaleString('ru-RU')} ${pt('симв.', 'chars')}`}[k] || '';
+}
 async function pfChips() {
-  const m = $('pf_master').value, ph = PF.data.placeholders || {};
-  $('pf_chips').innerHTML = Object.keys(ph).map(k => `<span class="${m.includes(k) ? 'used' : ''}" title="${esc(ph[k])}" data-p="${esc(k)}">${esc(k)}</span>`).join('');
+  const m = $('pf_master').value, ph = PF.data.placeholders || {}, x = pfNums();
+  if (!$('pf_sample').dataset.ready) {
+    $('pf_sample').dataset.ready = '1';
+    $('pf_sample').innerHTML = `<span>${pt('Для примера: сценарий', 'Example: script')}</span><input type="number" id="pf_len" min="1000" step="1000"><span>${pt('символов', 'chars')}</span><b id="pf_split"></b><span class="lk" id="pf_view">${pt('Как увидит модель ›', 'What the model sees ›')}</span>`;
+    $('pf_len').oninput = () => { PF.sample = +$('pf_len').value || 25000; pfChips(); };
+    $('pf_view').onclick = pfPreview;
+  }
+  if (document.activeElement !== $('pf_len')) $('pf_len').value = x.len;
+  $('pf_split').textContent = `→ ${x.n} ${x.n === 1 ? pt('часть', 'part') : (x.n < 5 ? pt('части', 'parts') : pt('частей', 'parts'))} ${pt('по', 'of')} ~${x.chars.toLocaleString('ru-RU')} ${pt('симв.', 'chars')} · ${x.n * x.per} ${pt('кадров', 'frames')}`;
+  $('pf_chips').innerHTML = Object.keys(ph).map(k => {
+    const inf = PH_INFO[k] || [k, k, ph[k]];
+    return `<span class="${m.includes(k) ? 'used' : ''}" title="${esc(pt(inf[2] + '. Клик — вставить в место курсора (выделенный текст заменится).', inf[2]))}" data-p="${esc(k)}"><b>${esc(pt(inf[0], inf[1]))}</b><i>${esc(pfShort(x, k))}</i><code>${esc(k)}</code></span>`;
+  }).join('');
   $('pf_chips').querySelectorAll('span').forEach(c => c.onclick = () => {
     const ta = $('pf_master'), a = ta.selectionStart, b = ta.selectionEnd;
     ta.value = ta.value.slice(0, a) + c.dataset.p + ta.value.slice(b); ta.focus(); ta.selectionStart = ta.selectionEnd = a + c.dataset.p.length;
     PF.dirty = true; pfChips();
   });
-  $('pf_warn').textContent = m.trim() && !m.includes('{{PART_TEXT}}') ? pt('Нет {{PART_TEXT}} — модель не получит текст части сценария.', 'No {{PART_TEXT}} — the model gets no script text.') : '';
+  $('pf_warn').textContent = m.trim() && !m.includes('{{PART_TEXT}}') ? pt('Нет «Текст части» ({{PART_TEXT}}) — модель не получит текст части сценария.', 'No {{PART_TEXT}} — the model gets no script text.') : '';
+  // число промптов, написанное в тексте словами или цифрами («EXACTLY FIFTY prompts», «50 prompts»), с настройкой само не меняется
+  const counts = {};
+  const W = Object.entries(NUM_WORDS).sort((a, b) => b[1].length - a[1].length);
+  const numOf = t => { t = t.toLowerCase().replace(/\s+/g, ' ').replace('-', ' '); if (/^\d+$/.test(t)) return +t; const e = W.find(([, w]) => w.replace('-', ' ') === t); return e ? +e[0] : null; };
+  const alt = W.map(([, w]) => w.replace(/ /g, '\\s+').replace('-', '[-\\s]')).join('|') + '|\\d{2,3}';
+  const reA = new RegExp(`\\b(${alt})\\b(?:\\s+[a-z]+){0,2}?\\s+(?:prompts?|slices?)\\b`, 'gi');
+  for (const mm of m.matchAll(reA)) { const v = numOf(mm[1]); if (v) counts[v] = (counts[v] || 0) + 1; }
+  const main = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  $('pf_nums').innerHTML = main && +main[0] !== x.per
+    ? pt(`В тексте число промптов в части задано прямо: <b>${main[0]}</b> (например «${esc((m.match(reA) || [''])[0].slice(0, 40))}», ${main[1]}×), а справа стоит <b>${x.per}</b>. Модель получит противоречие — поправьте текст (Ctrl+F) или верните ${main[0]} справа. Числа вроде «середина — 25-й промпт» тоже поменяйте.`,
+         `The text says ${main[0]} prompts per part but the setting is ${x.per}.`)
+    : (main && !m.includes('{{PROMPTS_PER_PART}}') ? pt(`Число промптов в тексте (${main[0]}) совпадает с настройкой. Если поменяете «Промптов на часть» — поправьте и текст.`, 'Prompt count in text matches the setting.') : '');
+}
+function pfPreview() {
+  const x = pfNums();
+  $('pfv_t').textContent = pt('Как увидит модель', 'What the model sees'); $('pfv_x').textContent = pt('Закрыть', 'Close');
+  $('pfv_part').innerHTML = Array.from({length: x.n}, (_, i) => `<option value="${i + 1}">${pt('часть', 'part')} ${i + 1} ${pt('из', 'of')} ${x.n}</option>`).join('');
+  const draw = () => {
+    const part = +$('pfv_part').value || 1, vals = pfValues(x, part);
+    let html = esc($('pf_master').value);
+    for (const [k, v] of Object.entries(vals)) html = html.split(esc(k)).join(`<mark>${esc(v)}</mark>`);
+    html = html.split(esc('{{PART_TEXT}}')).join(`<mark>[${pt(`здесь будет текст части ${part} — около ${x.chars.toLocaleString('ru-RU')} символов сценария`, `part ${part} text, ~${x.chars} chars`)}]</mark>`);
+    $('pfv_text').innerHTML = html;
+    $('pfv_n').textContent = pt(`Пример для сценария на ${x.len.toLocaleString('ru-RU')} символов. Подсвечено то, что программа подставит сама.`, 'Highlighted values are filled in by the program.');
+  };
+  $('pfv_part').onchange = draw; draw(); $('pfv_dlg').classList.add('show');
 }
 $('pf_master').addEventListener('input', () => { PF.dirty = true; clearTimeout(PF.t); PF.t = setTimeout(pfChips, 300); });
 $('pf_name').addEventListener('input', () => PF.dirty = true);
