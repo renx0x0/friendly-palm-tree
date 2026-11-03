@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p30"
+VERSION = "1.7.1-p31"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2320,6 +2320,29 @@ class Api:
             return True
         return False
 
+    def reveal_job(self, job_id):
+        """Папка с готовым роликом, файл выделен (Проводник). Ролик ещё не готов — папка output."""
+        d = self._job_path(job_id)
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) if d else {}
+        res = (rec or {}).get("result")
+        if res and os.path.exists(res):
+            try:
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(res)])
+                return {"ok": True}
+            except Exception:
+                os.startfile(os.path.dirname(res))
+                return {"ok": True}
+        return {"ok": False, "error": "Готового видео у этого ролика нет — возможно, его переместили или ещё не собрали."}
+
+    def play_job(self, job_id):
+        d = self._job_path(job_id)
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) if d else {}
+        res = (rec or {}).get("result")
+        if res and os.path.exists(res):
+            os.startfile(res)
+            return {"ok": True}
+        return {"ok": False, "error": "Готового видео у этого ролика нет — возможно, его переместили или ещё не собрали."}
+
     def open_output(self):
         out = os.path.join(data_dir(), "output")
         os.makedirs(out, exist_ok=True)
@@ -2381,7 +2404,8 @@ class Api:
             out.append({"id": n, "title": title[:80], "profile": label,
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else self._asm_status(d, rec),
-                        "result": rec.get("result"), "known": bool(rec), "mode": args.get("mode", ""),
+                        "result": rec.get("result"), "has_video": bool(rec.get("result") and os.path.exists(rec.get("result"))),
+                        "known": bool(rec), "mode": args.get("mode", ""),
                         "fg_image_model": (rec.get("cfg") or {}).get("fg_image_model") or "", "fg_video_model": (rec.get("cfg") or {}).get("fg_video_model") or ""})
         out.sort(key=lambda x: -x["updated"])
         return out[:limit]

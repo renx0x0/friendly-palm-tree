@@ -1163,9 +1163,13 @@ function recentRow(r) {
   const btn = r.status === 'assembling' ? framesBtn(r)
     : r.status === 'running' ? framesBtn(r) + `<button class="ghost" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
     : framesBtn(r) + `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`
+      + (r.has_video ? `<button class="ghost more" title="${pt('Смотреть готовый ролик', 'Play the video')}" onclick="recentPlay('${esc(r.id).replace(/'/g, '&#39;')}')">▶</button>`
+        + `<button class="ghost more" title="${pt('Открыть папку с готовым роликом', 'Show in folder')}" onclick="recentReveal('${esc(r.id).replace(/'/g, '&#39;')}')">📁</button>` : '')
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
   return `<div class="rjob"><span class="rt" title="${esc(r.title)}">${esc(r.title)}</span>${r.profile ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
+async function recentReveal(id) { const r = await pywebview.api.reveal_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
+async function recentPlay(id) { const r = await pywebview.api.play_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function refreshRecent() {
   try { RECENT = await pywebview.api.recent_jobs(); } catch (e) { return; }
   const box = $('recent');
@@ -1462,7 +1466,8 @@ async function fillPart(n, force) {
   const d = $('pp' + n); if (!d || !partsOpen.has(n)) return;
   const p = d._p || {}, b = d.querySelector('.pb');
   if (!b.querySelector('.pbar')) {
-    b.innerHTML = `<div class="pbar"><button class="ghost small" onclick="copyReq(${n})">${pt('Скопировать запрос для чата', 'Copy request for chat')}</button>`
+    const ready = $('parts').dataset.p === 'готовые промпты';  // у готовых промптов мастер-промпта нет — копировать нечего
+    b.innerHTML = `<div class="pbar">${ready ? '' : `<button class="ghost small" onclick="copyReq(${n})">${pt('Скопировать запрос для чата', 'Copy request for chat')}</button>`}`
       + `<button class="ghost small" onclick="pasteDlg(${n})">${pt('Вставить ответ', 'Paste answer')}</button></div><div class="pc"></div>`;
   }
   const c = b.querySelector('.pc');
