@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p39"
+VERSION = "1.7.1-p40"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2177,6 +2177,13 @@ class Api:
         save_cfg(cfg)
         return {"ok": True, "fx": pipeline.fx_settings(cfg), "subtitles": bool(cfg.get("subtitles")), "motion": bool(cfg.get("motion"))}
 
+    def look_get(self, name):
+        cfg = load_cfg()
+        tpl = (cfg.get("looks") or {}).get(name) if isinstance(cfg.get("looks"), dict) else None
+        if not isinstance(tpl, dict):
+            return {"ok": False}
+        return {"ok": True, "subtitles": bool(tpl.get("subtitles")), "motion": bool(tpl.get("motion")), "fx": pipeline.fx_settings(tpl)}
+
     def look_delete(self, name):
         cfg = load_cfg()
         looks = cfg.get("looks") if isinstance(cfg.get("looks"), dict) else {}
@@ -2694,15 +2701,38 @@ class Api:
         o = opts or {}
         base = os.path.basename(d).partition("@")[0]
         script = rec.get("script") or self._job_script(d, base) or None
-        look = {}
+        # вид ролика запоминается сейчас, в момент нажатия: постоит в очереди — соберётся ровно так, что бы ни поменяли в программе
+        src = dict(cfg)
+        tname = o.get("look_name")
+        tpl = (cfg.get("looks") or {}).get(tname) if tname and isinstance(cfg.get("looks"), dict) else None
+        if isinstance(tpl, dict):
+            src.update({k: tpl[k] for k in self.LOOK_KEYS if k in tpl})
+        look = {"fx": src.get("fx") or {}, "sub_style": src.get("sub_style"), "sub_source": src.get("sub_source")}
+        if isinstance(src.get("transitions"), dict):
+            look["transitions"] = src["transitions"]
+        motion = bool(src.get("motion"))
+        subtitles = bool(src.get("subtitles"))
+        if o.get("fx") == "none":
+            look["fx"] = {}
+        elif isinstance(o.get("fx"), dict):
+            look["fx"] = pipeline.fx_settings({"fx": o["fx"]})
+        if isinstance(o.get("sub_style"), dict):
+            look["sub_style"] = {"classic": True} if o["sub_style"].get("classic") else pipeline.subs_style.normalize(o["sub_style"])
+        if o.get("sub_source") in ("script", "asr"):
+            look["sub_source"] = o["sub_source"]
+        if "subtitles" in o:
+            subtitles = bool(o["subtitles"])
         if o.get("transitions") in pipeline.TRANS_PRESETS:
             look["transitions"] = {"preset": o["transitions"]}
-        subtitles = bool(o["subtitles"]) if "subtitles" in o else bool(cfg.get("subtitles"))
+        if "motion" in o:
+            motion = bool(o["motion"])
+        if not motion:  # «без движения»: ни переходов, ни наездов
+            look["transitions"] = {"preset": "none"}
         args = dict(audio=None if script else audio, provider=a.get("provider") or pipeline.normalize_providers(cfg.get("image_providers")),
                     mode=a.get("mode") or cfg.get("mode", "images"), style=a.get("style") or style_key(cfg.get("style"), pipeline.DEFAULT_STYLE),
-                    use_refs=False, subtitles=subtitles, motion=bool(cfg.get("motion")), script=script, rewrite=None,
+                    use_refs=False, subtitles=subtitles, motion=motion, script=script, rewrite=None,
                     tts=cfg.get("tts_service"), voice=cfg.get("tts_voice", ""), video_first=a.get("video_first", 0), hd=bool(a.get("hd")),
-                    profile="", voice_file=audio if script else None, prompts_file=None, remix_from=d, look=look or None)
+                    profile="", voice_file=audio if script else None, prompts_file=None, remix_from=d, look=look)
         if os.path.normcase(os.path.abspath(pipeline.run_job_dir(cfg, args["audio"], script, args["voice_file"], None, "", None, d))) == os.path.normcase(os.path.abspath(d)):
             return {"ok": False, "error": "Это тот же файл озвучки, из которого сделан ролик. Выберите новую озвучку."}
         name = pipeline.safe_title(o.get("name"))

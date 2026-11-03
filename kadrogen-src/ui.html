@@ -470,6 +470,7 @@
   .topbar .logo { cursor:pointer; }
   .tleft { display:flex; align-items:center; }
   /* ===== кадры ролика ===== */
+  #sub_dlg { z-index:65 !important; }
   #fr_dlg, #sub_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.6); }
   #fr_dlg.show, #sub_dlg.show { display:grid; }
   #fr_dlg .box, #sub_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(1180px, calc(100% - 40px)); max-height:88vh; display:flex; flex-direction:column; }
@@ -593,6 +594,7 @@
   #rx_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(680px, calc(100% - 40px)); }
   #rx_dlg h3 { margin:0 0 6px; font:600 16px/1.3 "Exo 2", sans-serif; } #rx_dlg .note { color:var(--ink2); font-size:13px; line-height:1.5; margin-bottom:14px; }
   #rx_dlg .g { display:grid; grid-template-columns:150px 1fr; gap:10px 12px; align-items:center; font-size:13px; color:var(--ink2); }
+  #rx_dlg .g .sep { border-top:1px solid var(--line); margin:4px 0 0; } #rx_dlg .g .f select { flex:1; min-width:0; }
   #rx_dlg .g .f { display:flex; gap:8px; } #rx_dlg .g .f input, #rx_name { flex:1; padding:8px 10px; font-size:13px; } #rx_dlg select { padding:8px 10px; font-size:13px; }
   #rx_dlg .row { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; } #rx_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
 
@@ -724,7 +726,13 @@
 <div id="rx_dlg"><div class="box"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div>
   <div class="g"><label id="rx_l1"></label><div class="f"><input type="text" id="rx_file" readonly><button class="ghost" id="rx_pick"></button></div>
     <label id="rx_l4"></label><input type="text" id="rx_name" maxlength="120" spellcheck="false" autocomplete="off">
-    <label id="rx_l2"></label><select id="rx_tr"></select><label id="rx_l3"></label><select id="rx_sub"></select></div>
+    <div class="sep"></div><div class="sep"></div>
+    <label id="rx_l5"></label><select id="rx_look"></select>
+    <label id="rx_l6"></label><div class="f"><select id="rx_fx"></select><button class="ghost" id="rx_fxb"></button></div>
+    <label id="rx_l3"></label><div class="f"><select id="rx_sub"></select><button class="ghost" id="rx_subb"></button></div>
+    <label id="rx_l7"></label><select id="rx_mot"></select>
+    <label id="rx_l2"></label><select id="rx_tr"></select></div>
+  <div class="note" id="rx_n2" style="margin:10px 0 0"></div>
   <div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div>
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
@@ -1067,13 +1075,16 @@ async function fxPreview() {
     if (fxAgain) { fxAgain = false; fxPreview(); }
   }
 }
-function openFx() {
-  FXW = fxNorm(FXS);
+let FX_TGT = null;  // окно «Эффекты» для одного ролика (новая озвучка): сохраняет туда, а не в настройки программы
+function openFx(tgt) {
+  FX_TGT = tgt && tgt.onSave ? tgt : null;
+  FXW = fxNorm(FX_TGT ? FX_TGT.fx : FXS);
   $('fxd_t').textContent = pt('Эффекты', 'Effects'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');
   $('fxd_x').textContent = pt('Отмена', 'Cancel'); $('fxd_save').textContent = pt('Сохранить', 'Save'); $('fxd_off').textContent = pt('Выключить все', 'All off');
   $('fxd_x').onclick = () => { $('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src'); };
   $('fxd_off').onclick = () => { FX_INFO.forEach(([k]) => FXW[k].on = false); fxRender(); fxPreviewSoon(); };
   $('fxd_save').onclick = async () => {
+    if (FX_TGT) { FX_TGT.onSave(JSON.parse(JSON.stringify(FXW))); $('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src'); return; }
     FXS = JSON.parse(JSON.stringify(FXW)); await pywebview.api.save_config({fx: FXS});
     $('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src'); fxLabels(); if (typeof syncRv === 'function') syncRvFx();
     toast(pt('Эффекты сохранены: ', 'Effects saved: ') + esc(fxSummary(FXS)), 4000);
@@ -1082,7 +1093,7 @@ function openFx() {
 }
 // ===== шаблоны оформления =====
 let LOOKS = {names: [], current: ''};
-async function lookLoad() { try { LOOKS = await pywebview.api.looks_list(); } catch (e) {} lookRender(); }
+async function lookLoad() { try { const r = await pywebview.api.looks_list(); LOOKS = {names: (r && r.names) || [], current: (r && r.current) || ''}; } catch (e) {} lookRender(); }
 function lookRender() {
   if (!$('look_sel')) return;
   $('look_lbl').textContent = pt('Шаблон оформления', 'Look template');
@@ -2209,9 +2220,12 @@ async function renderSubPreview() {
   $('sub_pv').classList.remove('loading');
   if (r.ok) { $('sub_vid').src = r.video; $('sub_vid').play().catch(() => {}); $('sub_err').textContent = ''; } else $('sub_err').textContent = r.error || '';
 }
-async function openSubs() {
+let SUB_TGT = null;  // «Вид субтитров» для одного ролика (новая озвучка)
+async function openSubs(tgt) {
+  SUB_TGT = tgt && tgt.onSave ? tgt : null;
   SUB = await pywebview.api.sub_style_get();
   SUBF = Object.assign({}, SUB.style, {classic: SUB.classic});
+  if (SUB_TGT && SUB_TGT.style) SUBF = Object.assign({}, SUB.defaults || {}, SUB_TGT.style);
   $('sd_t').textContent = pt('Вид субтитров', 'Subtitle style');
   $('sd_note').textContent = pt('Предпросмотр рисует тот же ffmpeg, что и сборку — с появлением и караоке, как в ролике.', 'The preview is rendered by the same ffmpeg as the final video.'); pvSetRender();
   $('sub_busy').textContent = pt('рисую…', 'rendering…');
@@ -2221,14 +2235,16 @@ async function openSubs() {
     SUBF = Object.assign({}, SUB.presets[b.dataset.p], {classic: b.dataset.p === 'Как было'});
     fillSubForm(); markPreset(); schedulePreview();
   });
-  buildSubForm(); fillSubForm(); markPreset(); $('sub_src').value = SUB.source || 'script';
+  buildSubForm(); fillSubForm(); markPreset(); $('sub_src').value = (SUB_TGT && SUB_TGT.source) || SUB.source || 'script';
   $('sd_off').textContent = pt('Без субтитров', 'No subtitles');
   $('sd_off').onclick = () => {
+    if (SUB_TGT) { SUB_TGT.onOff(); $('sub_dlg').classList.remove('show'); return; }
     $('use_subs').checked = false; mark(); pywebview.api.save_config({subtitles: false});
     $('sub_dlg').classList.remove('show'); syncRv(); toast(pt('Субтитры выключены. Включить — галочка «Субтитры» или «Сохранить» в этом окне.', 'Subtitles off.'), 5000);
   };
   $('sd_cancel').onclick = () => $('sub_dlg').classList.remove('show');
   $('sd_save').onclick = async () => {
+    if (SUB_TGT) { SUB_TGT.onSave(Object.assign({}, SUBF), $('sub_src').value); $('sub_dlg').classList.remove('show'); return; }
     await pywebview.api.sub_style_save(SUBF, !!SUBF.classic, $('sub_src').value);
     if (!$('use_subs').checked) { $('use_subs').checked = true; mark(); pywebview.api.save_config({subtitles: true}); }
     $('sub_dlg').classList.remove('show'); subBtnLabel(); syncRv();
@@ -2666,32 +2682,65 @@ lbEditLabels();
 // ===== новая озвучка для готового ролика =====
 let RX = null;
 function openRemix(r) {
-  RX = {id: r.id, file: ''};
+  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null};
   $('rx_t').textContent = pt(`Новая озвучка: ${r.title}`, `New voice-over: ${r.title}`);
   $('rx_n').innerHTML = pt('Тот же визуал — картинки и оживлённые клипы этого ролика, ничего не генерируется и кредиты не тратятся. '
-    + 'Сцены сами разложатся по новой озвучке (тот же текст другим голосом или темпом). Переходы и субтитры — какие выберете ниже. '
-    + 'Получится отдельный ролик, исходный не меняется.', 'Same visuals, no generation. Scenes are re-timed to the new voice-over.');
+    + 'Сцены сами разложатся по новой озвучке. Получится отдельный ролик, исходный не меняется.', 'Same visuals, no generation. Scenes are re-timed to the new voice-over.');
   $('rx_l1').textContent = pt('Файл озвучки', 'Voice-over file'); $('rx_pick').textContent = pt('Выбрать', 'Pick');
   $('rx_file').value = ''; $('rx_file').placeholder = pt('другой mp3 / wav этого же сценария', 'another mp3 of the same script');
   $('rx_l4').textContent = pt('Название', 'Name'); $('rx_name').value = ''; $('rx_name').placeholder = pt('необязательно — имя готового файла', 'optional — output file name');
+  $('rx_l5').textContent = pt('Шаблон оформления', 'Look template');
+  $('rx_look').innerHTML = `<option value="">${pt('не брать — как ниже', 'none')}</option>` + LOOKS.names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  $('rx_l6').textContent = pt('Эффекты', 'Effects'); $('rx_fxb').textContent = pt('Настроить ›', 'Set up ›');
+  $('rx_l3').textContent = pt('Субтитры', 'Subtitles'); $('rx_subb').textContent = pt('Вид ›', 'Style ›');
+  $('rx_l7').textContent = pt('Движение', 'Motion');
   $('rx_l2').textContent = pt('Переходы', 'Transitions');
-  $('rx_tr').innerHTML = [['', 'как сейчас в настройках', 'as in settings'], ['classic', 'Как сейчас', 'As now'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum'], ['none', 'Без переходов', 'No transitions']]
+  $('rx_tr').innerHTML = [['', 'как сейчас (или как в шаблоне)', 'as now (or template)'], ['classic', 'Классические', 'As now'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum']]
     .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
-  $('rx_l3').textContent = pt('Субтитры', 'Subtitles');
-  $('rx_sub').innerHTML = [['on', 'с субтитрами (вид — как в «Вид субтитров»)', 'on'], ['off', 'без субтитров', 'off']].map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
   $('rx_sub').value = $('use_subs').checked ? 'on' : 'off';
+  const rxRender = () => {
+    const tpl = RX.look ? pt(`из шаблона «${RX.look}»`, `from template`) : pt('как сейчас', 'as now');
+    $('rx_fx').innerHTML = `<option value="cur">${tpl}${RX.look ? '' : ': ' + esc(fxSummary(FXS))}</option><option value="none">${pt('без эффектов', 'none')}</option>`
+      + (RX.fx ? `<option value="own">${pt('свои: ', 'own: ') + esc(fxSummary(RX.fx))}</option>` : '');
+    $('rx_fx').value = RX.fxNone ? 'none' : RX.fx ? 'own' : 'cur';
+    const sv = $('rx_sub').value || 'on';
+    $('rx_sub').innerHTML = `<option value="on">${RX.sub ? pt('свой вид (настроен для этого ролика)', 'own style') : pt('с субтитрами — вид ', 'on — style ') + tpl}</option><option value="off">${pt('без субтитров', 'off')}</option>`;
+    $('rx_sub').value = sv;
+    $('rx_n2').textContent = pt('Всё выбранное здесь запоминается за этим роликом: если он постоит в очереди, а вы поменяете настройки в программе, он соберётся именно так.',
+      'Everything chosen here is stored with this video, even if it waits in the queue.');
+  };
+  $('rx_mot').innerHTML = [['on', 'с движением камеры и переходами', 'with motion and transitions'], ['off', 'без движения (статичные кадры, склейки встык)', 'no motion']]
+    .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
+  $('rx_mot').value = $('use_motion').checked ? 'on' : 'off';
+  rxRender();
+  $('rx_look').onchange = async () => {
+    RX.look = $('rx_look').value; RX.fx = null; RX.fxNone = false; RX.sub = null;
+    if (RX.look) {  // показать, что в шаблоне: субтитры и движение
+      try { const L = await pywebview.api.look_get(RX.look); if (L && L.ok) { $('rx_sub').value = L.subtitles ? 'on' : 'off'; $('rx_mot').value = L.motion ? 'on' : 'off'; } } catch (e) {}
+    }
+    rxRender();
+  };
+  $('rx_fx').onchange = () => { const v = $('rx_fx').value; RX.fxNone = v === 'none'; if (v === 'cur') RX.fx = null; rxRender(); };
+  $('rx_fxb').onclick = () => openFx({fx: RX.fx || FXS, onSave: fx => { RX.fx = fx; RX.fxNone = false; rxRender(); }});
+  $('rx_subb').onclick = () => openSubs({style: RX.sub, source: RX.subSrc,
+    onSave: (st, src) => { RX.sub = st; RX.subSrc = src; $('rx_sub').value = 'on'; rxRender(); },
+    onOff: () => { $('rx_sub').value = 'off'; rxRender(); }});
   $('rx_cancel').textContent = pt('Отмена', 'Cancel'); $('rx_go').textContent = pt('Собрать', 'Build');
   $('rx_pick').onclick = async () => { const p = await pywebview.api.pick_file(); if (p) { RX.file = p; $('rx_file').value = p; } };
   $('rx_cancel').onclick = () => $('rx_dlg').classList.remove('show');
   $('rx_go').onclick = async () => {
     if (!RX.file) { toast(pt('Выберите файл новой озвучки', 'Pick the new voice-over file'), 4000); return; }
-    const o = {subtitles: $('rx_sub').value === 'on', name: $('rx_name').value.trim()}; if ($('rx_tr').value) o.transitions = $('rx_tr').value;
+    const o = {subtitles: $('rx_sub').value === 'on', motion: $('rx_mot').value === 'on', name: $('rx_name').value.trim()};
+    if ($('rx_tr').value) o.transitions = $('rx_tr').value;
+    if (RX.look) o.look_name = RX.look;
+    if (RX.fxNone) o.fx = 'none'; else if (RX.fx) o.fx = RX.fx;
+    if (RX.sub) { o.sub_style = RX.sub; if (RX.subSrc) o.sub_source = RX.subSrc; }
     const x = await pywebview.api.remix_job(RX.id, RX.file, o);
     if (!x.ok) { toast(esc(x.error || ''), 8000); return; }
     $('rx_dlg').classList.remove('show');
     if (x.queued) {
       queueItems = x.items || queueItems; refreshRecent();
-      toast(pt(`«${esc(x.title)}» в очереди №${x.pos} — начнётся сам, когда закончится текущий ролик.`, `Queued #${x.pos}: “${esc(x.title)}”.`), 7000);
+      toast(pt(`«${esc(x.title)}» в очереди №${x.pos} — начнётся сам, когда закончится текущий ролик. Вид уже запомнен.`, `Queued #${x.pos}: “${esc(x.title)}”.`), 7000);
       return;
     }
     $('result').classList.remove('show'); $('error').textContent = ''; $('p_err').textContent = ''; $('btn_cancel').disabled = false; shownPct = 0;

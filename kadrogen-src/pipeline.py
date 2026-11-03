@@ -4310,6 +4310,10 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     clear_wait()
     take_redo()
     cfg = load_config()
+    if isinstance(look, dict):  # вид, запомненный за этим роликом (новая озвучка): эффекты и субтитры — его, а не текущие в программе
+        for k in ("fx", "sub_style", "sub_source"):
+            if k in look:
+                cfg = dict(cfg, **{k: look[k]})
     VIDEO_PROMPT = " ".join(str(cfg.get("video_prompt") or "").split())
     try:
         VIDEO_ZOOM = max(100.0, min(130.0, float(cfg.get("video_zoom_pct", 104)))) / 100
