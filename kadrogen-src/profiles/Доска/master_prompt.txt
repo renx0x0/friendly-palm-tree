@@ -8,17 +8,17 @@ HOW THE WORK ARRIVES
 
 The script has already been cut into {{PARTS_TOTAL}} consecutive parts of equal length. You receive them ONE AT A TIME, never all at once, each in its own message.
 
-For each part you deliver EXACTLY FIFTY prompts covering that part and nothing else. {{PARTS_TOTAL}} parts, fifty prompts each, {{PROMPTS_TOTAL}} in total.
+For each part you deliver EXACTLY {{PROMPTS_PER_PART}} prompts covering that part and nothing else. {{PARTS_TOTAL}} parts, {{PROMPTS_PER_PART}} prompts each, {{PROMPTS_TOTAL}} in total.
 
-**You never divide anything yourself.** The cutting is already done. Your only job is to spread fifty prompts evenly across the part in front of you, from its first sentence to its last. Do not think about the rest of the script, do not reserve frames for material you expect later, do not compress the end of a part because you feel you are running out of room. The part you were given is the whole world for this message.
+**You never divide anything yourself.** The cutting is already done. Your only job is to spread {{PROMPTS_PER_PART}} prompts evenly across the part in front of you, from its first sentence to its last. Do not think about the rest of the script, do not reserve frames for material you expect later, do not compress the end of a part because you feel you are running out of room. The part you were given is the whole world for this message.
 
 **Do not ask for the other parts and do not guess at them.** If a part opens mid-thought or ends mid-argument, that is expected and correct — it is a slice of a longer text, not a self-contained essay. Illustrate what is in front of you.
 
-A part runs somewhere between three and six thousand characters, depending on the length of the script it came from. Whatever its exact size, fifty prompts across it works out at roughly one frame per sentence, sometimes two frames for a single long sentence in a short part.
+A part is usually several thousand characters long, depending on the length of the script it came from. Whatever its exact size, {{PROMPTS_PER_PART}} prompts across it usually works out at roughly one or two frames per sentence — step 2 below tells you the exact ratio for this part.
 
 **That density is much finer than it feels while writing, and this is the single hardest instruction in this prompt to follow.** A frame does not have to carry a complete thought. It does not have to correspond to an idea, a point, or a paragraph. It corresponds to a few seconds of speech, and a few seconds of speech is usually half a thought. Two neighbouring frames illustrating two halves of the same sentence is normal and correct, not a mistake to avoid.
 
-If you find yourself on prompt thirty and already near the end of the part, you have been moving at paragraph resolution instead of sentence resolution. Go back and work at the real scale.
+If you find yourself only about three fifths of the way through your prompts and already near the end of the part, you have been moving at paragraph resolution instead of sentence resolution. Go back and work at the real scale.
 
 ═══════════════════════════════════════════════
 THE SINGLE MOST IMPORTANT STYLISTIC CONSTRAINT
@@ -127,12 +127,12 @@ Exact counts are yours to decide from the script, but no single type may exceed 
 EVEN DISTRIBUTION INSIDE THE PART
 ═══════════════════════════════════════════════
 
-The finished video shows every frame for the same amount of time. Nothing is held longer on quiet passages and nothing flashes by on dense ones. This single fact governs how you spread the fifty prompts, and it overrides any instinct to follow the density of ideas in the text.
+The finished video shows every frame for the same amount of time. Nothing is held longer on quiet passages and nothing flashes by on dense ones. This single fact governs how you spread the {{PROMPTS_PER_PART}} prompts, and it overrides any instinct to follow the density of ideas in the text.
 
 **The procedure, applied to the part in front of you:**
 
 1. Read the part from its first sentence to its last before writing anything.
-2. Count its sentences. Divide fifty by that number: that is how many frames each sentence gets. Thirty sentences means roughly one and a half frames per sentence; fifty sentences means one each; seventy means one frame covers about a sentence and a half.
+2. Count its sentences. Divide {{PROMPTS_PER_PART}} by that number: that is how many frames each sentence gets. Fewer sentences than prompts means some sentences get two frames; as many sentences as prompts means one each; more sentences than prompts means one frame covers more than one sentence.
 3. Write one prompt per slice, in strict order, from the first to the fiftieth, holding that ratio throughout.
 
 **A slice gets its frame whether or not it contains a striking idea.** This is where it goes wrong most often. Some slices land in the middle of a vivid explanation and hand you an obvious image. Others land on a transitional sentence, a rhetorical question, a pause in the argument. Those slices still get their own frame, and you must not skip them or merge them into a neighbour, because that is precisely what breaks synchronisation with the voice.
@@ -147,13 +147,13 @@ For a slice with no obvious image, choose one of these neutral fallbacks, rotati
 
 **The two failure modes, and they are mirror images.**
 
-Running fast: you cover the whole part in thirty prompts and then have to invent twenty filler frames for the last paragraph, or cram the ending into a handful of images. Symptom — around prompt twenty-five you are already past the middle of the part.
+Running fast: you cover the whole part with little more than half of your prompts and then have to invent filler frames for the last paragraph, or cram the ending into a handful of images. Symptom — at your halfway prompt you are already past the middle of the part.
 
-Running slow: you spend thirty prompts on the opening two paragraphs and then sprint through everything else. Symptom — around prompt twenty-five you are still in the first third.
+Running slow: you spend more than half of your prompts on the opening two paragraphs and then sprint through everything else. Symptom — at your halfway prompt you are still in the first third.
 
-**Checkpoint at the halfway mark.** When you reach prompt twenty-five of a part, you should be at the middle of that part's text — not at its most interesting moment, at its literal middle. If you are anywhere else, correct the pace immediately rather than at the end.
+**Checkpoint at the halfway mark.** When you reach the halfway prompt of a part (half of {{PROMPTS_PER_PART}}, counting from {{FIRST}}), you should be at the middle of that part's text — not at its most interesting moment, at its literal middle. If you are anywhere else, correct the pace immediately rather than at the end.
 
-**Both the first and the last sentence of the part must be illustrated.** Prompt one covers the part's opening sentence. Prompt fifty covers its closing sentence. Nothing in the part is left without a frame and nothing beyond it is touched.
+**Both the first and the last sentence of the part must be illustrated.** Prompt {{FIRST}} covers the part's opening sentence. Prompt {{LAST}} covers its closing sentence. Nothing in the part is left without a frame and nothing beyond it is touched.
 
 When the script names a number, draw the quantity rather than writing it: twenty thousand breaths become a dense field of tiny chalk marks; seventy-one out of a hundred become a grid of small figures with part of them shaded.
 
@@ -163,16 +163,16 @@ Variations of the same concept are expected and welcome, since even distribution
 STRICT OUTPUT FORMATTING
 ═══════════════════════════════════════════════
 
-- One part of the script in, exactly fifty prompts out. Then stop and fall silent until the next part arrives.
+- One part of the script in, exactly {{PROMPTS_PER_PART}} prompts out. Then stop and fall silent until the next part arrives.
 - This message is part {{PART_NUMBER}} of {{PARTS_TOTAL}}: it yields prompts {{FIRST}}–{{LAST}}. These boundaries are fixed and non-negotiable.
 
 **Numbering is mandatory.** Each prompt is preceded by its three-digit number and a full stop, on the same line, immediately followed by the prompt text: "047. Hand-drawn chalkboard illustration on a dark slate board...". Numbering runs continuously across all {{PARTS_TOTAL}} messages and never restarts. The number is the only formatting element permitted anywhere in the output.
 
-**Count before you send.** Every message contains exactly fifty prompts, no more and no fewer. Before ending, verify that the final prompt carries the correct closing number — {{LAST}}. If your last written prompt carries a lower number, you have stopped early: continue writing until you reach the required closing number. Ending at 043 or 287 is a failure of the task, not an acceptable approximation. Never skip a number, never repeat one, never end mid-sequence.
+**Count before you send.** Every message contains exactly {{PROMPTS_PER_PART}} prompts, no more and no fewer. Before ending, verify that the final prompt carries the correct closing number — {{LAST}}. If your last written prompt carries a lower number, you have stopped early: continue writing until you reach the required closing number. Ending at 043 or 287 is a failure of the task, not an acceptable approximation. Never skip a number, never repeat one, never end mid-sequence.
 
 - Do NOT give prompts titles or category headers.
 - Do NOT use bold, italics, headings, bullets or any markdown beyond the plain number and full stop.
-- Do NOT write any framing sentence — no "here are the first fifty", no "continuing", no "ready for the next batch", no "let me now cover the practice section".
+- Do NOT write any framing sentence — no "here are the first prompts", no "continuing", no "ready for the next batch", no "let me now cover the practice section".
 - Do NOT write any sentence about your own working process — no planning aloud, no counting aloud, no self-review. Counting happens in your reasoning; only the numbered prompts appear in the answer.
 - Each prompt is one coherent English paragraph. Between prompts, exactly one blank line.
 
@@ -202,7 +202,7 @@ Hand-drawn chalkboard illustration on dark slate, white chalk, loose cartoon sty
 BEGIN
 ═══════════════════════════════════════════════
 
-Part {{PART_NUMBER}} of {{PARTS_TOTAL}} follows this instruction. Read it to its last sentence, picture it cut into fifty even slices of one or two sentences each, and write one prompt per slice in order. Deliver prompts {{FIRST}} to {{LAST}} — numbered, with no headers, no preamble and no closing remark, only the numbered prompts separated by single blank lines, ending on prompt {{LAST}} and then the SYNC marker with the part's final sentence. Then stop.
+Part {{PART_NUMBER}} of {{PARTS_TOTAL}} follows this instruction. Read it to its last sentence, picture it cut into {{PROMPTS_PER_PART}} even slices of one or two sentences each, and write one prompt per slice in order. Deliver prompts {{FIRST}} to {{LAST}} — numbered, with no headers, no preamble and no closing remark, only the numbered prompts separated by single blank lines, ending on prompt {{LAST}} and then the SYNC marker with the part's final sentence. Then stop.
 
 ═══════════════════════════════════════════════
 PART {{PART_NUMBER}} OF {{PARTS_TOTAL}}
