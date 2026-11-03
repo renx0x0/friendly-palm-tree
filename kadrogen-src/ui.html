@@ -643,7 +643,19 @@
   /* ===== эффект плёнки ===== */
   #fx_row { gap:12px; } #fx_row button { padding:6px 12px; font-size:11px; letter-spacing:.14em; } #fx_row .vqh { font-size:12px; color:var(--ink2); }
   #fx_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:center; background:rgba(0,0,0,.6); } #fx_dlg.show { display:grid; }
-  #fx_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:18px 22px; width:min(1000px, calc(100% - 40px)); }
+  #fx_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:18px 22px; width:min(1240px, calc(100% - 40px)); max-height:92vh; display:flex; flex-direction:column; }
+  #fx_dlg .fxbody { display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(330px, 1fr); gap:18px; min-height:0; flex:1; }
+  #fx_dlg .row2 { display:flex; gap:10px; align-items:center; margin-top:12px; }
+  .fxlist { overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:6px; }
+  .fxi { border:1px solid var(--line); padding:9px 12px; background:var(--bg2); } .fxi.on { border-color:var(--acc2); }
+  .fxi .h1 { display:flex; align-items:center; gap:10px; font:600 13px/1.2 "Exo 2", sans-serif; letter-spacing:.06em; cursor:pointer; }
+  .fxi .d { font-size:12px; color:var(--ink2); margin:4px 0 0 26px; }
+  .fxi .fxc { display:none; flex-direction:column; gap:6px; margin:8px 0 2px 26px; font-size:12px; color:var(--ink2); } .fxi.on .fxc { display:flex; }
+  .fxc .fxl { display:flex; align-items:center; gap:10px; } .fxc .fxl > span:first-child { width:74px; flex:0 0 auto; }
+  .seg3 { display:inline-flex; } .seg3 button { clip-path:none; text-transform:none; padding:5px 12px; font-size:11px; letter-spacing:.06em; border:1px solid var(--line); background:transparent; color:var(--ink2); }
+  .seg3 button + button { border-left:none; } .seg3 button.on { color:var(--acc2); border-color:var(--acc2); box-shadow:inset 0 0 0 1px var(--acc2); }
+  .fxi select { padding:4px 8px; font-size:12px; width:auto; min-width:150px; } #fx_row .fxsum { max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  @media (max-width: 900px) { #fx_dlg .fxbody { grid-template-columns:1fr; overflow-y:auto; } }
   #fx_dlg .row1 { display:flex; align-items:center; gap:10px; margin-bottom:10px; } #fx_dlg h3 { margin:0; font:600 16px/1.3 "Exo 2", sans-serif; }
   #fx_dlg button { padding:8px 14px; font-size:11px; letter-spacing:.16em; } #fx_dlg .note { color:var(--ink2); font-size:12px; margin-top:8px; }
   .fxpv { position:relative; aspect-ratio:16 / 9; background:#22262c; } .fxpv video { width:100%; height:100%; display:block; }
@@ -711,8 +723,10 @@
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
   <div class="note" id="pfv_n"></div><pre id="pfv_text"></pre></div></div>
-<div id="fx_dlg"><div class="box"><div class="row1"><h3 id="fxd_t"></h3><span style="flex:1"></span><button class="primary" id="fxd_x" onclick="$('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src')"></button></div>
-  <div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span></div><div class="note" id="fxd_n"></div></div></div>
+<div id="fx_dlg"><div class="box"><div class="row1"><h3 id="fxd_t"></h3><span style="flex:1"></span></div>
+  <div class="fxbody"><div><div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span></div><div class="note" id="fxd_n"></div></div>
+  <div class="fxlist" id="fx_list"></div></div>
+  <div class="row2"><button class="ghost" id="fxd_off"></button><span style="flex:1"></span><button class="ghost" id="fxd_x"></button><button class="primary" id="fxd_save"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -762,7 +776,7 @@
     <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
       <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
     <div class="vfrow" id="vq_row"><span class="lbl" id="vq_lbl"></span><select id="vquality" class="qst"><option value="standard"></option><option value="high"></option><option value="max"></option></select><span class="vqh" id="vq_hint"></span></div>
-    <div class="vfrow" id="fx_row"><span class="lbl" id="fx_lbl"></span><select id="fx_dust" class="qst"><option value="0"></option><option value="1"></option><option value="2"></option><option value="3"></option></select><button type="button" class="ghost" id="fx_pv_btn" onclick="fxPreview()"></button><span class="vqh" id="fx_hint"></span></div>
+    <div class="vfrow" id="fx_row"><span class="lbl" id="fx_lbl"></span><span class="vqh fxsum" id="fx_sum"></span><button type="button" class="ghost" id="fx_btn" onclick="openFx()"></button></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
@@ -988,21 +1002,66 @@ $('vanchor').addEventListener('change', () => pywebview.api.save_config({video_a
 let OUTDIR = {dir: '', def: '', sub: false};
 async function pickOutDir() { const p = await pywebview.api.pick_output_dir(); if (p) { OUTDIR.dir = p; renderAccess(); toast(pt('Готовые видео будут сохраняться сюда: ', 'Videos will be saved to: ') + esc(p), 5000); } }
 async function clearOutDir() { await pywebview.api.clear_output_dir(); OUTDIR.dir = ''; renderAccess(); }
+const FX_INFO = [
+  ['dust', 'Пыль и точки', 'Dust & specks', 'белые и чёрные пылинки, комочки, «битые пиксели»', true],
+  ['white', 'Белый шум', 'White noise', 'яркие белые волоски-завитки и точки (как White noise в CapCut)', true],
+  ['vintage', 'Винтажный шум', 'Vintage noise', 'мягкие светлые хлопья, вертикальные царапины, лёгкое мерцание', true],
+  ['vignette', 'Виньетка', 'Vignette', 'затемнение по краям кадра', false],
+  ['film', 'Старая плёнка (цвет)', 'Old film colour', 'сепия, выцветшие цвета или ч/б, приглушённые чёрные', false],
+  ['vhs', 'VHS', 'VHS', 'сдвиг цветов, строки развёртки, изредка полоса трекинга', true]];
+let FXS = {}, FXW = {}, fxTimer = null, fxBusy = false, fxAgain = false;
+function fxDefault() { const o = {}; FX_INFO.forEach(([k]) => o[k] = {on: false, power: 2, speed: 2, tone: 'sepia'}); return o; }
+function fxSummary(fx) {
+  const on = FX_INFO.filter(([k]) => fx && fx[k] && fx[k].on).map(([k, r, e]) => pt(r, e) + (k === 'film' ? ' · ' + pt({sepia: 'сепия', faded: 'выцветшая', bw: 'ч/б'}[fx[k].tone] || '', fx[k].tone) : ''));
+  return on.length ? on.join(', ') : pt('нет', 'none');
+}
 function fxLabels() {
-  $('fx_lbl').textContent = pt('Эффект старой плёнки', 'Old film effect');
-  const o = $('fx_dust').options; o[0].textContent = pt('нет', 'off'); o[1].textContent = pt('пыль и точки — лёгкие', 'dust — light'); o[2].textContent = pt('пыль и точки — средние', 'dust — medium'); o[3].textContent = pt('пыль и точки — сильные', 'dust — strong');
-  $('fx_pv_btn').textContent = pt('Предпросмотр', 'Preview');
-  $('fx_hint').textContent = +$('fx_dust').value ? pt('белые и чёрные пылинки, мусор и «битые пиксели» — на каждом кадре новые, весь ролик', 'animated dust on every frame') : '';
+  $('fx_lbl').textContent = pt('Эффекты', 'Effects'); $('fx_btn').textContent = pt('Настроить ›', 'Set up ›');
+  $('fx_sum').textContent = fxSummary(FXS);
 }
+function seg3(k, key, cur, labels) {
+  return `<span class="seg3" data-k="${k}" data-key="${key}">${labels.map((l, i) => `<button type="button" data-v="${i + 1}" class="${cur === i + 1 ? 'on' : ''}">${l}</button>`).join('')}</span>`;
+}
+function fxRender() {
+  $('fx_list').innerHTML = FX_INFO.map(([k, r, e, d, anim]) => {
+    const v = FXW[k];
+    return `<div class="fxi${v.on ? ' on' : ''}" data-k="${k}"><label class="h1"><input type="checkbox" data-on="${k}"${v.on ? ' checked' : ''}>${pt(r, e)}</label><div class="d">${pt(d, '')}</div>`
+      + `<div class="fxc"><div class="fxl"><span>${pt('Сила', 'Strength')}</span>${seg3(k, 'power', v.power, [pt('слабо', 'low'), pt('средне', 'mid'), pt('сильно', 'high')])}</div>`
+      + (anim ? `<div class="fxl"><span>${pt('Скорость', 'Speed')}</span>${seg3(k, 'speed', v.speed, [pt('медленно', 'slow'), pt('средне', 'mid'), pt('быстро', 'fast')])}</div>` : '')
+      + (k === 'film' ? `<div class="fxl"><span>${pt('Цвет', 'Colour')}</span><select data-tone="1"><option value="sepia"${v.tone === 'sepia' ? ' selected' : ''}>${pt('сепия', 'sepia')}</option><option value="faded"${v.tone === 'faded' ? ' selected' : ''}>${pt('выцветшая', 'faded')}</option><option value="bw"${v.tone === 'bw' ? ' selected' : ''}>${pt('ч/б', 'b/w')}</option></select></div>` : '')
+      + `</div></div>`;
+  }).join('');
+  $('fx_list').querySelectorAll('[data-on]').forEach(c => c.onchange = () => { FXW[c.dataset.on].on = c.checked; fxRender(); fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('.seg3 button').forEach(b => b.onclick = () => { const g = b.parentNode; FXW[g.dataset.k][g.dataset.key] = +b.dataset.v; fxRender(); fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('[data-tone]').forEach(sl => sl.onchange = () => { FXW.film.tone = sl.value; fxPreviewSoon(); });
+}
+function fxPreviewSoon() { clearTimeout(fxTimer); fxTimer = setTimeout(fxPreview, 600); }
 async function fxPreview() {
-  $('fxd_t').textContent = pt('Эффект старой плёнки', 'Old film effect'); $('fxd_x').textContent = pt('Закрыть', 'Close'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');
-  $('fxd_n').textContent = pt('3 секунды кадра вашего последнего ролика. Первый раз дольше: программа один раз рисует петлю пыли.', '3 seconds of your last video frame.');
-  $('fx_dlg').classList.add('show'); $('fxd_v').removeAttribute('src'); document.querySelector('.fxpv').classList.add('loading');
-  const r = await pywebview.api.fx_preview(+$('fx_dust').value);
-  document.querySelector('.fxpv').classList.remove('loading');
-  if (r.ok) { $('fxd_v').src = r.video; $('fxd_v').play().catch(() => {}); } else if (!r.busy) $('fxd_n').textContent = r.error || '';
+  if (fxBusy) { fxAgain = true; return; }
+  fxBusy = true; document.querySelector('.fxpv').classList.add('loading');
+  try {
+    const r = await pywebview.api.fx_preview(FXW);
+    if (r.ok) { $('fxd_v').src = r.video; $('fxd_v').play().catch(() => {}); $('fxd_n').textContent = pt('3 секунды кадра вашего последнего ролика. Новый набор эффектов первый раз рисуется дольше — программа один раз готовит живой слой.', '3 seconds of your last video frame.'); }
+    else if (!r.busy) $('fxd_n').textContent = r.error || '';
+  } finally {
+    fxBusy = false; document.querySelector('.fxpv').classList.remove('loading');
+    if (fxAgain) { fxAgain = false; fxPreview(); }
+  }
 }
-$('fx_dust').addEventListener('change', () => { fxLabels(); pywebview.api.save_config({fx_dust: +$('fx_dust').value}); });
+function openFx() {
+  FXW = JSON.parse(JSON.stringify(Object.keys(FXS).length ? FXS : fxDefault()));
+  $('fxd_t').textContent = pt('Эффекты', 'Effects'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');
+  $('fxd_x').textContent = pt('Отмена', 'Cancel'); $('fxd_save').textContent = pt('Сохранить', 'Save'); $('fxd_off').textContent = pt('Выключить все', 'All off');
+  $('fxd_x').onclick = () => { $('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src'); };
+  $('fxd_off').onclick = () => { FX_INFO.forEach(([k]) => FXW[k].on = false); fxRender(); fxPreviewSoon(); };
+  $('fxd_save').onclick = async () => {
+    FXS = JSON.parse(JSON.stringify(FXW)); await pywebview.api.save_config({fx: FXS});
+    $('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src'); fxLabels(); if (typeof syncRv === 'function') syncRvFx();
+    toast(pt('Эффекты сохранены: ', 'Effects saved: ') + esc(fxSummary(FXS)), 4000);
+  };
+  fxRender(); $('fx_dlg').classList.add('show'); fxPreview();
+}
+function syncRvFx() { const e = $('rv_fx_sum'); if (e) e.textContent = fxSummary(FXS); }
 function vqLabels() {
   $('vq_lbl').textContent = pt('Качество готового видео', 'Output video quality');
   const o = $('vquality').options; o[0].textContent = pt('стандарт (как раньше)', 'standard'); o[1].textContent = pt('высокое — битрейт выше', 'high'); o[2].textContent = pt('максимум', 'maximum');
@@ -1113,6 +1172,7 @@ function renderReview(script) {
   const cfgBtn = fn => `<button type="button" class="ghost rvcfg" onclick="${fn}()">${pt('Вид ›', 'Style ›')}</button>`;
   row(t('o_motion'), `<span class="rvc">${sw('rv_motion', $('use_motion').checked, ['rv_yes', 'rv_no'])}${cfgBtn('openTrans')}</span>`, true);
   row(t('o_subs'), `<span class="rvc">${sw('rv_subs', $('use_subs').checked, ['rv_yes', 'rv_no'])}${cfgBtn('openSubs')}</span>`, true);
+  row(pt('Эффекты', 'Effects'), `<span class="rvc"><span id="rv_fx_sum">${esc(fxSummary(FXS))}</span>${cfgBtn('openFx')}</span>`, true);
   row(t('o_hd'), sw('rv_hd', $('use_hd').checked, ['rv_yes', 'rv_no']), true);
   row(t('o_qa'), sw('rv_qa', $('use_qa').checked, ['rv_yes', 'rv_no']), true);
   row(t('o_speed'), sw('rv_speed', $('use_speed').checked, ['rv_yes', 'rv_no']), true);
@@ -1582,7 +1642,7 @@ async function loadConfig(keepScreen) {
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
   OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: !!OUTDIR.sub};
-  if ($('fx_dust')) { $('fx_dust').value = String(c.fx_dust || 0); fxLabels(); }
+  FXS = c.fx || {}; if ($('fx_lbl')) fxLabels();
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
@@ -2321,16 +2381,24 @@ function pfRenderForm() {
     + `<div class="h">${pt('Выбрали профиль на шаге 02 — строка «Куда сохранить» на шаге 04 станет этой папкой. Удобно держать у каждой ниши свою папку, где лежат превью.', 'Choosing the profile sets the save folder.')}</div>`
     + `<div class="sec2">${pt('Вид ролика', 'Video look')}</div>`
     + sel('transitions', pt('Переходы', 'Transitions'), PF_TRANS)
+    + (() => { const f = st.fx, mode = !f ? '' : (f.none ? 'none' : 'own');
+        return `<label>${pt('Эффекты', 'Effects')}</label><select data-kfx="1"><option value=""${mode === '' ? ' selected' : ''}>${pt('как в общих настройках', 'as in settings')}</option>`
+          + `<option value="none"${mode === 'none' ? ' selected' : ''}>${pt('без эффектов', 'none')}</option>`
+          + (mode === 'own' ? `<option value="own" selected>${pt('свои: ', 'own: ') + esc(fxSummary(f))}</option>` : '')
+          + `<option value="take">${pt('взять текущие из окна «Эффекты»: ', 'take current: ') + esc(fxSummary(FXS))}</option></select>`; })()
     + `<div class="h">${pt('Если выбрано — у роликов этого профиля всегда эти переходы, что бы ни стояло в «Моушн-дизайн».', 'If set, videos of this profile always use these transitions.')}</div>`;
   $('pf_form').querySelectorAll('[data-kv]').forEach(e => e.addEventListener('input', () => PF.dirty = true));
   $('pf_form').querySelectorAll('[data-k="chars_per_part"], [data-k="min_parts"], [data-k="max_parts"], [data-k="prompts_per_part"]').forEach(e => e.addEventListener('input', pfChips));
   $('pf_form').querySelectorAll('[data-kv]').forEach(e => e.addEventListener('change', () => PF.dirty = true));
+  $('pf_form').querySelectorAll('[data-kfx]').forEach(e => e.addEventListener('change', () => PF.dirty = true));
   $('pf_form').querySelectorAll('[data-k]').forEach(e => e.addEventListener(e.type === 'checkbox' || e.tagName === 'SELECT' ? 'change' : 'input', () => PF.dirty = true));
 }
 function pfCollect() {
   const st = {};
   $('pf_form').querySelectorAll('[data-k]').forEach(e => { st[e.dataset.k] = e.type === 'checkbox' ? e.checked : e.value; });
   st.voice = {}; $('pf_form').querySelectorAll('[data-kv]').forEach(e => { st.voice[e.dataset.kv] = e.value; });
+  const fxs = $('pf_form').querySelector('[data-kfx]');
+  if (fxs) st.fx = fxs.value === '' ? '' : fxs.value === 'none' ? {none: true} : fxs.value === 'take' ? JSON.parse(JSON.stringify(FXS)) : PF.data.settings.fx;
   return {name: $('pf_name').value, old_name: PF.cur, master: $('pf_master').value, settings: st};
 }
 const PH_INFO = {

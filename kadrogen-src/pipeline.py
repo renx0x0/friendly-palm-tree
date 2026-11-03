@@ -2675,72 +2675,177 @@ def crf_final():
     return VIDEO_QUALITIES.get(VIDEO_QUALITY, VIDEO_QUALITIES["high"])[1]
 
 
-# ============ эффекты плёнки: пыль/точки (как Noise в CapCut) и зерно ============
+# ============ эффекты: пыль, белый шум, винтажный шум, виньетка, старая плёнка, VHS ============
 
-FX_DUST = 0    # 0 — нет, 1 — лёгкие, 2 — средние, 3 — сильные
-FX_GRAIN = 0   # 0 — нет, 1..3
-FX_GRAIN_STRENGTH = {1: 5, 2: 9, 3: 14}
-FX_DUST_SECONDS = 4
+FX_KINDS = ("dust", "white", "vintage", "vignette", "film", "vhs")
+FX_ANIMATED = ("dust", "white", "vintage", "vhs")   # у этих есть живой слой поверх кадра
+FX_TONES = ("sepia", "faded", "bw")
+FX = {}                 # текущие эффекты сборки (нормализованные); пусто — без эффектов
+FX_SECONDS = 4          # длина петли живого слоя
+FX_LAYER_W, FX_LAYER_H = 960, 540   # слой рисуется в половину кадра и растягивается — быстрее и мягче
 _FX_LOCK = threading.Lock()
 
 
 def fx_settings(cfg):
-    f = cfg.get("fx") if isinstance(cfg.get("fx"), dict) else {}
+    """Эффекты из настроек → {вид: {"on", "power" 1..3, "speed" 1..3, "tone"}}; старый формат {"dust": N} тоже понимаем."""
+    raw = cfg.get("fx") if isinstance(cfg.get("fx"), dict) else {}
+    out = {}
+    for k in FX_KINDS:
+        v = raw.get(k)
+        if isinstance(v, (int, float)) and not isinstance(v, bool):  # p36: {"dust": 2}
+            v = {"on": v > 0, "power": v}
+        v = v if isinstance(v, dict) else {}
 
-    def lv(k):
-        try:
-            return max(0, min(3, int(f.get(k) or 0)))
-        except (TypeError, ValueError):
-            return 0
-    return {"dust": lv("dust"), "grain": lv("grain")}
+        def lv(x, d=2):
+            try:
+                return max(1, min(3, int(x)))
+            except (TypeError, ValueError):
+                return d
+        e = {"on": bool(v.get("on")), "power": lv(v.get("power")), "speed": lv(v.get("speed"))}
+        if k == "film":
+            e["tone"] = v.get("tone") if v.get("tone") in FX_TONES else "sepia"
+        out[k] = e
+    return out
+
+
+def fx_on(fx):
+    return any((fx or {}).get(k, {}).get("on") for k in FX_KINDS)
+
+
+def fx_sig(fx):
+    """Короткая подпись набора эффектов — для имени папки клипов и файла петли."""
+    if not fx_on(fx):
+        return ""
+    parts = []
+    for k in FX_KINDS:
+        e = fx.get(k) or {}
+        if e.get("on"):
+            parts.append(f"{k}{e.get('power')}{e.get('speed')}{e.get('tone', '')}")
+    return hashlib.md5("|".join(parts).encode()).hexdigest()[:6]
 
 
 def zlib_seed(text):
     return int(hashlib.md5(str(text).encode("utf-8")).hexdigest()[:6], 16)
 
 
-def _dust_frame(rng, level):
-    from PIL import Image, ImageDraw, ImageFilter
-    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    n = {1: 6, 2: 14, 3: 26}[level]
-    for _ in range(rng.randint(n // 2, n)):  # пылинки и комочки: белые и чёрные
-        x, y = rng.uniform(0, W), rng.uniform(0, H)
-        r = rng.choice([1, 1, 2, 2, 3, 4, 5, 7])
-        col = (255, 255, 255) if rng.random() < 0.55 else (10, 10, 10)
-        pts = [(x + r * math.cos(t) * rng.uniform(.6, 1.4), y + r * math.sin(t) * rng.uniform(.6, 1.4)) for t in [k * math.pi / 4 for k in range(8)]]
-        d.polygon(pts, fill=col + (rng.randint(140, 235),))
-    for _ in range(rng.randint(0, max(1, n // 6))):  # квадратики «битых пикселей»
-        x, y = rng.uniform(0, W), rng.uniform(0, H)
-        sz = rng.choice([4, 6, 8, 10])
-        col = rng.choice([(235, 235, 235), (25, 25, 25), (150, 150, 150)])
-        for k in range(rng.randint(1, 4)):
-            d.rectangle([x + k * sz * rng.choice([0, 1]), y + k * sz * rng.choice([0, 1]), x + (k + 1) * sz, y + (k + 1) * sz],
-                        fill=col + (rng.randint(150, 220),))
-    if rng.random() < 0.10 * level:  # волосок
-        x, y = rng.uniform(0, W), rng.uniform(0, H)
-        ang, ln = rng.uniform(0, math.pi), rng.uniform(15, 55)
-        pts = [(x + math.cos(ang) * ln * t + math.sin(t * 6) * 3, y + math.sin(ang) * ln * t + math.cos(t * 5) * 3) for t in [k / 11 for k in range(12)]]
-        d.line(pts, fill=(15, 15, 15, 200) if rng.random() < .6 else (240, 240, 240, 200), width=2)
-    return im.filter(ImageFilter.GaussianBlur(0.7))
+class _Layer:
+    """Рисует кадры живого слоя (RGBA, полкадра). Состояние между кадрами — у царапин и полосы VHS."""
+
+    def __init__(self, fx, rng):
+        self.fx, self.rng = fx, rng
+        self.lines, self.band, self.pattern, self.left = [], None, None, 0
+
+    def _hold(self):
+        sp = max(e["speed"] for k, e in self.fx.items() if k in ("dust", "white", "vintage") and e.get("on")) if any(
+            self.fx[k]["on"] for k in ("dust", "white", "vintage")) else 3
+        return {3: 1, 2: 2, 1: 4}[sp]
+
+    def _pattern(self):
+        from PIL import Image, ImageDraw, ImageFilter
+        rng, w, h = self.rng, FX_LAYER_W, FX_LAYER_H
+        im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(im)
+        e = self.fx["dust"]
+        if e["on"]:  # пылинки и комочки (белые и чёрные), «битые пиксели», волосок
+            n = {1: 6, 2: 14, 3: 26}[e["power"]]
+            for _ in range(rng.randint(n // 2, n)):
+                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([0.6, 1, 1, 1.5, 2, 2.5, 3.5])
+                col = (255, 255, 255) if rng.random() < 0.55 else (10, 10, 10)
+                pts = [(x + r * math.cos(t) * rng.uniform(.6, 1.4), y + r * math.sin(t) * rng.uniform(.6, 1.4)) for t in [k * math.pi / 4 for k in range(8)]]
+                d.polygon(pts, fill=col + (rng.randint(140, 235),))
+            for _ in range(rng.randint(0, max(1, n // 6))):
+                x, y, sz = rng.uniform(0, w), rng.uniform(0, h), rng.choice([2, 3, 4, 5])
+                col = rng.choice([(235, 235, 235), (25, 25, 25), (150, 150, 150)])
+                for k in range(rng.randint(1, 4)):
+                    d.rectangle([x + k * sz * rng.choice([0, 1]), y + k * sz * rng.choice([0, 1]), x + (k + 1) * sz, y + (k + 1) * sz],
+                                fill=col + (rng.randint(150, 220),))
+            if rng.random() < 0.10 * e["power"]:
+                self._hair(d, (15, 15, 15) if rng.random() < .6 else (240, 240, 240), 8, 28)
+        im = im.filter(ImageFilter.GaussianBlur(0.45))
+        e = self.fx["white"]
+        if e["on"]:  # белый шум: яркие волоски-завитки и белые точки (без размытия — чёткие, как в CapCut)
+            d = ImageDraw.Draw(im)
+            for _ in range(rng.randint(*{1: (0, 1), 2: (1, 2), 3: (1, 3)}[e["power"]])):
+                if rng.random() < 0.85:
+                    self._hair(d, (255, 255, 255), 35, 95, alpha=(225, 255), width=2)
+            for _ in range(rng.randint(e["power"], 4 * e["power"])):
+                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([1, 1.3, 1.8, 2.4])
+                d.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 255, rng.randint(190, 255)))
+        e = self.fx["vintage"]
+        if e["on"]:  # винтажный шум: мягкие светлые хлопья
+            soft = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            sd = ImageDraw.Draw(soft)
+            for _ in range(rng.randint(*{1: (0, 2), 2: (1, 4), 3: (2, 6)}[e["power"]])):
+                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.uniform(3, 11)
+                sd.ellipse([x - r, y - r * rng.uniform(.7, 1.3), x + r, y + r], fill=(255, 250, 240, rng.randint(70, 150)))
+            im = Image.alpha_composite(im, soft.filter(ImageFilter.GaussianBlur(3.5)))
+        return im
+
+    def _hair(self, d, col, lo, hi, alpha=(170, 235), width=1):
+        rng = self.rng
+        x, y = rng.uniform(0, FX_LAYER_W), rng.uniform(0, FX_LAYER_H)
+        ang, ln = rng.uniform(0, 2 * math.pi), rng.uniform(lo, hi)
+        curl, ph = rng.uniform(2, 9), rng.uniform(0, 6)
+        pts = []
+        for k in range(18):
+            t = k / 17
+            bx, by = x + math.cos(ang) * ln * t, y + math.sin(ang) * ln * t
+            off = math.sin(t * curl + ph) * ln * 0.18
+            pts.append((bx - math.sin(ang) * off, by + math.cos(ang) * off))
+        d.line(pts, fill=col + (rng.randint(*alpha),), width=width, joint="curve")
+
+    def frame(self):
+        from PIL import Image, ImageDraw
+        rng = self.rng
+        if self.left <= 0:
+            self.pattern, self.left = self._pattern(), self._hold()
+        self.left -= 1
+        im = self.pattern.copy()
+        e = self.fx["vintage"]
+        if e["on"]:  # вертикальные царапины: живут несколько кадров и чуть дрожат
+            if rng.random() < {1: .04, 2: .08, 3: .14}[e["power"]]:
+                self.lines.append([rng.uniform(0, FX_LAYER_W), rng.randint(6, 40), rng.choice([(235, 230, 220), (40, 35, 30)]), rng.randint(50, 110)])
+            d = ImageDraw.Draw(im)
+            for ln in self.lines:
+                ln[0] += rng.uniform(-0.8, 0.8)
+                ln[1] -= 1
+                d.line([(ln[0], 0), (ln[0] + rng.uniform(-1, 1), FX_LAYER_H)], fill=ln[2] + (ln[3],), width=1)
+            self.lines = [ln for ln in self.lines if ln[1] > 0]
+        e = self.fx["vhs"]
+        if e["on"]:  # полоса трекинга: изредка проезжает сверху вниз
+            if self.band is None and rng.random() < {1: .01, 2: .02, 3: .04}[e["power"]]:
+                self.band = [rng.uniform(-20, FX_LAYER_H * 0.5), rng.uniform(4, 9), rng.randint(5, 12)]
+            if self.band:
+                y, hh, life = self.band
+                d = ImageDraw.Draw(im)
+                for k in range(int(hh)):
+                    d.line([(0, y + k), (FX_LAYER_W, y + k)], fill=(235, 235, 235, rng.randint(15, 55)), width=1)
+                for _ in range(30):
+                    x = rng.uniform(0, FX_LAYER_W)
+                    d.line([(x, y + rng.uniform(0, hh)), (x + rng.uniform(4, 30), y + rng.uniform(0, hh))], fill=(255, 255, 255, rng.randint(40, 120)))
+                self.band = None if life <= 1 else [y + rng.uniform(6, 14), hh, life - 1]
+        return im
 
 
-def dust_loop(level):
-    """Петля пыли на 4 секунды (прозрачный фон) — рисуется один раз и хранится в data/fx."""
+def fx_layer(fx):
+    """Живой слой на FX_SECONDS секунд (прозрачный фон, полкадра) — рисуется один раз на набор настроек, лежит в data/fx."""
     import random
+    if not any(fx[k]["on"] for k in FX_ANIMATED):
+        return None
+    key = hashlib.md5(repr([(k, fx[k]) for k in FX_ANIMATED if fx[k]["on"]]).encode()).hexdigest()[:8]
     d = os.path.join(data_dir(), "fx")
-    path = os.path.join(d, f"dust_{level}.mov")
+    path = os.path.join(d, f"layer_{key}.mov")
     with _FX_LOCK:
         if os.path.exists(path) and os.path.getsize(path) > 1000:
             return path
         os.makedirs(d, exist_ok=True)
-        rng = random.Random(7 + level)
+        lay = _Layer(fx, random.Random(int(key, 16)))
         tmp = path + ".tmp.mov"
-        p = subprocess.Popen([ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{H}", "-r", str(FPS),
-                              "-i", "-", "-c:v", "qtrle", tmp], stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
+        p = subprocess.Popen([ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{FX_LAYER_W}x{FX_LAYER_H}",
+                              "-r", str(FPS), "-i", "-", "-c:v", "qtrle", tmp], stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
         try:
-            for _ in range(FX_DUST_SECONDS * FPS):
-                p.stdin.write(_dust_frame(rng, level).tobytes())
+            for _ in range(FX_SECONDS * FPS):
+                p.stdin.write(lay.frame().tobytes())
             p.stdin.close()
             if p.wait() != 0:
                 raise RuntimeError(p.stderr.read().decode(errors="replace")[:300])
@@ -2748,28 +2853,57 @@ def dust_loop(level):
             if p.poll() is None:
                 p.kill()
         os.replace(tmp, path)
-        log(f"эффекты: петля пыли уровня {level} готова")
+        log("эффекты: живой слой готов")
         return path
 
 
-def fx_filter(seed=0, dust=None, grain=None):
-    """(доп. входы ffmpeg, filter_complex) для пыли и зерна поверх [0:v]; ничего не включено — (None, None)."""
-    dust = FX_DUST if dust is None else dust
-    grain = FX_GRAIN if grain is None else grain
-    if not dust and not grain:
+def fx_filter(seed=0, fx=None):
+    """(доп. входы ffmpeg, filter_complex с выходом [v]) для эффектов поверх [0:v]; эффектов нет — (None, None)."""
+    fx = FX if fx is None else fx
+    if not fx_on(fx):
         return None, None
-    inputs, chain = [], "[0:v]format=yuv420p"
-    if dust:
-        off = (seed * 0.37) % FX_DUST_SECONDS  # у каждого клипа своё место в петле — пыль не повторяется на стыках
-        inputs = ["-stream_loop", "-1", "-ss", f"{off:.2f}", "-i", dust_loop(dust)]
-        chain += "[b];[b][1:v]overlay=shortest=1:format=auto"
-    if grain:
-        chain += f",noise=alls={FX_GRAIN_STRENGTH[grain]}:allf=t"
-    return inputs, chain + ",format=yuv420p[v]"
+    pre = ["format=yuv420p"]
+    e = fx["film"]
+    if e["on"]:  # цвет старой плёнки
+        m = {1: .35, 2: .6, 3: .85}[e["power"]]
+        if e["tone"] == "sepia":
+            S = ((.393, .769, .189), (.349, .686, .168), (.272, .534, .131))
+            c = [[(1 - m) * (1 if i == j else 0) + m * S[i][j] for j in range(3)] for i in range(3)]
+            pre.append("colorchannelmixer=rr={:.3f}:rg={:.3f}:rb={:.3f}:gr={:.3f}:gg={:.3f}:gb={:.3f}:br={:.3f}:bg={:.3f}:bb={:.3f}"
+                       .format(*[c[i][j] for i in range(3) for j in range(3)]))
+        elif e["tone"] == "bw":
+            pre.append(f"hue=s={1 - m:.2f}")
+        else:
+            pre.append(f"eq=saturation={1 - 0.45 * m:.2f}:contrast={1 - 0.12 * m:.2f}")
+        lift = 0.025 * e["power"]
+        pre.append(f"curves=all='0/{lift:.3f} 1/{1 - lift:.3f}'")
+    e = fx["vhs"]
+    if e["on"]:  # сдвиг цветов
+        sh = {1: 2, 2: 4, 3: 6}[e["power"]]
+        pre.append(f"rgbashift=rh=-{sh}:bh={sh}")
+    post = []
+    e = fx["vintage"]
+    if e["on"]:  # мерцание яркости
+        a = {1: .012, 2: .02, 3: .032}[e["power"]]
+        post.append(f"eq=brightness='{a}*(sin(t*17.3)+sin(t*29.1+1.3))':eval=frame")
+    e = fx["vignette"]
+    if e["on"]:
+        post.append(f"vignette=angle={ {1: .45, 2: .6, 3: .78}[e['power']] }")
+    e = fx["vhs"]
+    if e["on"]:  # строки развёртки
+        post.append(f"drawgrid=w=iw:h=4:t=1:c=black@{ {1: .05, 2: .09, 3: .14}[e['power']] }")
+    inputs, layer = [], fx_layer(fx)
+    if layer:
+        off = (seed * 0.37) % FX_SECONDS  # у каждого клипа своё место в петле — слой не повторяется на стыках
+        inputs = ["-stream_loop", "-1", "-ss", f"{off:.2f}", "-i", layer]
+        fc = f"[0:v]{','.join(pre)}[b];[1:v]scale={W}:{H},format=rgba[o];[b][o]overlay=shortest=1:format=auto"
+    else:
+        fc = f"[0:v]{','.join(pre)}"
+    return inputs, fc + "".join("," + x for x in post) + ",format=yuv420p[v]"
 
 
 def apply_fx(clip, seed=0):
-    """Пыль и зерно на готовый клип (на месте). Ошибка — клип остаётся без эффекта, ролик не падает."""
+    """Эффекты на готовый клип (на месте). Ошибка — клип остаётся без эффекта, ролик не падает."""
     inputs, fc = fx_filter(seed)
     if not fc:
         return clip
@@ -2779,24 +2913,24 @@ def apply_fx(clip, seed=0):
                     "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", out])
         os.replace(out, clip)
     except Exception as e:
-        log(f"эффекты: {os.path.basename(clip)} — {str(e)[:150]}")
+        log(f"эффекты: {os.path.basename(clip)} — {str(e)[:200]}")
         try:
             os.remove(out)
         except OSError:
             pass
-    return clip  # хвост короче — просто держим последний кадр (наезд на долю секунды не нужен)
+    return clip
 
 
 def fx_preview(fx, image, out_mp4, seconds=3.0):
-    """3 секунды картинки с пылью/зерном — для окна (настройки ролика не трогаем)."""
+    """3 секунды картинки с эффектами — для окна (эффекты текущей сборки не трогаем)."""
     st = fx_settings({"fx": fx or {}})
-    inputs, fc = fx_filter(5, st["dust"], st["grain"])
-    base = ["-loop", "1", "-framerate", str(FPS), "-t", f"{seconds:.2f}", "-i", image]
     pre = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+    base = ["-loop", "1", "-framerate", str(FPS), "-t", f"{seconds:.2f}", "-i", image]
+    inputs, fc = fx_filter(5, st)
     if fc:
         fc = fc.replace("[0:v]", f"[0:v]{pre}", 1).replace(",format=yuv420p[v]", ",scale=960:540,format=yuv420p[v]")
-        run_ffmpeg(base + inputs + ["-filter_complex", fc, "-map", "[v]", "-t", f"{seconds:.2f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
-                                    "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_mp4])
+        run_ffmpeg(base + (inputs or []) + ["-filter_complex", fc, "-map", "[v]", "-t", f"{seconds:.2f}", "-an", "-c:v", "libx264",
+                                             "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_mp4])
     else:
         run_ffmpeg(base + ["-vf", pre + "scale=960:540", "-t", f"{seconds:.2f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
                            "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_mp4])
@@ -2927,8 +3061,8 @@ def clips_name(motion):
         name += "_" + KB_MODE
     if VIDEO_QUALITY != "standard":
         name += "_q" + VIDEO_QUALITY
-    if FX_DUST or FX_GRAIN:
-        name += f"_fx{FX_DUST}{FX_GRAIN}"
+    if fx_on(FX):
+        name += "_fx" + fx_sig(FX)
     return name
 
 
@@ -3922,15 +4056,15 @@ ASSEMBLY_DEFERRED = False               # последний make_video отда
 def look_snapshot():
     """Настройки, от которых зависит монтаж: переходы, движение картинок, обрезка клипов Veo."""
     return {"transitions": list(TRANSITIONS), "transition": TRANSITION, "order": TRANS_ORDER, "video_set": list(TRANS_VIDEO),
-            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY, "fx": [FX_DUST, FX_GRAIN]}
+            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY, "fx": FX}
 
 
 def apply_look(lk):
     global TRANSITIONS, TRANSITION, TRANS_ORDER, TRANS_VIDEO, KB_MODE, VIDEO_ZOOM, VIDEO_ANCHOR, VIDEO_QUALITY
     lk = lk or {}
     VIDEO_QUALITY = lk.get("quality") if lk.get("quality") in VIDEO_QUALITIES else "high"
-    global FX_DUST, FX_GRAIN
-    FX_DUST, FX_GRAIN = (list(lk.get("fx") or [0, 0]) + [0, 0])[:2]
+    global FX
+    FX = fx_settings({"fx": lk.get("fx") if isinstance(lk.get("fx"), dict) else {}})
     TRANSITIONS = list(lk.get("transitions") or TRANS_CLASSIC)
     TRANSITION = float(lk.get("transition") or 0.5)
     TRANS_ORDER = lk.get("order") or "cycle"
@@ -4059,7 +4193,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
     look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
-    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED, VIDEO_QUALITY, FX_DUST, FX_GRAIN
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED, VIDEO_QUALITY, FX
     ASSEMBLY_DEFERRED = False
     HD_IMAGES = bool(hd)
     LAST_FAILURES.update({"images": 0, "videos": 0})
@@ -4075,10 +4209,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         VIDEO_ZOOM = 1.04
     VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
     VIDEO_QUALITY = cfg.get("video_quality") if cfg.get("video_quality") in VIDEO_QUALITIES else "high"
-    _fx = fx_settings(cfg)
-    FX_DUST, FX_GRAIN = _fx["dust"], _fx["grain"]
-    if FX_DUST or FX_GRAIN:
-        log(f"эффекты плёнки: пыль {FX_DUST}, зерно {FX_GRAIN}")
+    FX = fx_settings(cfg)
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:
@@ -4098,6 +4229,13 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             look_prof = load_active_profile(cfg, profile or cfg.get("profile"))
         except SystemExit:
             look_prof = None
+    pfx = (look_prof or {}).get("fx")
+    if isinstance(pfx, dict) and pfx.get("none"):
+        FX = fx_settings({})  # профиль: без эффектов
+    elif isinstance(pfx, dict) and fx_on(fx_settings({"fx": pfx})):
+        FX = fx_settings({"fx": pfx})  # эффекты ниши из профиля
+    if fx_on(FX):
+        log("эффекты: " + ", ".join(f"{k} {FX[k]['power']}/{FX[k]['speed']}" for k in FX_KINDS if FX[k]["on"]))
     pt = (look or {}).get("transitions") or (look_prof or {}).get("transitions")
     if isinstance(pt, str):
         pt = {"preset": pt}

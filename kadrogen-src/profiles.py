@@ -228,7 +228,7 @@ def load_profile(name, dirs):
 
 EDIT_KEYS = ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "llm", "llm_model", "llm_fallback_model",
              "reasoning_effort", "temperature", "parallel", "attempts", "check_sync", "prompt_prefix", "prompt_suffix",
-             "motion", "auto_motion", "video_suffix", "transitions", "voice", "output_dir", "subfolder")
+             "motion", "auto_motion", "video_suffix", "transitions", "voice", "output_dir", "subfolder", "fx")
 TRASH_DIR = "_удалённые"
 
 
@@ -268,6 +268,8 @@ def read_profile_raw(name, dirs):
     if st.get("output_dir") is None:
         st["output_dir"] = ""
     st["subfolder"] = bool(st.get("subfolder"))
+    if not isinstance(st.get("fx"), dict):
+        st["fx"] = None
     if st.get("transitions") is None:
         st["transitions"] = ""
     elif isinstance(st["transitions"], dict):
@@ -305,6 +307,9 @@ def _clean_settings(st):
     for k in ("llm_model", "llm_fallback_model", "prompt_prefix", "prompt_suffix", "motion", "video_suffix"):
         if k in st:
             out[k] = " ".join(str(st[k] or "").split())
+    if "fx" in st:  # "" — как в общих настройках; {"none": True} — без эффектов; словарь эффектов — свои
+        f = st["fx"]
+        out["fx"] = f if isinstance(f, dict) and f else None
     if "subfolder" in st:
         out["subfolder"] = bool(st["subfolder"])
     if "output_dir" in st:
