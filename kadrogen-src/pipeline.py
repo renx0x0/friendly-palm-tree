@@ -2543,6 +2543,7 @@ TRANS_PRESETS = {
     "full": {"set": [k for k, _ in XFADE_ALL], "order": "random", "duration": 0.5, "kb": "full"},
     "none": {"set": [], "order": "cycle", "duration": 0.5, "kb": "classic"},
 }
+TRANS_VIDEO = []  # переходы перед видео-сценами; пусто — те же, что перед картинками
 TRANS_ORDER = "cycle"  # cycle — по кругу; random — вперемешку (у каждого стыка свой, без повтора подряд)
 KB_MODE = "classic"
 
@@ -2562,14 +2563,18 @@ def trans_settings(cfg):
         base["kb"] = t.get("kb") if t.get("kb") in ("classic", "static", "soft", "full") else "classic"
     base["preset"] = preset
     base["set"] = list(base["set"])
+    # свои переходы перед видео-сценами (пусто — как у картинок); работают в любом наборе, кроме «без переходов»
+    vs = [x for x in (t.get("video_set") or []) if x in XFADE_NAMES]
+    base["video_set"] = vs if base["set"] else []
     return base
 
 
 def apply_trans(cfg, motion):
     """Применить настройки переходов к сборке. → включены ли переходы (пустой набор = склейка встык)."""
-    global TRANSITIONS, TRANSITION, TRANS_ORDER, KB_MODE
+    global TRANSITIONS, TRANSITION, TRANS_ORDER, KB_MODE, TRANS_VIDEO
     st = trans_settings(cfg)
     TRANSITIONS = st["set"] or list(TRANS_CLASSIC)
+    TRANS_VIDEO = list(st["video_set"])
     TRANSITION = round(st["duration"], 2)
     TRANS_ORDER = st["order"]
     KB_MODE = st["kb"]
@@ -2653,7 +2658,7 @@ def assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progre
             progress("render", done, n, "собираю кадры")
     if motion and n > 1:
         progress("render", n, n, "моушн-переходы и звук")
-        return concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir, progress)
+        return concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir, progress, vids=set(videos))
     progress("render", n, n, "склеиваю и добавляю звук")
     lst = os.path.join(job_dir, "concat.txt")
     with open(lst, "w", encoding="utf-8") as f:
@@ -2672,15 +2677,34 @@ XFADE_GROUP = 30  # клипов в одной команде ffmpeg. Больш
                   # 32 767 символов, и Windows отвечает WinError 206 «имя файла слишком длинное» (тестеры ловили на длинных роликах)
 
 
-def xfade_chain(clips, durations, kind0=0):
-    """Входы и filter_complex для цепочки xfade. durations — длительности сцен без T; каждый клип длиннее на T."""
+def cut_kinds(n, vids=(), image_set=None, video_set=None, order=None):
+    """Переходы для всех стыков ролика из n сцен: kinds[i] — переход НА сцену i (kinds[0] не используется).
+    Перед видео-сценой — из video_set (если задан), перед картинкой — из image_set; у каждого набора свой счёт,
+    чтобы «вперемешку» и «по кругу» шли ровно внутри набора."""
+    image_set = image_set or TRANSITIONS
+    video_set = video_set if video_set is not None else TRANS_VIDEO
+    vids = set(vids or ())
+    out, ci, cv = [None], 0, 0
+    for i in range(1, n):
+        if i in vids and video_set:
+            out.append(trans_kind(cv, video_set, order))
+            cv += 1
+        else:
+            out.append(trans_kind(ci, image_set, order))
+            ci += 1
+    return out
+
+
+def xfade_chain(clips, durations, kind0=0, kinds=None):
+    """Входы и filter_complex для цепочки xfade. durations — длительности сцен без T; каждый клип длиннее на T.
+    kinds — переход на каждый следующий клип (len(clips) - 1 шт.); нет — по счёту с kind0."""
     args = []
     for c in clips:
         args += ["-i", c]
     parts, prev, offset = [], "[0:v]", 0.0
     for k in range(1, len(clips)):
         offset += durations[k - 1]
-        kind = trans_kind(kind0 + k - 1)
+        kind = kinds[k - 1] if kinds else trans_kind(kind0 + k - 1)
         out = f"[v{k}]" if k < len(clips) - 1 else "[vout]"
         parts.append(f"{prev}[{k}:v]xfade=transition={kind}:duration={TRANSITION}:offset={offset - TRANSITION:.3f}{out}")
         prev = out
@@ -2706,10 +2730,11 @@ def trans_preview(t, images, work_dir, seconds=1.6):
     for c in clips:
         args += ["-i", c]
     if st["set"] and len(clips) > 1:
+        pk = cut_kinds(len(clips), {1}, st["set"], st["video_set"], st["order"])  # второй кадр — как видео-сцена
         parts, prev, offset = [], "[0:v]", 0.0
         for k in range(1, len(clips)):
             offset += seconds
-            kind = trans_kind(k - 1, st["set"], st["order"])
+            kind = pk[k]
             out = f"[v{k}]"
             parts.append(f"{prev}[{k}:v]xfade=transition={kind}:duration={T}:offset={offset - T:.3f}{out}")
             prev = out
@@ -2721,11 +2746,13 @@ def trans_preview(t, images, work_dir, seconds=1.6):
     return res
 
 
-def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, progress=None):
+def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, progress=None, vids=()):
     say = progress or (lambda *a: None)
     """Склейка через xfade: каждый переход длится TRANSITION с, сцены остаются синхронными с озвучкой.
     Длинные ролики — группами по XFADE_GROUP: сначала промежуточные ролики без звука, потом переходы между ними."""
     durs = [s["duration"] for s in scenes]
+    K = cut_kinds(len(clips), vids)
+    kinds_all = K[1:]
     enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
     if len(clips) > XFADE_GROUP:
         gdir = os.path.join(job_dir or os.path.dirname(clips[0]), "groups")
@@ -2739,12 +2766,13 @@ def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, pr
                 gclips.append(clips[idx[0]])
             else:
                 gout = os.path.join(gdir, f"g{gi:03d}.mp4")
-                args, fc = xfade_chain([clips[i] for i in idx], [durs[i] for i in idx], kind0=idx[0])
+                args, fc = xfade_chain([clips[i] for i in idx], [durs[i] for i in idx], kinds=[K[i] for i in idx[1:]])
                 run_ffmpeg(args + ["-filter_complex", fc, "-map", "[vout]", "-an", *enc, gout])
                 gclips.append(gout)
             gdurs.append(sum(durs[i] for i in idx))
         clips, durs = gclips, gdurs
-    args, fc = xfade_chain(clips, durs)
+        kinds_all = [K[g[0]] for g in groups[1:]]  # стык групп — это переход на первую сцену следующей группы
+    args, fc = xfade_chain(clips, durs, kinds=kinds_all)
     args += ["-i", audio_path]
     total_min = sum(durs) / 60
     say("render", 0, 0, f"финальная склейка всего ролика ({total_min:.0f} мин видео) — идёт без сообщений, "

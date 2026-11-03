@@ -2003,7 +2003,7 @@ function trRender() {
   const d = TR_PRESETS.find(x => x[0] === TRF.preset); $('tr_desc').textContent = d ? pt(d[3], d[4]) : '';
   $('tr_pres').querySelectorAll('button').forEach(b => b.onclick = () => {
     if (b.dataset.p === 'custom') return;
-    const p = TR.presets[b.dataset.p]; TRF = {preset: b.dataset.p, set: p.set.slice(), order: p.order, duration: p.duration, kb: p.kb};
+    const p = TR.presets[b.dataset.p]; TRF = {preset: b.dataset.p, set: p.set.slice(), order: p.order, duration: p.duration, kb: p.kb, video_set: b.dataset.p === 'none' ? [] : TRF.video_set};
     trRender(); trPreviewSoon();
   });
   const sel = new Set(TRF.set);
@@ -2014,7 +2014,12 @@ function trRender() {
     + `<div class="sec2">${pt('Движение картинок', 'Image motion')}</div>`
     + `<label>${pt('Картинки', 'Images')}</label><select id="tr_kb">${KB_OPTS.map(([v, r, e]) => `<option value="${v}">${pt(r, e)}</option>`).join('')}</select>`
     + `<div class="sec2">${pt('Какие переходы', 'Which transitions')} <span class="note">${sel.size}/${TR.all.length}</span><span class="lk" id="tr_all">${pt('все', 'all')}</span><span class="lk" id="tr_soft">${pt('мягкие', 'soft')}</span><span class="lk" id="tr_noneb">${pt('ни одного', 'none')}</span></div>`
-    + `<div class="tlist">${TR.all.map(x => `<label><input type="checkbox" data-t="${x.id}"${sel.has(x.id) ? ' checked' : ''}>${esc(pt(x.name, x.id))}</label>`).join('')}</div>`;
+    + `<div class="tlist">${TR.all.map(x => `<label><input type="checkbox" data-t="${x.id}"${sel.has(x.id) ? ' checked' : ''}>${esc(pt(x.name, x.id))}</label>`).join('')}</div>`
+    + `<div class="sec2">${pt('Перед видео-сценами', 'Before video scenes')}</div>`
+    + `<label class="jdc" style="grid-column:1 / -1"><input type="checkbox" id="tr_vown"${TRF.video_set.length ? ' checked' : ''}>${pt('свои переходы перед оживлёнными сценами', 'own transitions before animated scenes')}</label>`
+    + `<div class="h" style="grid-column:1 / -1;font-size:12px">${pt('Для режима «50 на 50» (видео — картинка — видео…) и «Оживить первые»: перед видео — эти, перед картинкой — основные. В предпросмотре второй кадр — как видео.', 'For 50/50 mode: video scenes get these, images get the main ones.')}</div>`
+    + (TRF.video_set.length ? `<div class="sec2">${pt('Видео', 'Video')} <span class="note">${TRF.video_set.length}</span><span class="lk" id="tr_vsoft">${pt('мягкие', 'soft')}</span><span class="lk" id="tr_vall">${pt('все', 'all')}</span></div>`
+      + `<div class="tlist">${TR.all.map(x => `<label><input type="checkbox" data-v="${x.id}"${TRF.video_set.includes(x.id) ? ' checked' : ''}>${esc(pt(x.name, x.id))}</label>`).join('')}</div>` : '');
   $('tr_order').value = TRF.order; $('tr_kb').value = TRF.kb;
   const changed = () => { trRender(); trPreviewSoon(); };
   $('tr_order').onchange = () => { TRF.order = $('tr_order').value; changed(); };
@@ -2024,6 +2029,14 @@ function trRender() {
   $('tr_all').onclick = () => { TRF.set = TR.all.map(x => x.id); changed(); };
   $('tr_soft').onclick = () => { TRF.set = TR.presets.soft.set.slice(); changed(); };
   $('tr_noneb').onclick = () => { TRF.set = []; changed(); };
+  $('tr_vown').onchange = () => { TRF.video_set = $('tr_vown').checked ? ['circleopen', 'zoomin', 'radial'] : []; changed(); };
+  if ($('tr_vsoft')) $('tr_vsoft').onclick = () => { TRF.video_set = TR.presets.soft.set.slice(); changed(); };
+  if ($('tr_vall')) $('tr_vall').onclick = () => { TRF.video_set = TR.all.map(x => x.id); changed(); };
+  $('tr_form').querySelectorAll('[data-v]').forEach(c => c.onchange = () => {
+    TRF.video_set = TR.all.map(x => x.id).filter(id => { const e = $('tr_form').querySelector(`[data-v="${id}"]`); return e && e.checked; });
+    if (!TRF.video_set.length) TRF.video_set = [c.dataset.v];  // хотя бы один — иначе выключите галочку выше
+    changed();
+  });
   $('tr_form').querySelectorAll('[data-t]').forEach(c => c.onchange = () => {
     TRF.set = TR.all.map(x => x.id).filter(id => { const e = $('tr_form').querySelector(`[data-t="${id}"]`); return e && e.checked; }); changed();
   });
@@ -2043,7 +2056,7 @@ async function trPreview() {
 }
 async function openTrans() {
   TR = await pywebview.api.trans_get();
-  const s0 = TR.settings; TRF = {preset: s0.preset, set: s0.set.slice(), order: s0.order, duration: s0.duration, kb: s0.kb};
+  const s0 = TR.settings; TRF = {preset: s0.preset, set: s0.set.slice(), order: s0.order, duration: s0.duration, kb: s0.kb, video_set: (s0.video_set || []).slice()};
   $('tr_t').textContent = pt('Переходы и движение', 'Transitions and motion');
   $('tr_busy').textContent = pt('рисую… ~10–20 с', 'rendering… ~10–20 s');
   $('tr_note').textContent = pt('Предпросмотр — три кадра вашего последнего ролика, собранные так же, как в ролике.', 'Preview: three frames of your last video, assembled the same way.');
