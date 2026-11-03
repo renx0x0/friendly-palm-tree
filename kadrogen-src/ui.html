@@ -625,6 +625,8 @@
   .qline { display:flex; gap:8px; align-items:center; padding:5px 4px; font-size:13px; min-height:34px; box-sizing:border-box; }
   .qline .qn { color:var(--ink2); min-width:18px; font-variant-numeric:tabular-nums; } .qline .qt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .qline .qvv { color:var(--ink2); font-size:11px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lrow .ctl .osub input { flex:none; padding:0; width:auto; height:auto; margin:0; border:0; }
+  .osub { display:flex; align-items:center; gap:6px; padding:0 12px; font-size:12px; color:var(--ink2); white-space:nowrap; cursor:pointer; border-left:1.5px solid var(--line); }
   .qline .qpf { color:var(--acc2); font-size:11px; white-space:nowrap; }
   .qline .qs { min-width:96px; text-align:right; color:var(--ink2); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
   .qline .qs.done { color:#2ec27e; } .qline .qs.error, .qline .qs.stopped { color:var(--err); } .qline .qs.running { color:var(--acc2); } .qline .qs.assembling { color:#e8a33a; }
@@ -969,7 +971,7 @@ $('custom_style').addEventListener('change', () => pywebview.api.save_config({cu
 $('vzoom').addEventListener('input', drawVf);
 $('vzoom').addEventListener('change', () => pywebview.api.save_config({video_zoom_pct: +$('vzoom').value}));
 $('vanchor').addEventListener('change', () => pywebview.api.save_config({video_anchor: $('vanchor').value}));
-let OUTDIR = {dir: '', def: ''};
+let OUTDIR = {dir: '', def: '', sub: false};
 async function pickOutDir() { const p = await pywebview.api.pick_output_dir(); if (p) { OUTDIR.dir = p; renderAccess(); toast(pt('Готовые видео будут сохраняться сюда: ', 'Videos will be saved to: ') + esc(p), 5000); } }
 async function clearOutDir() { await pywebview.api.clear_output_dir(); OUTDIR.dir = ''; renderAccess(); }
 function vqLabels() {
@@ -1549,7 +1551,7 @@ async function loadConfig(keepScreen) {
   $('vf').value = c.video_first || 0; drawVf();
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
-  OUTDIR = {dir: c.output_dir || '', def: c.default_output || ''};
+  OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: !!OUTDIR.sub};
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
@@ -1649,7 +1651,8 @@ function renderAccess() {
     H.push(row(pt('Сценарий <small>(необязательно)</small>', 'Script <small>(optional)</small>'), '', `<textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it and parts/prompts follow it exactly. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea>`));
   }
   $('tts_body').innerHTML = TH.join('');
-  H.push(row(pt('Куда сохранить', 'Save to'), '', `<input type="text" id="out_dir" readonly value="${esc(OUTDIR.dir)}" placeholder="${esc(pt('папка output программы', 'program output folder') + (OUTDIR.def ? ' — ' + OUTDIR.def : ''))}" title="${esc(OUTDIR.dir || OUTDIR.def)}"><button onclick="pickOutDir()">${pt('Выбрать', 'Choose')}</button>${OUTDIR.dir ? `<button class="ghost eye" title="${esc(pt('Вернуть папку output', 'Back to output'))}" onclick="clearOutDir()">×</button>` : ''}`));
+  H.push(row(pt('Куда сохранить', 'Save to'), '', `<input type="text" id="out_dir" readonly value="${esc(OUTDIR.dir)}" placeholder="${esc(pt('папка output программы', 'program output folder') + (OUTDIR.def ? ' — ' + OUTDIR.def : ''))}" title="${esc(OUTDIR.dir || OUTDIR.def)}"><button onclick="pickOutDir()">${pt('Выбрать', 'Choose')}</button>${OUTDIR.dir ? `<button class="ghost eye" title="${esc(pt('Вернуть папку output', 'Back to output'))}" onclick="clearOutDir()">×</button>` : ''}`
+    + `<label class="osub" title="${esc(pt('Папка\\Название ролика\\Название ролика.mp4 — рядом с превью, если такая папка уже есть', 'Folder\\Video name\\video.mp4'))}"><input type="checkbox" id="out_sub"${OUTDIR.sub ? ' checked' : ''} onchange="OUTDIR.sub = this.checked">${pt('в подпапку с названием ролика', 'into a subfolder named after the video')}</label>`));
   H.push(row(pt('Название ролика', 'Video name'), '', `<input type="text" id="video_name" value="${esc(F.name)}" maxlength="120" placeholder="${esc(pt('необязательно — так будет назван готовый файл (например: Пани Барбара)', 'optional — the finished file gets this name'))}" spellcheck="false" autocomplete="off">`));
   if (!rwOn()) H.push(promptsRows());
   H.push(queueHtml());
@@ -1673,7 +1676,7 @@ function queueHtml() {
       + (queueStyles ? `<select class="qst" data-id="${q.id}">${styleOpts(true).map(([v, n]) => `<option value="${v}"${v === (q.style || '') ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : '') + `</div>` : '';
     return `<div class="qitem${open ? ' open' : ''}" data-id="${q.id}"><div class="qline"><span class="qn">${i + 1}</span><span class="qt" title="${esc(q.title)}">${esc(q.title)}</span>`
       + (q.profile || q.prompts_file ? `<span class="qpf" title="${esc(pt('профиль', 'profile'))}">${esc(q.prompts_file ? pt('готовые промпты', 'ready prompts') : q.profile)}</span>` : '')
-      + (q.out_dir ? `<span class="qvv" title="${esc(pt('папка выкладки: ', 'save to: ') + q.out_dir)}">📁 ${esc(q.out_dir.split(/[\\/]/).filter(Boolean).pop() || q.out_dir)}</span>` : '')
+      + (q.out_dir ? `<span class="qvv" title="${esc(pt('папка выкладки: ', 'save to: ') + q.out_dir)}">📁 ${esc(q.out_dir.split(/[\\/]/).filter(Boolean).pop() || q.out_dir)}${q.out_sub ? '\\…' : ''}</span>` : '')
       + (q.voice && !open ? `<span class="qvv" title="${esc(pt('голос', 'voice'))}">${esc(q.voice)}</span>` : '')
       + `<span class="qs ${q.status}">${QST()[q.status] || q.status}</span><span class="qa">${acts}</span></div>${ed}</div>`;
   }).join('');
@@ -1713,7 +1716,7 @@ async function queueAdd() {
   if (!formHasContent()) { $('s_prep').textContent = t('q_need'); return false; }
   const o = opts();
   const item = (rwOn() ? {source: 'rewrite', rewrite: o.rewrite, voice: F.voice, tts} : o.voice_file ? {source: 'script', script: F.script, voice_file: o.voice_file, voice: F.voice, tts} : source === 'script' ? {source: 'script', script: F.script, voice: F.voice, tts} : {source: 'mp3', audio: audioPath, voice: F.voice, tts}); item.name = F.name;
-  item.profile = profileName; if (typeof promptsFile !== 'undefined' && promptsFile) item.prompts_file = promptsFile; if (OUTDIR.dir) item.out_dir = OUTDIR.dir;
+  item.profile = profileName; if (typeof promptsFile !== 'undefined' && promptsFile) item.prompts_file = promptsFile; if (OUTDIR.dir) item.out_dir = OUTDIR.dir; item.out_sub = !!OUTDIR.sub;
   const r = await pywebview.api.queue_add(item);
   if (!r.ok) { $('s_prep').textContent = r.error; return false; }
   queueItems = r.items; $('s_prep').textContent = '';
@@ -1836,7 +1839,7 @@ async function loadVoices() {
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
 function opts() { syncAll(); const o = optsRaw(); if (o.source !== 'script' && !o.rewrite.on && (o.script || '').trim() && o.audio) { o.source = 'script'; o.voice_file = o.audio; } return o; }
-function optsRaw() { return {audio: audioPath, name: F.name, out_dir: OUTDIR.dir, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
+function optsRaw() { return {audio: audioPath, name: F.name, out_dir: OUTDIR.dir, out_sub: !!OUTDIR.sub, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),
@@ -2277,6 +2280,7 @@ function pfRenderForm() {
     + `<div class="h">${pt('Выбрали профиль на шаге 02 — этот голос подставится в «Озвучить программой». Поменять для одного ролика — «Настроить голос». Ключ сервиса — в общих настройках.', 'Picking the profile sets this voice; change it per video in Voice settings.')}</div>`
     + `<div class="sec2">${pt('Папка выкладки', 'Save folder')}</div>`
     + `<label>${pt('Готовые видео', 'Finished videos')}</label><div class="ln"><input type="text" data-k="output_dir" value="${esc(st.output_dir || '')}" placeholder="${esc(pt('как в общих настройках (output)', 'as in settings (output)'))}" spellcheck="false"><button class="ghost" type="button" onclick="pfPickFolder()">${pt('Выбрать', 'Choose')}</button></div>`
+    + `<label>${pt('Подпапка', 'Subfolder')}</label><label class="jdc"><input type="checkbox" data-k="subfolder"${st.subfolder ? ' checked' : ''}>${pt('класть в подпапку с названием ролика (Папка\\Название\\Название.mp4)', 'subfolder named after the video')}</label>`
     + `<div class="h">${pt('Выбрали профиль на шаге 02 — строка «Куда сохранить» на шаге 04 станет этой папкой. Удобно держать у каждой ниши свою папку, где лежат превью.', 'Choosing the profile sets the save folder.')}</div>`
     + `<div class="sec2">${pt('Вид ролика', 'Video look')}</div>`
     + sel('transitions', pt('Переходы', 'Transitions'), PF_TRANS)
@@ -2398,6 +2402,7 @@ pfLabel();
 async function applyProfileVoice(name, quiet) {
   if (!name) return;
   const dfl = await pywebview.api.profile_defaults(name);
+  if (dfl && 'subfolder' in dfl && OUTDIR.sub !== !!dfl.subfolder) { OUTDIR.sub = !!dfl.subfolder; if (cur === 4) renderAccess(); }
   if (dfl && dfl.output_dir && dfl.output_dir !== OUTDIR.dir) {
     OUTDIR.dir = dfl.output_dir; if (cur === 4) renderAccess();
     if (!quiet) toast(pt(`Папка выкладки из профиля «${esc(name)}»: `, 'Save folder from profile: ') + esc(dfl.output_dir), 5000);

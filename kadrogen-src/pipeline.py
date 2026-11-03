@@ -3919,7 +3919,7 @@ def named_output(out_dir, name, job_dir):
 def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, mode="images", style_key=None, use_refs=False,
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
                video_first=0, hd=False, profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, assembly_hook=None,
-               out_name=None):
+               out_name=None, out_sub=None):
     """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
     look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
@@ -3994,6 +3994,16 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         except OSError as e:
             log(f"папка для готовых видео «{custom_out}» недоступна ({e}) — сохраняю в output")
     out_dir = out_dir or os.path.join(data_dir(), "output")
+    if out_sub is None:
+        out_sub = bool((look_prof or {}).get("subfolder"))
+    if out_sub:  # «Ниша\Название ролика\Название ролика.mp4» — рядом с превью, если папка уже есть
+        folder = safe_title(out_name) or base
+        out_dir = os.path.join(out_dir, folder)
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+        except OSError as e:
+            log(f"подпапка «{folder}» не создалась ({e}) — кладу в общую папку")
+            out_dir = os.path.dirname(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     if out_name:
         base = named_output(out_dir, out_name, job_dir)

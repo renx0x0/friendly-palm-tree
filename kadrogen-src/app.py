@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p33"
+VERSION = "1.7.1-p34"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -98,7 +98,7 @@ def queue_save():
 
 
 def queue_public():
-    return [{k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file")} for x in QUEUE]
+    return [{k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file", "out_sub")} for x in QUEUE]
 
 
 def style_key(v, default=None):
@@ -170,7 +170,8 @@ def run_queue(common):
                     script, rw, common["tts"], (item.get("voice") or "").strip(), common["video_first"], common["hd"],
                     voice_file=(item.get("voice_file") or None) if script else None, out_name=item.get("name") or None,
                     profile=item.get("profile") if "profile" in item else None,
-                    prompts_file=item.get("prompts_file") or None, out_dir=item.get("out_dir") or None)
+                    prompts_file=item.get("prompts_file") or None, out_dir=item.get("out_dir") or None,
+                    out_sub=item.get("out_sub") if "out_sub" in item else None)
             if item_after_run(item):
                 break
     finally:
@@ -808,13 +809,13 @@ def _pause(sec, why):
 
 
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
-            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None, out_dir=None):
+            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None, out_dir=None, out_sub=None):
     """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
     подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
     LAST_RUN.clear()
     LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                          script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name, out_dir=out_dir))
+                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name, out_dir=out_dir, out_sub=out_sub))
     keep_awake(True)
     tries = fixes = 0
     with LOCK:
@@ -833,7 +834,7 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
                                           use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
                                           tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
                                           prompts_file=prompts_file, remix_from=remix_from, look=look, assembly_hook=assembly_hook,
-                                          out_name=out_name, out_dir=out_dir or None)
+                                          out_name=out_name, out_dir=out_dir or None, out_sub=out_sub)
             except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
                 err = str(e)
             except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
@@ -1614,7 +1615,8 @@ class Api:
                     script=script, rewrite=rw, tts=tts, voice=voice, video_first=video_first, hd=hd,
                     profile=profile, voice_file=voice_file, prompts_file=prompts_file,
                     out_name=pipeline.safe_title(opts.get("name")) or None,
-                    out_dir=str(opts.get("out_dir") or "").strip().strip('"') or None)
+                    out_dir=str(opts.get("out_dir") or "").strip().strip('"') or None,
+                    out_sub=bool(opts["out_sub"]) if "out_sub" in opts else None)
         return None, args, job_title(opts)
 
     def _enqueue(self, opts):
@@ -1701,6 +1703,8 @@ class Api:
         od = str(item.get("out_dir") or "").strip().strip('"')
         if od:
             extra["out_dir"] = od
+        if "out_sub" in item:
+            extra["out_sub"] = bool(item.get("out_sub"))
         entry = {"id": uuid.uuid4().hex[:8], "title": (name or title)[:80], "name": name or None, **extra, "source": src,
                  "script": (item.get("script") or "").strip() or None,
                  "audio": (item.get("audio") or "").strip().strip('"') or None,
@@ -2074,7 +2078,8 @@ class Api:
             st = pipeline.profiles.read_profile_raw(name, pipeline.profile_search_dirs())["settings"]
         except pipeline.profiles.ProfileError:
             return {}
-        return {"voice": pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()), "output_dir": st.get("output_dir") or ""}
+        return {"voice": pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()), "output_dir": st.get("output_dir") or "",
+                "subfolder": bool(st.get("subfolder"))}
 
     def pick_folder(self):
         """Выбрать папку (без сохранения в настройки) — для папки выкладки профиля."""
