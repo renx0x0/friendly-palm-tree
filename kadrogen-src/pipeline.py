@@ -1394,7 +1394,7 @@ class RateGate:
                 log(f"fast-gen: лимит {self.hour_limit} кредитов/час выбран ({self.server_used}), новый час у сервера через "
                     f"{int((self.blocked_until - now) // 60)} мин — жду до него")
 
-    BUSY_WAIT = 20
+    BUSY_WAIT = 5  # «занят» (кредиты есть, слотов нет) — стучимся часто
     RESET_RETRY = 5        # после смены часа сервер может обновить кредиты не сразу — пробуем каждые 5 секунд
     RESET_GRACE = 15 * 60  # столько после ожидаемой смены часа повторяем часто, а не ждём следующий час
 
@@ -1431,7 +1431,10 @@ class RateGate:
                 self.reset_at = until
                 if self.hour_limit and self.used < self.hour_limit:
                     self.spent.append((now, self.hour_limit - self.used))
-            if room or until - now > self.RESET_RETRY:  # частые повторы на смене часа в журнал не пишем
+            quiet_busy = room and now - getattr(self, "busy_logged", 0.0) < 60  # «занят» каждые 5 с — в журнал раз в минуту
+            if room and not quiet_busy:
+                self.busy_logged = now
+            if (room and not quiet_busy) or (not room and until - now > self.RESET_RETRY):  # частые повторы в журнал не пишем
                 log(("fast-gen занят (кредиты есть: " + f"{self.server_used}/{self.hour_limit}" + f"), пауза {self.BUSY_WAIT} с") if room
                     else f"fast-gen: лимит {self.hour_limit} кредитов/час выбран, жду новый час у сервера ({int(until - now)} с)")
             self.blocked_until = max(self.blocked_until, until) if not room else until
@@ -1496,7 +1499,7 @@ def gen_fastgen_image(api, gate, scene, out_path, progress, refs, chain=None):
                 if inputs:
                     payload["inputs"] = inputs
                 try:
-                    st = api.run(payload, poll=3, max_wait=600)
+                    st = api.run(payload, poll=2, max_wait=600)
                 except Exception as e:
                     err = str(e)
                 if st is not None:
@@ -2315,7 +2318,7 @@ def gen_fastgen_video(api, gate, scene, img_path, out_path, progress):
                 if "omni_flash" in op:
                     payload["duration_seconds"] = int(op.rsplit("_", 1)[1].rstrip("s"))
                 try:
-                    st = api.run(payload, poll=5, max_wait=1500)
+                    st = api.run(payload, poll=3, max_wait=1500)
                 except Exception as e:
                     err = str(e)
                     if "403" in err or "video.generate" in err:
