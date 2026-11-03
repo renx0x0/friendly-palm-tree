@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p27"
+VERSION = "1.7.1-p28"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2617,6 +2617,11 @@ class Api:
             return estimate_plan(opts)
         except Exception as e:
             return {"ok": False, "error": str(e)[:200]}
+
+    def js_error(self, msg):
+        """Ошибка в окне (JavaScript) — в журнал программы, чтобы её было видно в отчёте."""
+        pipeline.log(f"ошибка окна: {str(msg)[:600]}")
+        return True
 
     def report(self):
         text, path = build_report()

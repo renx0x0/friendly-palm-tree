@@ -1336,7 +1336,22 @@ function queueSummary(st) {
 let jobRunning = false, pollGen = 0;
 async function poll() {
   const gen = ++pollGen;  // новый вызов poll() заменяет прежний цикл, а не запускает второй
+  try { await pollOnce(gen); }
+  catch (e) {  // что-то упало в окне — пишем в журнал программы и на экран, опрос не бросаем
+    uiError('poll', e);
+    if (gen === pollGen) setTimeout(poll, 3000);
+  }
+}
+function uiError(where, e) {
+  const msg = `${where}: ${(e && (e.message || e)) || e}`.slice(0, 300);
+  try { $('p_err').textContent = pt('Ошибка окна (программа работает дальше): ', 'Window error: ') + msg; } catch (x) {}
+  try { pywebview.api.js_error(msg + ' | ' + String((e && e.stack) || '').split('\n').slice(0, 3).join(' / ')); } catch (x) {}
+}
+window.addEventListener('error', ev => uiError('js', ev.error || ev.message));
+window.addEventListener('unhandledrejection', ev => uiError('promise', ev.reason));
+async function pollOnce(gen) {
   const st = await pywebview.api.get_state();
+  if (!document.querySelector('#stages li') && (st.running || st.queue_active || st.result)) buildStages((st.config && st.config.mode) || mode());
   jobRunning = !!(st.running || st.queue_active);
   if (st.queue) {
     $('p_queue').textContent = `${t('q_job')} ${st.queue.pos} ${t('q_of')} ${st.queue.total} · ${st.queue.title}`;
