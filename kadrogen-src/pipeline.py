@@ -1379,6 +1379,16 @@ class RateGate:
                     self.refresh()  # сервер сам скажет, сколько осталось в текущем часе
                 except Exception:
                     pass
+            now = time.time()
+            full = self.hour_limit and self.server_used is not None and self.server_used + credits > self.hour_limit
+            if full and self.window_end > now + 60:
+                # сервер подтвердил: кредиты часа выбраны, и сказал, когда начнётся новый час — ждём ровно до него
+                # (окно показывает настоящий обратный отсчёт, а не «минуту» по кругу); потом один пробный запрос
+                self.blocked_until = self.window_end + 5
+                self.after_block = True
+                self.busy = False
+                log(f"fast-gen: лимит {self.hour_limit} кредитов/час выбран ({self.server_used}), новый час у сервера через "
+                    f"{int((self.window_end - now) // 60)} мин — жду до него")
 
     BUSY_WAIT = 20
 
