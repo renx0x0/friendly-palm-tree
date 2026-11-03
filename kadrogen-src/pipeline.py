@@ -3587,13 +3587,148 @@ def prepare(audio_path=None, progress_cb=None, provider=None, mode="images", use
     return est
 
 
+# ============ монтаж: сразу или в фоне, пока следующий ролик из очереди уже генерируется ============
+
+ASSEMBLE_SPEC = "assemble.json"         # всё, что нужно монтажу: сцены, файлы, настройки вида на момент отправки
+ASSEMBLE_STATUS = "assemble_status.json"  # как идёт фоновый монтаж (пишет процесс монтажа, читает окно)
+ASSEMBLY_DEFERRED = False               # последний make_video отдал монтаж в фон
+
+
+def look_snapshot():
+    """Настройки, от которых зависит монтаж: переходы, движение картинок, обрезка клипов Veo."""
+    return {"transitions": list(TRANSITIONS), "transition": TRANSITION, "order": TRANS_ORDER, "video_set": list(TRANS_VIDEO),
+            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR}
+
+
+def apply_look(lk):
+    global TRANSITIONS, TRANSITION, TRANS_ORDER, TRANS_VIDEO, KB_MODE, VIDEO_ZOOM, VIDEO_ANCHOR
+    lk = lk or {}
+    TRANSITIONS = list(lk.get("transitions") or TRANS_CLASSIC)
+    TRANSITION = float(lk.get("transition") or 0.5)
+    TRANS_ORDER = lk.get("order") or "cycle"
+    TRANS_VIDEO = list(lk.get("video_set") or [])
+    KB_MODE = lk.get("kb") or "classic"
+    VIDEO_ZOOM = float(lk.get("zoom") or 1.04)
+    VIDEO_ANCHOR = lk.get("anchor") or "top"
+
+
+def finish_video(spec, progress):
+    """Монтаж готового задания: клипы, переходы, звук, субтитры, копии скорости, уборка. spec — из make_video."""
+    apply_look(spec.get("look"))
+    scenes, img_dir, job_dir, out_mp4 = spec["scenes"], spec["img_dir"], spec["job_dir"], spec["out_mp4"]
+    videos = {int(k): v for k, v in (spec.get("videos") or {}).items()}
+    audio_path, motion = spec["audio_path"], spec.get("motion")
+    if spec.get("subtitles"):
+        raw_mp4 = os.path.join(job_dir, "nosubs.mp4")
+        assemble_video(scenes, img_dir, videos, audio_path, job_dir, raw_mp4, progress, motion=motion)
+        check_cancel()
+        progress("subtitles", 0, 1, "накладываю субтитры")
+        sub_words = spec.get("sub_words") or []
+        srt_path = spec["srt_path"]
+        os.makedirs(os.path.dirname(srt_path), exist_ok=True)
+        subs.write_srt(sub_words, srt_path)
+        style_cfg = spec.get("sub_style")
+        if style_cfg:
+            subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg)
+            fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
+            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW)
+        else:
+            subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
+        os.replace(out_mp4 + ".tmp.mp4", out_mp4)
+        progress("subtitles", 1, 1, "субтитры наложены, .srt сохранён в папке output/subtitles")
+    else:
+        assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=motion)
+    if spec.get("speed_copies"):
+        try:
+            make_speed_copies(out_mp4, progress)
+        except Cancelled:
+            raise
+        except Exception as e:  # ролик готов, копии — довесок: не роняем результат
+            log(f"копии скорости: {e}")
+            progress("render", 100, 100, f"копии скорости не сделались: {str(e)[:120]}")
+    clear_wait()
+    cleanup_job(job_dir)
+    return out_mp4
+
+
+def assemble_from_spec(spec_path):
+    """Фоновый монтаж в отдельном процессе (KadroGen.exe --assemble <assemble.json>): пишет ход в assemble_status.json
+    и итог в job.json — окно может быть уже закрыто, ролик всё равно доделается."""
+    spec = read_json(spec_path)
+    job_dir = spec["job_dir"]
+    st_path = os.path.join(job_dir, ASSEMBLE_STATUS)
+    st = {"state": "running", "pid": os.getpid(), "started": time.time(), "stage": "render", "done": 0, "total": 0, "message": "монтаж"}
+    last = [0.0]
+
+    def put(force=False):
+        st["updated"] = time.time()
+        if force or st["updated"] - last[0] > 0.8:
+            last[0] = st["updated"]
+            write_json(st_path, st)
+
+    def progress(stage, done, total, msg=""):
+        st.update({"stage": stage, "done": done, "total": total})
+        if msg:
+            st["message"] = msg
+            log(f"[фоновый монтаж] {msg}")
+        put()
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # не засыпать, пока монтируем
+    except Exception:
+        pass
+    put(True)
+    try:
+        finish_video(spec, progress)
+        st.update({"state": "done", "result": spec["out_mp4"], "message": f"готово: {spec['out_mp4']}"})
+        status, err = "done", None
+    except BaseException as e:
+        st.update({"state": "error", "error": f"{type(e).__name__}: {e}"[:600]})
+        status, err = "error", st["error"]
+        log(f"[фоновый монтаж] ошибка: {st['error']}")
+    put(True)
+    jp = os.path.join(job_dir, "job.json")
+    rec = read_json(jp, {}) or {}
+    rec.update({"status": status, "updated": time.time()})
+    if status == "done":
+        rec["result"] = spec["out_mp4"]
+    else:
+        rec["error"] = err
+    write_json(jp, rec)
+    return status == "done"
+
+
+def safe_title(name, limit=120):
+    """Название ролика → имя файла Windows: без \\ / : * ? " < > |, без точки и пробела в конце."""
+    s = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", str(name or ""))
+    s = " ".join(s.split()).strip(" .")
+    s = s[:limit].rstrip(" .")
+    if s.split(".")[0].upper() in {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}:
+        s = "_" + s  # зарезервированные имена Windows
+    return s
+
+
+def named_output(out_dir, name, job_dir):
+    """Имя готового файла по названию ролика. Занято другим роликом — «Название (2)»; этим же (пересборка) — то же имя."""
+    base = safe_title(name) or "ролик"
+    prev = (read_json(os.path.join(job_dir, "job.json"), {}) or {}).get("result") or ""
+    for k in range(1, 100):
+        cand = base if k == 1 else f"{base} ({k})"
+        p = os.path.join(out_dir, cand + ".mp4")
+        if not os.path.exists(p) or os.path.normcase(os.path.abspath(p)) == os.path.normcase(os.path.abspath(prev)):
+            return cand
+    return f"{base} {int(time.time())}"
+
+
 def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, mode="images", style_key=None, use_refs=False,
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
-               video_first=0, hd=False, profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None):
+               video_first=0, hd=False, profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, assembly_hook=None,
+               out_name=None):
     """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
     look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
-    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED
+    ASSEMBLY_DEFERRED = False
     HD_IMAGES = bool(hd)
     LAST_FAILURES.update({"images": 0, "videos": 0})
     progress = Progress(progress_cb)
@@ -3656,6 +3791,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         LAST_JOB_DIR = job_dir
     out_dir = out_dir or os.path.join(data_dir(), "output")
     os.makedirs(out_dir, exist_ok=True)
+    if out_name:
+        base = named_output(out_dir, out_name, job_dir)
     out_mp4 = os.path.join(out_dir, base + ".mp4")
     if os.path.exists(os.path.join(job_dir, "script.txt")):
         shutil.copy(os.path.join(job_dir, "script.txt"), os.path.join(out_dir, base + ".txt"))  # сценарий рядом с видео
@@ -3750,43 +3887,31 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         videos = overlap.result() if overlap else {}
         pre.wait()
         videos = redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_first, videos)
-    if subtitles:
-        raw_mp4 = os.path.join(job_dir, "nosubs.mp4")
-        assemble_video(scenes, img_dir, videos, audio_path, job_dir, raw_mp4, progress, motion=motion)
-        check_cancel()
-        progress("subtitles", 0, 1, "накладываю субтитры")
-        # .srt кладём в подпапку: файл с тем же именем рядом с mp4 плееры подхватывают сами и рисуют
-        # свои субтитры поверх уже вшитых — у тестера текст «двоился»
-        os.makedirs(os.path.join(out_dir, "subtitles"), exist_ok=True)
-        srt_path = os.path.join(out_dir, "subtitles", base + ".srt")
-        sub_words = subtitle_words(cfg, job_dir, tr, bool((script_text and script_text.strip()) or (rewrite and rewrite.get("on"))))
-        subs.write_srt(sub_words, srt_path)
-        style_cfg = sub_style_of(cfg)
-        if style_cfg:
-            subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg)
-            fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
-            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW)
-        else:
-            subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
-        os.replace(out_mp4 + ".tmp.mp4", out_mp4)
-        progress("subtitles", 1, 1, "субтитры наложены, .srt сохранён в папке output/subtitles")
-    else:
-        assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=motion)
-    if cfg.get("speed_copies"):
-        try:
-            make_speed_copies(out_mp4, progress)
-        except Cancelled:
-            raise
-        except Exception as e:  # ролик готов, копии — довесок: не роняем результат
-            log(f"копии скорости: {e}")
-            progress("render", 100, 100, f"копии скорости не сделались: {str(e)[:120]}")
-    clear_wait()
-    cleanup_job(job_dir)
+    # что не получилось, известно до монтажа: картинки-копии соседних кадров и неоживлённые сцены
     img_state = read_json(os.path.join(job_dir, "images.json"), {}) or {}
     bad_img = sum(1 for v in img_state.values() if isinstance(v, dict) and not v.get("ok"))
     anim = animated_scenes(scenes, mode, video_first) if (mode in ("video", "mixed") or video_first) else []
     have_vid = [s for s in anim if os.path.exists(os.path.join(job_dir, "videos", f"{s['index']:04d}.mp4"))]
     bad_vid = len(anim) - len(have_vid) if have_vid else 0  # ни одного клипа — оживление недоступно, повторять бессмысленно
+    srt_path = None
+    sub_words = None
+    if subtitles:
+        # .srt кладём в подпапку: файл с тем же именем рядом с mp4 плееры подхватывают сами и рисуют
+        # свои субтитры поверх уже вшитых — у тестера текст «двоился»
+        os.makedirs(os.path.join(out_dir, "subtitles"), exist_ok=True)
+        srt_path = os.path.join(out_dir, "subtitles", base + ".srt")
+        sub_words = subtitle_words(cfg, job_dir, tr, bool((script_text and script_text.strip()) or (rewrite and rewrite.get("on"))))
+    spec = {"version": 1, "scenes": scenes, "img_dir": img_dir, "videos": {str(k): v for k, v in videos.items()}, "audio_path": audio_path,
+            "job_dir": job_dir, "out_mp4": out_mp4, "motion": bool(motion), "subtitles": bool(subtitles), "srt_path": srt_path,
+            "sub_words": sub_words, "sub_style": sub_style_of(cfg), "speed_copies": bool(cfg.get("speed_copies")), "look": look_snapshot()}
+    spec_path = os.path.join(job_dir, ASSEMBLE_SPEC)
+    write_json(spec_path, spec)
+    if assembly_hook and assembly_hook(spec_path, out_mp4, not (bad_img or bad_vid)):
+        ASSEMBLY_DEFERRED = True
+        LAST_FAILURES.update({"images": 0, "videos": 0})
+        progress("render", 0, 0, "картинки и видео готовы — монтаж идёт в фоне, берусь за следующий ролик")
+        return out_mp4
+    finish_video(spec, progress)
     LAST_FAILURES.update({"images": bad_img, "videos": bad_vid})
     progress("done", 1, 1, f"готово: {out_mp4}")
     return out_mp4

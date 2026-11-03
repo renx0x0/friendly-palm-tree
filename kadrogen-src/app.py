@@ -25,7 +25,7 @@ try:
     import webview
 except Exception as _e:  # pythonnet / .NET не загрузился — объясняем по-человечески
     import ctypes
-    if "--run" in sys.argv:
+    if "--run" in sys.argv or "--assemble" in sys.argv:
         raise
     ctypes.windll.user32.MessageBoxW(
         0,
@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p19"
+VERSION = "1.7.1-p20"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -80,6 +80,12 @@ def queue_load():
     for x in QUEUE:
         if x.get("status") == "running":  # программу закрыли посреди задания — доделаем при следующем запуске очереди
             x["status"] = "queued"
+        elif x.get("status") == "assembling":  # монтаж шёл в фоне, когда программу закрыли — смотрим, чем кончился
+            rec = pipeline.read_json(os.path.join(x.get("job_dir") or "", "job.json"), {}) or {}
+            if rec.get("status") == "done" and rec.get("result"):
+                x["status"], x["result"] = "done", rec["result"]
+            elif rec.get("status") != "assembling":
+                x["status"], x["error"] = "error", rec.get("error") or "монтаж прервался — доделайте ролик кнопкой «Продолжить»"
 
 
 def queue_save():
@@ -92,7 +98,7 @@ def queue_save():
 
 
 def queue_public():
-    return [{k: x.get(k) for k in ("id", "title", "source", "voice", "style", "status", "result", "error")} for x in QUEUE]
+    return [{k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error")} for x in QUEUE]
 
 
 def style_key(v, default=None):
@@ -112,6 +118,8 @@ def _video_fit(cfg, data):
 
 
 def job_title(opts):
+    if pipeline.safe_title(opts.get("name")):
+        return pipeline.safe_title(opts.get("name"))[:80]
     rw = opts.get("rewrite") or {}
     if rw.get("on"):
         return (rw.get("url") or " ".join((rw.get("text") or "").split()[:7]) or "рерайт")[:80]
@@ -122,7 +130,8 @@ def job_title(opts):
 
 def run_queue(common):
     """Задания по очереди, одно за другим. Общие настройки у всех одни, у каждого задания свои текст/файл и голос."""
-    global QUEUE_STOP
+    global QUEUE_STOP, QRUN_ALL
+    QRUN_ALL = True
     try:
         while not QUEUE_STOP:
             with LOCK:
@@ -143,16 +152,7 @@ def run_queue(common):
                     queue_save()
                     continue
                 run_job(**args)
-                with LOCK:
-                    if STATE.get("cancelled"):
-                        item["status"] = "stopped"
-                    elif STATE.get("error"):
-                        item["status"], item["error"] = "error", STATE["error"]
-                    else:
-                        item["status"], item["result"] = "done", STATE.get("result")
-                    stopped = STATE.get("cancelled")
-                queue_save()
-                if stopped:
+                if item_after_run(item):
                     break
                 continue
             rw = item.get("rewrite") if item.get("source") == "rewrite" else None
@@ -161,19 +161,11 @@ def run_queue(common):
             # стиль у задания свой, если включён «Разный стиль» и выбран; иначе общий
             run_job(audio, common["provider"], common["mode"], style_key(item.get("style"), common["style"]), common["use_refs"], common["subtitles"], common["motion"],
                     script, rw, common["tts"], (item.get("voice") or "").strip(), common["video_first"], common["hd"],
-                    voice_file=(item.get("voice_file") or None) if script else None)
-            with LOCK:
-                if STATE.get("cancelled"):
-                    item["status"] = "stopped"
-                elif STATE.get("error"):
-                    item["status"], item["error"] = "error", STATE["error"]
-                else:
-                    item["status"], item["result"] = "done", STATE.get("result")
-                stopped = STATE.get("cancelled")
-            queue_save()
-            if stopped:
+                    voice_file=(item.get("voice_file") or None) if script else None, out_name=item.get("name") or None)
+            if item_after_run(item):
                 break
     finally:
+        QRUN_ALL = False
         with LOCK:
             STATE["queue_active"] = False
             STATE["running"] = False
@@ -807,15 +799,17 @@ def _pause(sec, why):
 
 
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
-            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None):
+            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None):
     """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
     подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
     LAST_RUN.clear()
     LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                          script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                         prompts_file=prompts_file, remix_from=remix_from, look=look))
+                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name))
     keep_awake(True)
     tries = fixes = 0
+    with LOCK:
+        STATE["deferred"] = False
     try:
         apply_engine(provider)
         d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile, prompts_file, remix_from)
@@ -829,7 +823,8 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
                 out = pipeline.make_video(audio, progress_cb=progress_cb, provider=provider, mode=mode, style_key=style,
                                           use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
                                           tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                                          prompts_file=prompts_file, remix_from=remix_from, look=look)
+                                          prompts_file=prompts_file, remix_from=remix_from, look=look, assembly_hook=assembly_hook,
+                                          out_name=out_name)
             except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
                 err = str(e)
             except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
@@ -839,6 +834,11 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
                 with LOCK:
                     STATE["log"].append(traceback.format_exc()[-1500:])
             if err is None:
+                if pipeline.ASSEMBLY_DEFERRED:  # картинки и видео готовы, монтаж идёт в фоне — очередь идёт дальше
+                    with LOCK:
+                        STATE["deferred"] = True
+                        STATE["job_dir"] = pipeline.LAST_JOB_DIR or STATE.get("job_dir")
+                    break
                 with LOCK:  # у профиля папка задания своя — окно смотрит туда
                     STATE["result"] = out
                     STATE["job_dir"] = pipeline.LAST_JOB_DIR or STATE.get("job_dir")
@@ -877,8 +877,150 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
             STATE["running"] = False
             STATE["ended_at"] = time.time()
             res, err, stopped, jd = STATE.get("result"), STATE.get("error"), STATE.get("cancelled"), STATE.get("job_dir")
-        job_record(jd or pipeline.LAST_JOB_DIR, "done" if res and not err else ("stopped" if stopped else "error"), res, err)
+            deferred = STATE.get("deferred") and not err and not stopped
+        if deferred:
+            with ASM_LOCK:
+                e = ASM_JOBS.get(os.path.normcase(jd or ""))
+                final = e and e.get("state") in ("done", "error", "stopped")
+            if not final:  # если монтаж уже успел кончиться, job.json записал он сам
+                job_record(jd, "assembling")
+        else:
+            job_record(jd or pipeline.LAST_JOB_DIR, "done" if res and not err else ("stopped" if stopped else "error"), res, err)
         keep_awake(False)
+
+
+# ===== фоновый монтаж: следующий ролик очереди генерируется, пока предыдущий монтируется =====
+ASM_LOCK = threading.Lock()
+ASSEMBLY = {}    # текущий фоновый монтаж: proc, job_dir, title, out, started
+ASM_JOBS = {}    # папка задания (normcase) → {"state": running|done|error|stopped, "result", "error", "item", "title"}
+ASM_DONE = []    # недавно закончившиеся — окно показывает уведомление
+QRUN_ALL = False  # очередь запущена «Начать» (берёт все задания), а не дозапуском во время работы
+
+
+def assembly_busy():
+    with ASM_LOCK:
+        p = ASSEMBLY.get("proc")
+        return p is not None and p.poll() is None
+
+
+def _queue_has_next():
+    with LOCK:
+        if QUEUE_STOP or STATE.get("cancelled"):
+            return False
+        return any(x.get("status") == "queued" and (x.get("opts") or QRUN_ALL) for x in QUEUE)
+
+
+def assembly_hook(spec_path, out_mp4, can_defer):
+    """Вызывается из make_video перед монтажом. Сначала ждём фоновый монтаж прошлого ролика (два сразу комп не тянет).
+    → True — монтаж отдан в фон (в очереди есть следующий ролик), False — монтировать здесь же, как обычно."""
+    if assembly_busy():
+        with ASM_LOCK:
+            t = ASSEMBLY.get("title") or ""
+        progress_cb("render", 0, 0, f"жду, пока смонтируется предыдущий ролик «{t}» — потом смонтирую этот")
+        while assembly_busy():
+            pipeline.check_cancel()
+            time.sleep(1)
+    if not (can_defer and load_cfg().get("parallel_assembly", True) and _queue_has_next()):
+        return False
+    try:
+        start_assembly(spec_path, out_mp4)
+    except Exception as e:  # не запустился отдельный процесс — монтируем по-старому
+        pipeline.log(f"фоновый монтаж не запустился ({e}) — монтирую сразу")
+        return False
+    return True
+
+
+def start_assembly(spec_path, out_mp4):
+    d = os.path.dirname(spec_path)
+    try:
+        os.remove(os.path.join(d, pipeline.ASSEMBLE_STATUS))
+    except OSError:
+        pass
+    cmd = [sys.executable] + ([] if getattr(sys, "frozen", False) else [os.path.abspath(__file__)]) + ["--assemble", spec_path]
+    proc = subprocess.Popen(cmd, cwd=app_dir(), creationflags=0x08000000 if os.name == "nt" else 0,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with LOCK:
+        title = STATE.get("title") or (STATE.get("queue") or {}).get("title") or os.path.basename(out_mp4)
+    with ASM_LOCK:
+        ASSEMBLY.clear()
+        ASSEMBLY.update({"proc": proc, "job_dir": d, "title": title, "out": out_mp4, "started": time.time()})
+        ASM_JOBS[os.path.normcase(d)] = {"state": "running", "title": title, "item": None}
+    pipeline.log(f"монтаж «{title}» идёт в фоне (процесс {proc.pid}), берусь за следующий ролик")
+    threading.Thread(target=_watch_assembly, args=(proc, d, title, out_mp4), daemon=True).start()
+
+
+def _watch_assembly(proc, d, title, out_mp4):
+    proc.wait()
+    st = pipeline.read_json(os.path.join(d, pipeline.ASSEMBLE_STATUS), {}) or {}
+    with ASM_LOCK:
+        e = ASM_JOBS.setdefault(os.path.normcase(d), {})
+        if e.get("state") == "stopped":
+            state, err = "stopped", "монтаж остановлен"
+        elif st.get("state") == "done" and os.path.exists(out_mp4):
+            state, err = "done", None
+        else:
+            state, err = "error", st.get("error") or f"процесс монтажа завершился с кодом {proc.returncode}"
+        e.update({"state": state, "result": out_mp4 if state == "done" else None, "error": err})
+        item = e.get("item")
+        ASM_DONE.append({"title": title, "state": state, "result": e["result"], "error": err, "at": time.time()})
+        del ASM_DONE[:-5]
+    if state != "done":
+        if st.get("state") not in ("done", "error"):  # процесс убит — файл хода монтажа он поправить не успел
+            st.update({"state": state, "error": err, "updated": time.time()})
+            pipeline.write_json(os.path.join(d, pipeline.ASSEMBLE_STATUS), st)
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
+        if rec.get("status") == "assembling":
+            rec.update({"status": "stopped" if state == "stopped" else "error", "error": err, "updated": time.time()})
+            pipeline.write_json(os.path.join(d, "job.json"), rec)
+    pipeline.log(f"фоновый монтаж «{title}»: " + ({"done": f"готово — {out_mp4}", "stopped": "остановлен"}.get(state) or f"ошибка — {err}"))
+    if item is not None:
+        with LOCK:
+            item["status"] = state
+            if state == "done":
+                item["result"] = out_mp4
+            else:
+                item["error"] = err
+        queue_save()
+
+
+def item_after_run(item):
+    """Статус задания очереди после run_job. Монтаж ушёл в фон — «монтируется», итог допишет _watch_assembly."""
+    with LOCK:
+        if STATE.get("cancelled"):
+            item["status"] = "stopped"
+        elif STATE.get("error"):
+            item["status"], item["error"] = "error", STATE["error"]
+        elif STATE.get("deferred"):
+            jd = STATE.get("job_dir") or ""
+            item["job_dir"] = jd
+            with ASM_LOCK:
+                e = ASM_JOBS.get(os.path.normcase(jd))
+                if e and e.get("state") in ("done", "error", "stopped"):
+                    item["status"] = e["state"]
+                    item["result"], item["error"] = e.get("result"), e.get("error")
+                else:
+                    item["status"] = "assembling"
+                    if e is not None:
+                        e["item"] = item
+        else:
+            item["status"], item["result"] = "done", STATE.get("result")
+        stopped = STATE.get("cancelled")
+    queue_save()
+    return stopped
+
+
+def assembly_state():
+    """Для окна: что монтируется в фоне и что недавно домонтировалось."""
+    with ASM_LOCK:
+        p, d = ASSEMBLY.get("proc"), ASSEMBLY.get("job_dir")
+        cur = None
+        if p is not None and p.poll() is None and d:
+            st = pipeline.read_json(os.path.join(d, pipeline.ASSEMBLE_STATUS), {}) or {}
+            cur = {"title": ASSEMBLY.get("title"), "message": st.get("message") or "монтаж", "stage": st.get("stage"),
+                   "done": st.get("done") or 0, "total": st.get("total") or 0, "since": int(time.time() - ASSEMBLY.get("started", time.time())),
+                   "job_id": os.path.basename(d)}
+        done = [dict(x) for x in ASM_DONE]
+    return cur, done
 
 
 def job_chain(args):
@@ -888,14 +1030,7 @@ def job_chain(args):
         while args:
             run_job(**args)
             if item is not None:
-                with LOCK:
-                    if STATE.get("cancelled"):
-                        item["status"] = "stopped"
-                    elif STATE.get("error"):
-                        item["status"], item["error"] = "error", STATE["error"]
-                    else:
-                        item["status"], item["result"] = "done", STATE.get("result")
-                queue_save()
+                item_after_run(item)
             args, item = None, None
             while True:
                 with LOCK:
@@ -963,6 +1098,7 @@ class Api:
             st = dict(STATE)
         st["stage_name"] = STAGE_NAMES.get(st["stage"], st["stage"])
         st["queue_items"] = queue_public()
+        st["assembly"], st["asm_done"] = assembly_state()
         st["elapsed"] = int(((not st.get("running") and st.get("ended_at")) or time.time()) - st["started_at"]) if st.get("started_at") else 0
         w = dict(pipeline.WAIT)
         st["wait"] = ({"kind": w.get("kind"), "why": w.get("why", ""), "left": max(0, int(w["until"] - time.time())) if w.get("until") else None,
@@ -1101,6 +1237,8 @@ class Api:
             cfg["tts_voice"] = (data.get("tts_voice") or "").strip()
         if "motion" in data:
             cfg["motion"] = bool(data["motion"])
+        if "parallel_assembly" in data:
+            cfg["parallel_assembly"] = bool(data["parallel_assembly"])
         if "hd" in data:
             cfg["hd_images"] = bool(data["hd"])
         if "qa" in data:
@@ -1458,7 +1596,8 @@ class Api:
         save_cfg(cfg)
         args = dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                     script=script, rewrite=rw, tts=tts, voice=voice, video_first=video_first, hd=hd,
-                    profile="" if prompts_file else profile, voice_file=voice_file, prompts_file=prompts_file)
+                    profile="" if prompts_file else profile, voice_file=voice_file, prompts_file=prompts_file,
+                    out_name=pipeline.safe_title(opts.get("name")) or None)
         return None, args, job_title(opts)
 
     def _enqueue(self, opts):
@@ -1471,7 +1610,8 @@ class Api:
             return {"ok": False, "error": err}
         title = job_title(o)
         src = "rewrite" if (o.get("rewrite") or {}).get("on") else ("script" if o.get("source") == "script" else "mp3")
-        entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "source": src, "script": (o.get("script") or "").strip() or None,
+        entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "name": pipeline.safe_title(o.get("name")) or None, "source": src,
+                 "script": (o.get("script") or "").strip() or None,
                  "audio": (o.get("audio") or "").strip().strip('"') or None, "rewrite": None, "voice": (o.get("voice") or "").strip(),
                  "style": style_key(o.get("style"), ""), "status": "queued", "result": None, "error": None, "opts": o}
         with LOCK:
@@ -1534,13 +1674,29 @@ class Api:
             title = rw.get("url") or " ".join((rw.get("text") or "").split()[:7]) or "рерайт"
         else:
             title = os.path.basename(item.get("audio") or "")
-        entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "source": src, "script": (item.get("script") or "").strip() or None,
+        name = pipeline.safe_title(item.get("name"))
+        entry = {"id": uuid.uuid4().hex[:8], "title": (name or title)[:80], "name": name or None, "source": src,
+                 "script": (item.get("script") or "").strip() or None,
                  "audio": (item.get("audio") or "").strip().strip('"') or None,
                  "rewrite": self._rewrite_opts(opts) if src == "rewrite" else None,
                  "voice_file": opts["voice_file"] or None,
                  "voice": (item.get("voice") or "").strip(), "style": style_key(item.get("style"), ""), "status": "queued", "result": None, "error": None}
         with LOCK:
             QUEUE.append(entry)
+        queue_save()
+        return {"ok": True, "items": queue_public()}
+
+    def queue_set_name(self, qid, name):
+        """Название ролика в очереди — так будет назван готовый файл."""
+        name = pipeline.safe_title(name)
+        with LOCK:
+            for x in QUEUE:
+                if x["id"] == qid and x.get("status") in ("queued", "error", "stopped"):
+                    x["name"] = name or None
+                    if x.get("opts"):
+                        x["opts"]["name"] = name
+                    if name:
+                        x["title"] = name[:80]
         queue_save()
         return {"ok": True, "items": queue_public()}
 
@@ -2200,11 +2356,27 @@ class Api:
             label = "новая озвучка" if args.get("remix_from") else "готовые промпты" if args.get("prompts_file") else ((args.get("profile") if rec else prof) or prof or "")
             out.append({"id": n, "title": title[:80], "profile": label,
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
-                        "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else rec.get("status", ""),
+                        "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else self._asm_status(d, rec),
                         "result": rec.get("result"), "known": bool(rec), "mode": args.get("mode", ""),
                         "fg_image_model": (rec.get("cfg") or {}).get("fg_image_model") or "", "fg_video_model": (rec.get("cfg") or {}).get("fg_video_model") or ""})
         out.sort(key=lambda x: -x["updated"])
         return out[:limit]
+
+    @staticmethod
+    def _asm_status(d, rec):
+        """«монтируется» только пока процесс монтажа жив; иначе — чем он кончился (файл статуса монтажа)."""
+        st = rec.get("status", "")
+        if st != "assembling":
+            return st
+        with ASM_LOCK:
+            p = ASSEMBLY.get("proc")
+            alive = p is not None and p.poll() is None and os.path.normcase(ASSEMBLY.get("job_dir") or "") == os.path.normcase(d)
+        if alive:
+            return "assembling"
+        a = pipeline.read_json(os.path.join(d, pipeline.ASSEMBLE_STATUS), {}) or {}
+        if a.get("state") == "running" and time.time() - float(a.get("updated") or 0) < 120:
+            return "assembling"  # монтаж из прошлого запуска программы ещё идёт
+        return "done" if a.get("state") == "done" else "error"
 
     @staticmethod
     def _job_script(d, base):
@@ -2232,6 +2404,8 @@ class Api:
         with LOCK:
             if STATE["running"] or STATE["preparing"] or STATE.get("queue_active"):
                 return {"ok": False, "error": "Сейчас делается другой ролик. Продолжите этот, когда он закончится."}
+        if assembly_busy() and os.path.normcase(ASSEMBLY.get("job_dir") or "") == os.path.normcase(d):
+            return {"ok": False, "error": "Этот ролик сейчас монтируется в фоне — дождитесь конца."}
         base, _, prof = name.partition("@")
         rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
         cfg = load_cfg()
@@ -2316,7 +2490,10 @@ class Api:
                     profile="", voice_file=audio if script else None, prompts_file=None, remix_from=d, look=look or None)
         if os.path.normcase(os.path.abspath(pipeline.run_job_dir(cfg, args["audio"], script, args["voice_file"], None, "", None, d))) == os.path.normcase(os.path.abspath(d)):
             return {"ok": False, "error": "Это тот же файл озвучки, из которого сделан ролик. Выберите новую озвучку."}
-        title = f"{rec.get('title') or base} · новая озвучка"
+        name = pipeline.safe_title(o.get("name"))
+        if name:
+            args["out_name"] = name
+        title = name or f"{rec.get('title') or base} · новая озвучка"
         with LOCK:
             STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "новая озвучка для готового ролика", "log": [],
                           "result": None, "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0, "queue": None, "title": title})
@@ -2346,6 +2523,26 @@ class Api:
                 pass
         return freed
 
+    def assembly_info(self):
+        cur, done = assembly_state()
+        return {"current": cur, "done": done, "parallel": bool(load_cfg().get("parallel_assembly", True))}
+
+    def assembly_cancel(self):
+        """Остановить фоновый монтаж. Картинки и клипы ролика остаются — «Продолжить» смонтирует заново."""
+        with ASM_LOCK:
+            p, d = ASSEMBLY.get("proc"), ASSEMBLY.get("job_dir")
+            if p is None or p.poll() is not None:
+                return {"ok": False, "error": "Сейчас ничего не монтируется."}
+            ASM_JOBS.setdefault(os.path.normcase(d), {})["state"] = "stopped"
+        try:
+            if os.name == "nt":  # вместе с ffmpeg, который запустил процесс монтажа
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True, creationflags=0x08000000)
+            else:
+                p.kill()
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True}
+
     def delete_job(self, job_id):
         """«Удалить ролик»: папка задания целиком. Готовое видео в output не трогается."""
         name = os.path.basename(str(job_id or ""))
@@ -2353,6 +2550,8 @@ class Api:
         if not name or not os.path.isdir(d):
             return {"ok": False, "error": "Папка этого ролика не найдена."}
         with LOCK:
+            if assembly_busy() and os.path.normcase(ASSEMBLY.get("job_dir") or "") == os.path.normcase(d):
+                return {"ok": False, "error": "Этот ролик сейчас монтируется в фоне — дождитесь конца или остановите монтаж."}
             if (STATE["running"] or STATE.get("queue_active")) and STATE.get("job_dir") and \
                     os.path.normcase(STATE["job_dir"]) == os.path.normcase(d):
                 return {"ok": False, "error": "Этот ролик сейчас делается — сначала нажмите «Стоп»."}
@@ -2451,7 +2650,8 @@ def on_closing():
         upd = dict(STATE.get("update") or {})
     if running:
         ok = WINDOW.create_confirm_dialog("Kadro.Gen", "Видео ещё создаётся. Закрыть программу? Прогресс сохранится — "
-                                                      "при следующем запуске того же mp3 работа продолжится.")
+                                                      "при следующем запуске того же mp3 работа продолжится."
+                                          + (" Ролик, который монтируется в фоне, доделается сам." if assembly_busy() else ""))
         if not ok:
             return False
         pipeline.CANCEL.set()
@@ -2502,6 +2702,12 @@ def main():
             engine.run(sys.argv[sys.argv.index("--engine") + 1])
         except BaseException:
             pass  # ошибка уже записана в файл статуса и журнал
+        return
+    if "--assemble" in sys.argv:  # фоновый монтаж ролика из очереди — без окна, отдельным процессом
+        try:
+            pipeline.assemble_from_spec(sys.argv[sys.argv.index("--assemble") + 1])
+        except BaseException:
+            traceback.print_exc()
         return
     if "--run" not in sys.argv and not single_instance():
         return
