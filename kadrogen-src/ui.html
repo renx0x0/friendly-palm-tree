@@ -604,6 +604,8 @@
   .pchips span b { font-weight:600; color:var(--ink); } .pchips span i { font-style:normal; color:var(--acc2); font-weight:600; }
   .pchips span code { font:10.5px/1 Consolas, monospace; color:var(--ink2); }
   .pchips span.used { border-color:var(--acc2); background:rgba(0,150,230,.06); } .pchips span.used b::before { content:"✓ "; color:var(--acc2); }
+  .pchead { font-size:12px; color:var(--ink2); margin-top:2px; } .pchead b { color:var(--ink); font-weight:600; }
+  .pchips span b::after { content:" ＋"; color:var(--ink2); font-weight:400; }
   .psample { display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:var(--ink2); }
   .psample input { width:90px; padding:4px 6px; font-size:12px; } .psample .lk { color:var(--acc2); cursor:pointer; margin-left:auto; }
   #pf_nums { font-size:12px; color:#e8a33a; } #pf_nums button { padding:3px 8px; font-size:11px; letter-spacing:.06em; margin-left:6px; }
@@ -666,7 +668,7 @@
   <div class="pbody"><div id="pf_list"></div>
     <div class="pmain"><input type="text" id="pf_name" spellcheck="false" autocomplete="off"><div class="pnote" id="pf_mlbl"></div>
       <textarea id="pf_master" spellcheck="false"></textarea>
-      <div class="psample" id="pf_sample"></div><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div><div id="pf_nums"></div></div>
+      <div class="psample" id="pf_sample"></div><div class="pchead" id="pf_chead"></div><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div><div id="pf_nums"></div></div>
     <div class="pform" id="pf_form"></div></div>
   <div class="row"><button class="danger" id="pf_del"></button><span class="note" id="pf_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="pf_cancel"></button><button class="primary" id="pf_save"></button></div></div></div>
 <div id="rx_dlg"><div class="box"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div>
@@ -2156,7 +2158,7 @@ function pfRenderForm() {
     + num('chars_per_part', pt('Символов на часть', 'Chars per part'), 200, 200000, 100, pt('частей = символы сценария ÷ это число', 'parts = script chars ÷ this'))
     + num('min_parts', pt('Частей не меньше', 'Min parts'), 1, 100)
     + num('max_parts', pt('Частей не больше', 'Max parts'), 0, 100, 1, pt('0 — без предела', '0 — no limit'))
-    + num('prompts_per_part', pt('Промптов на часть', 'Prompts per part'), 1, 1000)
+    + num('prompts_per_part', pt('Промптов на часть', 'Prompts per part'), 1, 1000, 1, pt('сколько промптов программа ждёт от модели на каждую часть; в тексте — метка «Промптов в части»', 'how many prompts per part'))
     + `<div class="sec2">${pt('Модель для промптов', 'Prompt model')}</div>`
     + sel('llm', pt('Сервис', 'Service'), [['fastgen', 'fast-gen', 'fast-gen'], ['openai', 'OpenAI (свой ключ)', 'OpenAI (own key)']])
     + txt('llm_model', pt('Модель', 'Model'), pt('пусто — как в настройках', 'empty — from settings'))
@@ -2231,9 +2233,11 @@ async function pfChips() {
   }
   if (document.activeElement !== $('pf_len')) $('pf_len').value = x.len;
   $('pf_split').textContent = `→ ${x.n} ${x.n === 1 ? pt('часть', 'part') : (x.n < 5 ? pt('части', 'parts') : pt('частей', 'parts'))} ${pt('по', 'of')} ~${x.chars.toLocaleString('ru-RU')} ${pt('симв.', 'chars')} · ${x.n * x.per} ${pt('кадров', 'frames')}`;
+  $('pf_chead').innerHTML = pt('<b>Вставить в текст мастер-промпта:</b> это не настройки, а метки — программа заменит их числами при отправке каждой части. Числа берутся из настроек справа, меняются там.',
+                                '<b>Insert into the master prompt:</b> these are markers, not settings — values come from the settings on the right.');
   $('pf_chips').innerHTML = Object.keys(ph).map(k => {
     const inf = PH_INFO[k] || [k, k, ph[k]];
-    return `<span class="${m.includes(k) ? 'used' : ''}" title="${esc(pt(inf[2] + '. Клик — вставить в место курсора (выделенный текст заменится).', inf[2]))}" data-p="${esc(k)}"><b>${esc(pt(inf[0], inf[1]))}</b><i>${esc(pfShort(x, k))}</i><code>${esc(k)}</code></span>`;
+    return `<span class="${m.includes(k) ? 'used' : ''}" title="${esc(pt(inf[2] + '. Сейчас подставится: ' + pfShort(x, k) + '. Клик — вставить метку в текст туда, где курсор (выделенный текст заменится).', inf[2]))}" data-p="${esc(k)}"><b>${esc(pt(inf[0], inf[1]))}</b><i>${esc(pfShort(x, k))}</i><code>${esc(k)}</code></span>`;
   }).join('');
   $('pf_chips').querySelectorAll('span').forEach(c => c.onclick = () => {
     const ta = $('pf_master'), a = ta.selectionStart, b = ta.selectionEnd;
@@ -2252,7 +2256,7 @@ async function pfChips() {
   $('pf_nums').innerHTML = main && +main[0] !== x.per
     ? pt(`В тексте число промптов в части задано прямо: <b>${main[0]}</b> (например «${esc((m.match(reA) || [''])[0].slice(0, 40))}», ${main[1]}×), а справа стоит <b>${x.per}</b>. Модель получит противоречие — поправьте текст (Ctrl+F) или верните ${main[0]} справа. Числа вроде «середина — 25-й промпт» тоже поменяйте.`,
          `The text says ${main[0]} prompts per part but the setting is ${x.per}.`)
-    : (main && !m.includes('{{PROMPTS_PER_PART}}') ? pt(`Число промптов в тексте (${main[0]}) совпадает с настройкой. Если поменяете «Промптов на часть» — поправьте и текст.`, 'Prompt count in text matches the setting.') : '');
+    : (main && !m.includes('{{PROMPTS_PER_PART}}') ? `<span style="color:var(--ink2)">${pt(`Число промптов в тексте (${main[0]}) совпадает с настройкой. Если поменяете «Промптов на часть» — поправьте и текст.`, 'Prompt count in text matches the setting.')}</span>` : '');
 }
 function pfPreview() {
   const x = pfNums();
