@@ -551,6 +551,30 @@
   .tform > label { text-transform:none; letter-spacing:.02em; }
   #tr_dlg .row { display:flex; gap:10px; align-items:center; margin-top:14px; } #tr_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
   @media (max-width: 900px) { #tr_dlg .tbody { grid-template-columns:1fr; overflow-y:auto; } }
+
+  /* ===== профили ===== */
+  .pfl { margin-left:auto; color:var(--acc2); cursor:pointer; letter-spacing:.04em; text-transform:none; font-size:12px; }
+  #pf_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.6); }
+  #pf_dlg.show { display:grid; }
+  #pf_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(1280px, calc(100% - 40px)); height:min(860px, 92vh); display:flex; flex-direction:column; }
+  #pf_dlg h3 { margin:0 0 10px; font:600 16px/1.3 "Exo 2", sans-serif; }
+  #pf_dlg .pbody { flex:1; min-height:0; display:grid; grid-template-columns:220px minmax(0, 1.4fr) minmax(300px, 1fr); gap:18px; }
+  #pf_list { display:flex; flex-direction:column; gap:6px; overflow-y:auto; }
+  #pf_list .it { padding:10px 12px; border:1px solid var(--line); background:var(--bg2); cursor:pointer; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #pf_list .it.on { border-color:var(--acc2); color:var(--acc2); } #pf_list .it:hover { border-color:var(--acc); }
+  #pf_list .new { border-style:dashed; color:var(--ink2); }
+  .pmain { display:flex; flex-direction:column; gap:8px; min-height:0; }
+  .pmain input#pf_name { padding:10px 12px; font-size:15px; }
+  .pmain textarea#pf_master { flex:1; min-height:200px; resize:none; padding:12px; font:13px/1.45 Consolas, "Courier New", monospace; }
+  .pchips { display:flex; flex-wrap:wrap; gap:6px; } .pchips span { padding:4px 8px; border:1px solid var(--line); font:12px/1 Consolas, monospace; cursor:pointer; color:var(--ink2); }
+  .pchips span.used { border-color:var(--acc2); color:var(--acc2); } .pchips span:hover { background:var(--bg2); }
+  #pf_warn { color:#e8a33a; font-size:12px; min-height:14px; } .pnote { color:var(--ink2); font-size:12px; }
+  .pform { overflow-y:auto; display:grid; grid-template-columns:150px 1fr; gap:8px 10px; align-items:center; font-size:13px; color:var(--ink2); align-content:start; padding-right:6px; }
+  .pform .sec2 { grid-column:1 / -1; font:600 11px/1 "Exo 2", sans-serif; letter-spacing:.24em; text-transform:uppercase; color:var(--ink); margin-top:8px; }
+  .pform input, .pform select { padding:6px 8px; font-size:13px; width:100%; box-sizing:border-box; }
+  .pform input[type=checkbox] { width:auto; } .pform .h { grid-column:1 / -1; font-size:12px; margin-top:-4px; }
+  #pf_dlg .row { display:flex; gap:10px; align-items:center; margin-top:14px; } #pf_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
+  @media (max-width: 1100px) { #pf_dlg .pbody { grid-template-columns:180px 1fr; } .pform { grid-column:1 / -1; } }
 </style>
 </head>
 <body>
@@ -586,7 +610,7 @@
 <div id="sub_dlg"><div class="box"><h3 id="sd_t"></h3>
   <div class="sbody"><div><div id="sub_pv"><img id="sub_img" alt=""><span class="busy" id="sub_busy"></span></div><div id="sub_err"></div><div class="spres" id="sub_pres"></div></div>
   <div class="sform" id="sub_form"></div></div>
-  <div class="row"><span class="note" id="sd_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="sd_cancel"></button><button class="primary" id="sd_save"></button></div></div></div>
+  <div class="row"><button class="ghost" id="sd_off"></button><span class="note" id="sd_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="sd_cancel"></button><button class="primary" id="sd_save"></button></div></div></div>
 <div id="tts_dlg"><div class="box"><h3 id="tts_t"></h3><div class="note2" id="tts_n"></div><div class="alist-in" id="tts_body"></div>
   <div class="row"><button class="primary" id="tts_ok" onclick="closeTts()"></button></div></div></div>
 <div id="lb"><div class="lbtop"><b id="lb_n"></b><span id="lb_t"></span><span class="sp"></span>
@@ -598,6 +622,12 @@
     <div class="spres" id="tr_pres"></div><div id="tr_desc"></div></div>
   <div class="tform" id="tr_form"></div></div>
   <div class="row"><span class="note" id="tr_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="tr_cancel"></button><button class="primary" id="tr_save"></button></div></div></div>
+<div id="pf_dlg"><div class="box"><h3 id="pf_t"></h3>
+  <div class="pbody"><div id="pf_list"></div>
+    <div class="pmain"><input type="text" id="pf_name" spellcheck="false" autocomplete="off"><div class="pnote" id="pf_mlbl"></div>
+      <textarea id="pf_master" spellcheck="false"></textarea><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div></div>
+    <div class="pform" id="pf_form"></div></div>
+  <div class="row"><button class="danger" id="pf_del"></button><span class="note" id="pf_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="pf_cancel"></button><button class="primary" id="pf_save"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -637,7 +667,7 @@
     <div class="vfrow" id="vf_row"><span class="lbl" data-i18n="vf_lbl"></span><span class="q" data-tipkey="tip_vf">?</span><input type="range" id="vf" min="0" max="150" step="1" value="0"><span class="val zero" id="vf_val"></span></div>
     <div class="qrow"><span class="lbl" data-i18n="regime"></span><span class="q" data-tipkey="tip_quality">?</span><div class="seg"><input type="radio" name="fgq" value="speed" id="fgq_speed"><label for="fgq_speed" data-i18n="speed"></label><input type="radio" name="fgq" value="quality" id="fgq_quality"><label for="fgq_quality" data-i18n="quality"></label></div></div>
     <div class="sgrid">
-    <div class="qrow srow"><span class="lbl"><span data-i18n="prof_lbl"></span><span class="q" data-tipkey="tip_profile">?</span></span><select id="prof_sel"></select><span class="arr">&#9660;</span></div>
+    <div class="qrow srow"><span class="lbl"><span data-i18n="prof_lbl"></span><span class="q" data-tipkey="tip_profile">?</span><span class="lk pfl" id="pf_open" onclick="openProfiles()"></span></span><select id="prof_sel"></select><span class="arr">&#9660;</span></div>
     <div class="qrow srow"><span class="lbl"><span data-i18n="style_lbl"></span><span class="q" data-tipkey="tip_style">?</span></span><select id="style_sel"></select><span class="arr">&#9660;</span></div>
     <div class="qrow srow" id="fgimg_row"><span class="lbl"><span data-i18n="fgimg_lbl"></span><span class="q" data-tipkey="tip_fgm">?</span></span><select id="fgimg_sel"></select><span class="arr">&#9660;</span></div>
     <div class="qrow srow" id="fgvid_row"><span class="lbl"><span data-i18n="fgvid_lbl"></span><span class="q" data-tipkey="tip_fgm">?</span></span><select id="fgvid_sel"></select><span class="arr">&#9660;</span></div>
@@ -1614,7 +1644,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
-  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); }
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles();
@@ -1773,7 +1803,10 @@ function buildSubForm() {
           box_alpha: pt('Прозрачность', 'Transparency'), margin_v: pt('Отступ от края', 'Edge offset'), max_chars: pt('Символов в строке', 'Chars per line'), max_lines: pt('Строк', 'Lines')};
   const fonts = (SUB.fonts || []).map(f => `<option value="${esc(f)}">${esc(f)}</option>`).join('');
   $('sub_form').innerHTML =
-    `<div class="sec2">${pt('Текст', 'Text')}</div>`
+    `<div class="sec2">${pt('Откуда текст', 'Text source')}</div>`
+    + subField(pt('Слова', 'Words'), `<select id="sub_src"><option value="script">${pt('из сценария (без ошибок распознавания)', 'from the script')}</option><option value="asr">${pt('из распознавания речи', 'from speech recognition')}</option></select>`)
+    + `<div class="hint2">${pt('Из сценария — если к ролику есть сценарий: ваши слова и пунктуация, время — по озвучке. Нет сценария (только mp3) — всегда по распознаванию.', 'Script — your exact words, timing from the audio. Without a script — recognition.')}</div>`
+    + `<div class="sec2">${pt('Текст', 'Text')}</div>`
     + subField(SUBL.font, `<select data-k="font">${fonts}</select>`)
     + `<div class="hint2">${pt('Свои шрифты (.ttf, .otf) кладите в папку <b>fonts</b> рядом с KadroGen.exe и откройте это окно заново.', 'Put your own fonts (.ttf, .otf) into the <b>fonts</b> folder next to KadroGen.exe and reopen this window.')}</div>`
     + subRange('size', 20, 140, 'px')
@@ -1843,10 +1876,15 @@ async function openSubs() {
     SUBF = Object.assign({}, SUB.presets[b.dataset.p], {classic: b.dataset.p === 'Как было'});
     fillSubForm(); markPreset(); schedulePreview();
   });
-  buildSubForm(); fillSubForm(); markPreset();
+  buildSubForm(); fillSubForm(); markPreset(); $('sub_src').value = SUB.source || 'script';
+  $('sd_off').textContent = pt('Без субтитров', 'No subtitles');
+  $('sd_off').onclick = () => {
+    $('use_subs').checked = false; mark(); pywebview.api.save_config({subtitles: false});
+    $('sub_dlg').classList.remove('show'); toast(pt('Субтитры выключены. Включить — галочка «Субтитры» или «Сохранить» в этом окне.', 'Subtitles off.'), 5000);
+  };
   $('sd_cancel').onclick = () => $('sub_dlg').classList.remove('show');
   $('sd_save').onclick = async () => {
-    await pywebview.api.sub_style_save(SUBF, !!SUBF.classic);
+    await pywebview.api.sub_style_save(SUBF, !!SUBF.classic, $('sub_src').value);
     if (!$('use_subs').checked) { $('use_subs').checked = true; mark(); pywebview.api.save_config({subtitles: true}); }
     $('sub_dlg').classList.remove('show'); subBtnLabel();
     toast(pt('Вид субтитров сохранён — он будет в следующих роликах.', 'Subtitle style saved for the next videos.'), 4000);
@@ -2000,6 +2038,105 @@ async function openTrans() {
 }
 $('tr_cfg_btn').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openTrans(); });
 trLabel();
+
+// ===== профили: создать, изменить, удалить =====
+let PF = {list: [], cur: null, data: null, dirty: false};
+const PF_TRANS = [['', 'как в общих настройках', 'global setting'], ['classic', 'Как сейчас', 'As now'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum'], ['none', 'Без переходов', 'No transitions']];
+function pfLabel() { const e = $('pf_open'); if (e) e.textContent = pt('изменить ›', 'edit ›'); }
+async function openProfiles() {
+  $('pf_t').textContent = pt('Профили', 'Profiles');
+  $('pf_mlbl').textContent = pt('Мастер-промпт — что отправляется модели для каждой части сценария. Кнопки снизу вставляют подстановки.', 'Master prompt sent to the model for every script part.');
+  $('pf_name').placeholder = pt('Название профиля (например: Доска, Батчи)', 'Profile name');
+  $('pf_del').textContent = pt('Удалить', 'Delete'); $('pf_cancel').textContent = pt('Закрыть', 'Close'); $('pf_save').textContent = pt('Сохранить', 'Save');
+  $('pf_cancel').onclick = () => { if (PF.dirty && !confirm(pt('Изменения не сохранены. Закрыть?', 'Discard changes?'))) return; $('pf_dlg').classList.remove('show'); };
+  $('pf_save').onclick = pfSave; $('pf_del').onclick = pfDelete;
+  PF.list = await pywebview.api.profiles_list();
+  $('pf_dlg').classList.add('show');
+  await pfOpen(profileName && PF.list.includes(profileName) ? profileName : (PF.list[0] || null));
+}
+function pfRenderList() {
+  $('pf_list').innerHTML = PF.list.map(n => `<div class="it${n === PF.cur ? ' on' : ''}" data-n="${esc(n)}" title="${esc(n)}">${esc(n)}</div>`).join('')
+    + `<div class="it new${PF.cur === null ? ' on' : ''}" data-new="1">+ ${pt('Новый профиль', 'New profile')}</div>`;
+  $('pf_list').querySelectorAll('.it').forEach(e => e.onclick = () => {
+    if (PF.dirty && !confirm(pt('Изменения не сохранены. Перейти без сохранения?', 'Discard changes?'))) return;
+    pfOpen(e.dataset.new ? null : e.dataset.n);
+  });
+}
+async function pfOpen(name) {
+  const r = name ? await pywebview.api.profile_read(name) : await pywebview.api.profile_blank();
+  if (!r.ok) { toast(esc(r.error || ''), 6000); return; }
+  PF.cur = name; PF.data = r; PF.dirty = false;
+  $('pf_name').value = r.name || ''; $('pf_master').value = r.master || '';
+  $('pf_del').style.display = name ? '' : 'none';
+  $('pf_note').textContent = r.rules ? pt(`Правил проверки промптов: ${r.rules} (они в profile.json и сохраняются как были)`, `${r.rules} prompt rules kept from profile.json`) : '';
+  pfRenderList(); pfRenderForm(); pfChips();
+}
+function pfRenderForm() {
+  const st = PF.data.settings;
+  const num = (k, label, min, max, step, hint) => `<label>${label}</label><input type="number" data-k="${k}" min="${min}" max="${max}" step="${step || 1}" value="${esc(st[k])}">` + (hint ? `<div class="h">${hint}</div>` : '');
+  const txt = (k, label, ph) => `<label>${label}</label><input type="text" data-k="${k}" value="${esc(st[k] || '')}" placeholder="${esc(ph || '')}" spellcheck="false">`;
+  const sel = (k, label, opts) => `<label>${label}</label><select data-k="${k}">${opts.map(([v, r, e]) => `<option value="${v}"${String(st[k] ?? '') === v ? ' selected' : ''}>${pt(r, e)}</option>`).join('')}</select>`;
+  $('pf_form').innerHTML =
+    `<div class="sec2">${pt('Деление сценария', 'Script split')}</div>`
+    + num('chars_per_part', pt('Символов на часть', 'Chars per part'), 200, 200000, 100, pt('частей = символы сценария ÷ это число', 'parts = script chars ÷ this'))
+    + num('min_parts', pt('Частей не меньше', 'Min parts'), 1, 100)
+    + num('max_parts', pt('Частей не больше', 'Max parts'), 0, 100, 1, pt('0 — без предела', '0 — no limit'))
+    + num('prompts_per_part', pt('Промптов на часть', 'Prompts per part'), 1, 1000)
+    + `<div class="sec2">${pt('Модель для промптов', 'Prompt model')}</div>`
+    + sel('llm', pt('Сервис', 'Service'), [['fastgen', 'fast-gen', 'fast-gen'], ['openai', 'OpenAI (свой ключ)', 'OpenAI (own key)']])
+    + txt('llm_model', pt('Модель', 'Model'), pt('пусто — как в настройках', 'empty — from settings'))
+    + txt('llm_fallback_model', pt('Запасная модель', 'Fallback model'), pt('пусто — не переключать', 'empty — none'))
+    + sel('reasoning_effort', pt('Думать перед ответом', 'Reasoning'), [['', 'нет', 'off'], ['low', 'немного', 'low'], ['medium', 'средне', 'medium'], ['high', 'много', 'high']])
+    + num('temperature', pt('Температура', 'Temperature'), 0, 2, 0.1)
+    + num('parallel', pt('Частей одновременно', 'Parallel parts'), 1, 6, 1, pt('fast-gen: лучше 1 — меньше 429', 'fast-gen: 1 is safest'))
+    + num('attempts', pt('Попыток на часть', 'Attempts'), 1, 6)
+    + `<label>${pt('Сверять SYNC', 'Check SYNC')}</label><input type="checkbox" data-k="check_sync"${st.check_sync ? ' checked' : ''}>`
+    + `<div class="sec2">${pt('Промпты картинок', 'Image prompts')}</div>`
+    + txt('prompt_prefix', pt('Начало каждого', 'Prefix'), '') + txt('prompt_suffix', pt('Конец каждого', 'Suffix'), '')
+    + `<div class="sec2">${pt('Оживление', 'Animation')}</div>`
+    + txt('motion', pt('Движение камеры', 'Camera motion'), 'slow gentle camera movement') + txt('video_suffix', pt('Хвост промпта', 'Prompt suffix'), '')
+    + `<div class="sec2">${pt('Вид ролика', 'Video look')}</div>`
+    + sel('transitions', pt('Переходы', 'Transitions'), PF_TRANS)
+    + `<div class="h">${pt('Если выбрано — у роликов этого профиля всегда эти переходы, что бы ни стояло в «Моушн-дизайн».', 'If set, videos of this profile always use these transitions.')}</div>`;
+  $('pf_form').querySelectorAll('[data-k]').forEach(e => e.addEventListener(e.type === 'checkbox' || e.tagName === 'SELECT' ? 'change' : 'input', () => PF.dirty = true));
+}
+function pfCollect() {
+  const st = {};
+  $('pf_form').querySelectorAll('[data-k]').forEach(e => { st[e.dataset.k] = e.type === 'checkbox' ? e.checked : e.value; });
+  return {name: $('pf_name').value, old_name: PF.cur, master: $('pf_master').value, settings: st};
+}
+async function pfChips() {
+  const m = $('pf_master').value, ph = PF.data.placeholders || {};
+  $('pf_chips').innerHTML = Object.keys(ph).map(k => `<span class="${m.includes(k) ? 'used' : ''}" title="${esc(ph[k])}" data-p="${esc(k)}">${esc(k)}</span>`).join('');
+  $('pf_chips').querySelectorAll('span').forEach(c => c.onclick = () => {
+    const ta = $('pf_master'), a = ta.selectionStart, b = ta.selectionEnd;
+    ta.value = ta.value.slice(0, a) + c.dataset.p + ta.value.slice(b); ta.focus(); ta.selectionStart = ta.selectionEnd = a + c.dataset.p.length;
+    PF.dirty = true; pfChips();
+  });
+  $('pf_warn').textContent = m.trim() && !m.includes('{{PART_TEXT}}') ? pt('Нет {{PART_TEXT}} — модель не получит текст части сценария.', 'No {{PART_TEXT}} — the model gets no script text.') : '';
+}
+$('pf_master').addEventListener('input', () => { PF.dirty = true; clearTimeout(PF.t); PF.t = setTimeout(pfChips, 300); });
+$('pf_name').addEventListener('input', () => PF.dirty = true);
+async function pfSave() {
+  const d = pfCollect();
+  if (PF.cur && d.name.trim() !== PF.cur && !confirm(pt(`Переименовать «${PF.cur}» в «${d.name.trim()}»? Начатые ролики этого профиля продолжатся только под старым именем.`, 'Rename profile?'))) return;
+  const r = await pywebview.api.profile_save(d);
+  if (!r.ok) { toast(esc(r.error || ''), 7000); return; }
+  PF.list = r.profiles; PROFILES = r.profiles;
+  if (PF.cur && PF.cur === profileName && r.name !== PF.cur) profileName = r.name;
+  fillProfiles(); toast(pt(`Профиль «${esc(r.name)}» сохранён`, `Profile “${esc(r.name)}” saved`), 4000);
+  await pfOpen(r.name);
+}
+async function pfDelete() {
+  if (!PF.cur || !confirm(pt(`Удалить профиль «${PF.cur}»? Папка уйдёт в profiles\\_удалённые — оттуда её можно вернуть.`, `Delete “${PF.cur}”?`))) return;
+  const r = await pywebview.api.profile_delete(PF.cur);
+  if (!r.ok) { toast(esc(r.error || ''), 7000); return; }
+  PF.list = r.profiles; PROFILES = r.profiles;
+  if (profileName === PF.cur) { profileName = ''; }
+  fillProfiles(); toast(pt('Профиль удалён', 'Profile deleted'), 4000);
+  PF.dirty = false; await pfOpen(PF.list[0] || null);
+}
+pfLabel();
 </script>
 </body>
 </html>

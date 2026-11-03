@@ -331,6 +331,24 @@ def sub_style_of(cfg):
     return st if isinstance(st, dict) and st and not st.get("classic") else None
 
 
+def subtitle_words(cfg, job_dir, tr, had_script):
+    """Слова для субтитров: текст из сценария со временем из распознавания (если сценарий был и похож на озвучку),
+    иначе распознанные слова. cfg["sub_source"] == "asr" — всегда по распознаванию."""
+    if not had_script or cfg.get("sub_source") == "asr":
+        return tr["words"]
+    try:
+        with open(os.path.join(job_dir, "script.txt"), encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return tr["words"]
+    words = subs_style.align_script(text, tr["words"])
+    if not words:
+        log("субтитры: сценарий не похож на озвучку — беру распознанный текст")
+        return tr["words"]
+    log(f"субтитры: текст из сценария ({len(words)} слов), время — по озвучке")
+    return words
+
+
 def ffmpeg_bin(name="ffmpeg"):
     p = os.path.join(app_dir(), "ffmpeg", name + ".exe")
     return p if os.path.exists(p) else name
@@ -3418,10 +3436,6 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     except (TypeError, ValueError):
         VIDEO_ZOOM = 1.04
     VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
-    motion = apply_trans(cfg, motion)
-    if motion or KB_MODE != "classic":
-        log(f"переходы: {'вперемешку' if TRANS_ORDER == 'random' else 'по кругу'} из {len(TRANSITIONS)} по {TRANSITION} с, движение картинок: {KB_MODE}"
-            if motion else f"переходы выключены, движение картинок: {KB_MODE}")
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:
@@ -3431,6 +3445,23 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     if FASTGEN_QUALITY not in IMAGE_CHAINS:
         FASTGEN_QUALITY = "speed"
     prof = None if prompts_file else load_active_profile(cfg, profile)
+    look = prof
+    if look is None and prompts_file and cfg.get("profile"):
+        try:  # готовые промпты: профиль для текстов не нужен, но вид ролика (переходы) берём из выбранного
+            look = load_active_profile(cfg, cfg.get("profile"))
+        except SystemExit:
+            look = None
+    pt = (look or {}).get("transitions")
+    if isinstance(pt, str):
+        pt = {"preset": pt}
+    if isinstance(pt, dict) and pt.get("preset") in list(TRANS_PRESETS) + ["custom"]:
+        cfg = dict(cfg, transitions=pt)
+        motion = pt.get("preset") != "none"
+        log(f"переходы из профиля «{look['name']}»: {pt.get('preset')}")
+    motion = apply_trans(cfg, motion)
+    if motion or KB_MODE != "classic":
+        log(f"переходы: {'вперемешку' if TRANS_ORDER == 'random' else 'по кругу'} из {len(TRANSITIONS)} по {TRANSITION} с, движение картинок: {KB_MODE}"
+            if motion else f"переходы выключены, движение картинок: {KB_MODE}")
     if prompts_file and not os.path.isfile(prompts_file):
         raise SystemExit(f"Файл готовых промптов не найден: {prompts_file}")
     profiles.BOARD.reset(profiles.READY_NAME if prompts_file else (prof["name"] if prof else None))  # панель частей в окне
@@ -3532,10 +3563,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         # свои субтитры поверх уже вшитых — у тестера текст «двоился»
         os.makedirs(os.path.join(out_dir, "subtitles"), exist_ok=True)
         srt_path = os.path.join(out_dir, "subtitles", base + ".srt")
-        subs.write_srt(tr["words"], srt_path)
+        sub_words = subtitle_words(cfg, job_dir, tr, bool((script_text and script_text.strip()) or (rewrite and rewrite.get("on"))))
+        subs.write_srt(sub_words, srt_path)
         style_cfg = sub_style_of(cfg)
         if style_cfg:
-            subs_style.write_ass(tr["words"], os.path.join(job_dir, "subs.ass"), style_cfg)
+            subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg)
             fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
             subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW)
         else:

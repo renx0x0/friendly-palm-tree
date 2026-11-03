@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p16"
+VERSION = "1.7.1-p17"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -759,7 +759,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "sub_style", "transitions", "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "sub_source", "transitions", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -1807,6 +1807,62 @@ class Api:
             return True
         return False
 
+    # ===== профили: создать, изменить, удалить =====
+    def profiles_list(self):
+        return pipeline.list_profiles()
+
+    def profile_read(self, name):
+        try:
+            r = pipeline.profiles.read_profile_raw(name, pipeline.profile_search_dirs())
+            r.pop("dir", None)
+            r["placeholders"] = pipeline.profiles.PLACEHOLDERS
+            r["defaults"] = {k: pipeline.profiles.DEFAULTS.get(k) for k in pipeline.profiles.EDIT_KEYS}
+            return {"ok": True, **r}
+        except pipeline.profiles.ProfileError as e:
+            return {"ok": False, "error": str(e)}
+
+    def profile_blank(self):
+        """Пустой профиль для «Создать»: настройки по умолчанию."""
+        d = {k: pipeline.profiles.DEFAULTS.get(k) for k in pipeline.profiles.EDIT_KEYS}
+        d["transitions"] = ""
+        return {"ok": True, "name": "", "master": "", "settings": d, "rules": 0, "placeholders": pipeline.profiles.PLACEHOLDERS, "defaults": d}
+
+    def profile_save(self, data):
+        with LOCK:
+            busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
+        old = (data or {}).get("old_name")
+        if busy and old and old != (data or {}).get("name"):
+            return {"ok": False, "error": "Пока делается ролик, профиль нельзя переименовать — его папка занята."}
+        try:
+            name = pipeline.profiles.save_profile_raw(pipeline.profile_search_dirs(), data or {})
+        except (pipeline.profiles.ProfileError, OSError) as e:
+            return {"ok": False, "error": str(e)}
+        cfg = load_cfg()
+        if old and cfg.get("profile") == old and old != name:
+            cfg["profile"] = name
+            save_cfg(cfg)
+        pipeline.log(f"профиль «{name}» сохранён")
+        return {"ok": True, "name": name, "profiles": pipeline.list_profiles(),
+                "check": pipeline.profiles.master_check((data or {}).get("master"))}
+
+    def profile_delete(self, name):
+        with LOCK:
+            busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
+        if busy:
+            return {"ok": False, "error": "Пока делается ролик, профили лучше не удалять — дождитесь конца."}
+        try:
+            pipeline.profiles.delete_profile_raw(name, pipeline.profile_search_dirs())
+        except (pipeline.profiles.ProfileError, OSError) as e:
+            return {"ok": False, "error": str(e)}
+        cfg = load_cfg()
+        if cfg.get("profile") == name:
+            cfg["profile"] = ""
+            save_cfg(cfg)
+        return {"ok": True, "profiles": pipeline.list_profiles()}
+
+    def profile_master_check(self, master):
+        return pipeline.profiles.master_check(master)
+
     # ===== вид субтитров =====
     def sub_style_get(self):
         cfg = load_cfg()
@@ -1814,11 +1870,14 @@ class Api:
         fonts = [f["name"] for f in pipeline.subs_style.list_fonts(pipeline.font_dirs())]
         return {"style": pipeline.subs_style.normalize(st if isinstance(st, dict) else {}), "classic": not pipeline.sub_style_of(cfg),
                 "presets": {k: pipeline.subs_style.normalize(v) for k, v in pipeline.subs_style.PRESETS.items()},
-                "fonts": fonts, "defaults": pipeline.subs_style.DEFAULT}
+                "fonts": fonts, "defaults": pipeline.subs_style.DEFAULT,
+                "source": "asr" if cfg.get("sub_source") == "asr" else "script"}
 
-    def sub_style_save(self, style, classic=False):
+    def sub_style_save(self, style, classic=False, source=None):
         cfg = load_cfg()
         cfg["sub_style"] = {"classic": True} if classic else pipeline.subs_style.normalize(style or {})
+        if source in ("script", "asr"):
+            cfg["sub_source"] = source
         save_cfg(cfg)
         return {"ok": True}
 

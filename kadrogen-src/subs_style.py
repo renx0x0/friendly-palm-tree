@@ -88,6 +88,103 @@ def ass_color(hex_rgb, transparency_pct=0):
     return f"&H{a:02X}{h[4:6]}{h[2:4]}{h[0:2]}".upper()
 
 
+# ---------------------------------------------------------------- текст из сценария
+
+_SERVICE_LINE = re.compile(r"^\W*(SYNC\b|BATCH\b|PART\s*\d|CZ[EĘ]ŚĆ\s*\d|ЧАСТЬ\s*\d|---|===|\*\*\*)", re.I)
+
+
+def _key(word):
+    return "".join(ch for ch in word.lower() if ch.isalnum())
+
+
+def script_tokens(text):
+    """Слова сценария для субтитров: служебные строки (SYNC, «ЧАСТЬ 2», BATCH…) и пометки в [скобках] убираются,
+    знаки препинания остаются при словах. Отдельные «—», «…» приклеиваются к соседнему слову."""
+    toks = []
+    for line in (text or "").splitlines():
+        if _SERVICE_LINE.match(line):
+            continue
+        line = re.sub(r"\[[^\]]*\]", " ", line)
+        for w in line.split():
+            if _key(w):
+                toks.append(w)
+            elif toks:
+                toks[-1] += ("" if w in ",.;:!?…" else " ") + w
+    return toks
+
+
+def align_script(script_text, words, min_share=0.45):
+    """Слова сценария с временем из распознавания: [{"text","start","end"}] или None, если сценарий
+    не похож на озвучку (совпало меньше min_share слов) — тогда субтитры по распознаванию.
+    Совпавшие слова берут время своего распознанного слова; несовпавшие (ослышки, числа словами, пропуски)
+    делят время между соседними совпавшими пропорционально длине."""
+    import difflib
+    toks = script_tokens(script_text)
+    rw = [w for w in words or [] if str(w.get("text", "")).strip()]
+    if not toks or not rw:
+        return None
+    sk = [_key(t) for t in toks]
+    rk = [_key(str(w["text"])) for w in rw]
+    match = [None] * len(toks)  # индекс распознанного слова
+
+    def fill(a0, a1, b0, b1, depth=0):
+        if a0 >= a1 or b0 >= b1:
+            return
+        sm = difflib.SequenceMatcher(None, sk[a0:a1], rk[b0:b1], autojunk=(a1 - a0) > 3000)
+        blocks = [m for m in sm.get_matching_blocks() if m.size]
+        pa, pb = a0, b0
+        for m in blocks:
+            if depth < 2 and (m.a + a0 > pa and m.b + b0 > pb):
+                fill(pa, m.a + a0, pb, m.b + b0, depth + 1)  # дыры между совпадениями — сверяем ещё раз, мельче
+            for k in range(m.size):
+                match[a0 + m.a + k] = b0 + m.b + k
+            pa, pb = a0 + m.a + m.size, b0 + m.b + m.size
+        if depth < 2 and pa < a1 and pb < b1:
+            fill(pa, a1, pb, b1, depth + 1)
+
+    fill(0, len(toks), 0, len(rw))
+    if sum(m is not None for m in match) < min_share * len(toks):
+        return None
+    out = [None] * len(toks)
+    for i, m in enumerate(match):
+        if m is not None:
+            out[i] = {"text": toks[i], "start": float(rw[m]["start"]), "end": float(rw[m]["end"])}
+    i = 0
+    while i < len(toks):
+        if out[i] is not None:
+            i += 1
+            continue
+        j = i
+        while j < len(toks) and out[j] is None:
+            j += 1
+        # дыра toks[i:j]: время от конца предыдущего совпавшего до начала следующего,
+        # если между ними есть распознанные слова — по их границам
+        pm = match[i - 1] if i > 0 else None
+        nm = match[j] if j < len(toks) else None
+        b0 = pm + 1 if pm is not None else 0
+        b1 = nm if nm is not None else len(rw)
+        if b1 > b0:
+            t0, t1 = float(rw[b0]["start"]), float(rw[b1 - 1]["end"])
+        else:
+            t0 = out[i - 1]["end"] if i > 0 else float(rw[0]["start"])
+            t1 = out[j]["start"] if j < len(toks) else t0 + 0.3 * (j - i)
+        if t1 - t0 < 0.08 * (j - i):  # слов больше, чем времени (диктор пропустил) — короткий показ
+            t1 = t0 + 0.08 * (j - i)
+        lens = [max(1, len(_key(t))) for t in toks[i:j]]
+        tot, acc = float(sum(lens)), 0
+        for k in range(i, j):
+            a = t0 + (t1 - t0) * acc / tot
+            acc += lens[k - i]
+            out[k] = {"text": toks[k], "start": a, "end": t0 + (t1 - t0) * acc / tot}
+        i = j
+    for k in range(1, len(out)):  # время только вперёд
+        if out[k]["start"] < out[k - 1]["start"]:
+            out[k]["start"] = out[k - 1]["start"]
+        if out[k]["end"] < out[k]["start"]:
+            out[k]["end"] = out[k]["start"] + 0.05
+    return out
+
+
 # ---------------------------------------------------------------- реплики
 
 def build_cues(words, max_chars=42, max_lines=2, max_sec=6.0, min_sec=0.8, glue_gap=5.0, pause_break=0.7):

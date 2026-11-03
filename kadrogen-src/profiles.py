@@ -223,6 +223,152 @@ def load_profile(name, dirs):
     return prof
 
 
+# ---------------------------------------------------------------- редактор профилей (окно «Профили»)
+
+EDIT_KEYS = ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "llm", "llm_model", "llm_fallback_model",
+             "reasoning_effort", "temperature", "parallel", "attempts", "check_sync", "prompt_prefix", "prompt_suffix",
+             "motion", "video_suffix", "transitions")
+TRASH_DIR = "_удалённые"
+
+
+def check_name(name):
+    """Имя профиля = имя папки. → (имя, ошибка)."""
+    n = " ".join(str(name or "").split())
+    if not n:
+        return n, "Введите название профиля."
+    if len(n) > 60:
+        return n, "Название длиннее 60 символов."
+    if re.search(r'[<>:"/\\|?*\x00-\x1f]', n) or n.startswith((".", "_")) or n.endswith("."):
+        return n, 'В названии нельзя: < > : " / \\ | ? * и точку или _ в начале.'
+    return n, None
+
+
+def find_profile_dir(name, dirs):
+    for d in dirs:
+        p = os.path.join(d, name)
+        if os.path.isfile(os.path.join(p, MASTER_FILE)):
+            return p
+    return None
+
+
+def read_profile_raw(name, dirs):
+    """Профиль для окна: мастер-промпт и настройки (недостающие — по умолчанию)."""
+    pdir = find_profile_dir(name, dirs)
+    if not pdir:
+        raise ProfileError(f"Профиль «{name}» не найден")
+    data = {}
+    sp = os.path.join(pdir, SETTINGS_FILE)
+    if os.path.isfile(sp):
+        try:
+            data = json.loads(_read_text(sp)) or {}
+        except ValueError:
+            data = {}
+    st = {k: data.get(k, DEFAULTS.get(k)) for k in EDIT_KEYS}
+    if st.get("transitions") is None:
+        st["transitions"] = ""
+    elif isinstance(st["transitions"], dict):
+        st["transitions"] = st["transitions"].get("preset", "")
+    rules = data.get("prompt_rules") or []
+    return {"name": name, "master": _read_text(os.path.join(pdir, MASTER_FILE)), "settings": st, "dir": pdir,
+            "rules": len(rules) if isinstance(rules, list) else 0}
+
+
+def _clean_settings(st):
+    out = {}
+    ints = {"chars_per_part": (200, 200000), "min_parts": (1, 100), "max_parts": (0, 100), "prompts_per_part": (1, 1000),
+            "parallel": (1, 6), "attempts": (1, 6)}
+    for k, (lo, hi) in ints.items():
+        if k in st:
+            try:
+                out[k] = max(lo, min(hi, int(float(st[k]))))
+            except (TypeError, ValueError):
+                raise ProfileError(f"«{k}» должно быть числом")
+    if "temperature" in st:
+        try:
+            out["temperature"] = max(0.0, min(2.0, round(float(st["temperature"]), 2)))
+        except (TypeError, ValueError):
+            raise ProfileError("«temperature» должно быть числом")
+    if "llm" in st:
+        out["llm"] = st["llm"] if st["llm"] in ("fastgen", "openai") else "fastgen"
+    if "reasoning_effort" in st:
+        out["reasoning_effort"] = st["reasoning_effort"] if st["reasoning_effort"] in ("", "low", "medium", "high") else ""
+    if "check_sync" in st:
+        out["check_sync"] = bool(st["check_sync"])
+    for k in ("llm_model", "llm_fallback_model", "prompt_prefix", "prompt_suffix", "motion", "video_suffix"):
+        if k in st:
+            out[k] = " ".join(str(st[k] or "").split())
+    if "transitions" in st:
+        t = st["transitions"]
+        out["transitions"] = t if t in ("classic", "soft", "full", "none") else None
+    return out
+
+
+def save_profile_raw(dirs, data):
+    """Создать или изменить профиль. data: {name, old_name?, master, settings{…}}. Ключи profile.json,
+    которых нет в окне (prompt_rules, пояснения «_…»), сохраняются как были."""
+    name, err = check_name(data.get("name"))
+    if err:
+        raise ProfileError(err)
+    master = str(data.get("master") or "").replace("\r\n", "\n").strip()
+    if not master:
+        raise ProfileError("Мастер-промпт пустой — вставьте его.")
+    old = data.get("old_name") or None
+    old_dir = find_profile_dir(old, dirs) if old else None
+    if old and not old_dir:
+        raise ProfileError(f"Профиль «{old}» не найден")
+    target = find_profile_dir(name, dirs)
+    if target and (not old_dir or os.path.normcase(target) != os.path.normcase(old_dir)):
+        raise ProfileError(f"Профиль «{name}» уже есть — выберите другое название.")
+    base = os.path.dirname(old_dir) if old_dir else dirs[0]
+    pdir = os.path.join(base, name)
+    if old_dir and os.path.normcase(old_dir) != os.path.normcase(pdir):
+        os.rename(old_dir, pdir)
+    os.makedirs(pdir, exist_ok=True)
+    sp = os.path.join(pdir, SETTINGS_FILE)
+    cur = {}
+    if os.path.isfile(sp):
+        try:
+            cur = json.loads(_read_text(sp)) or {}
+        except ValueError:
+            cur = {}
+    clean = _clean_settings(data.get("settings") or {})
+    for k, v in clean.items():
+        if v is None:
+            cur.pop(k, None)
+        else:
+            cur[k] = v
+    tmp = sp + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cur, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, sp)
+    mp = os.path.join(pdir, MASTER_FILE)
+    with open(mp + ".tmp", "w", encoding="utf-8") as f:
+        f.write(master + "\n")
+    os.replace(mp + ".tmp", mp)
+    load_profile(name, [base])  # проверка, что профиль читается
+    return name
+
+
+def delete_profile_raw(name, dirs):
+    """Удалить профиль: папка переезжает в profiles/_удалённые (можно вернуть руками)."""
+    pdir = find_profile_dir(name, dirs)
+    if not pdir:
+        raise ProfileError(f"Профиль «{name}» не найден")
+    trash = os.path.join(os.path.dirname(pdir), TRASH_DIR)
+    os.makedirs(trash, exist_ok=True)
+    os.rename(pdir, os.path.join(trash, f"{name} {time.strftime('%Y-%m-%d %H-%M-%S')}"))
+    return True
+
+
+def master_check(master):
+    """Какие подстановки есть в мастер-промпте и чего не хватает."""
+    used = [k for k in PLACEHOLDERS if k in (master or "")]
+    warn = []
+    if "{{PART_TEXT}}" not in (master or ""):
+        warn.append("Нет {{PART_TEXT}} — модель не получит текст части сценария.")
+    return {"used": used, "warn": warn, "all": PLACEHOLDERS}
+
+
 def safe_name(name):
     s = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", name).strip(" .")
     return s[:40] or "profile"
