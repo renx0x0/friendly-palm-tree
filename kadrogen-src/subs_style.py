@@ -30,6 +30,7 @@ DEFAULT = {
     "box": False,             # плашка под текстом вместо обводки
     "box_color": "#000000",
     "box_alpha": 40,          # прозрачность плашки, %
+    "box_radius": 0,          # скругление углов плашки, px; 0 — прямые углы
     "position": "bottom",
     "margin_v": 45,           # отступ от края (низ/верх), px
     "full_width": False,      # на всё видео (узкие поля) или как раньше (широкие поля)
@@ -66,7 +67,7 @@ def normalize(style):
         except (TypeError, ValueError):
             s[k] = DEFAULT[k]
     for k, lo, hi in (("size", 16, 200), ("outline", 0, 20), ("shadow", 0, 20), ("shadow_alpha", 0, 100), ("box_alpha", 0, 100),
-                      ("margin_v", 0, 500), ("max_chars", 10, 90), ("max_lines", 1, 3)):
+                      ("margin_v", 0, 500), ("max_chars", 10, 90), ("max_lines", 1, 3), ("box_radius", 0, 60)):
         num(k, lo, hi)
     for k in ("bold", "upper", "box", "full_width"):
         s[k] = bool(s[k])
@@ -312,11 +313,94 @@ def _cue_text(cue, s):
     return text
 
 
-def ass_document(cues, style):
+_FONT_CACHE = {}
+
+
+def _font_for(s, font_dirs):
+    """Файл шрифта для замера ширины текста (PIL): из папок fonts, иначе системный Arial; нет — None."""
+    key = (s["font"].lower(), s["bold"], tuple(font_dirs or ()))
+    if key in _FONT_CACHE:
+        return _FONT_CACHE[key]
+    path = ""
+    for f in list_fonts(font_dirs or []):
+        if f["file"] and f["name"].lower() == s["font"].lower():
+            path = f["file"]
+            break
+    if not path:
+        win = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
+        for n in (("arialbd.ttf", "arial.ttf") if s["bold"] else ("arial.ttf",)) + ("DejaVuSans-Bold.ttf" if s["bold"] else "DejaVuSans.ttf",):
+            for d in (win, "/usr/share/fonts/truetype/dejavu"):
+                if os.path.isfile(os.path.join(d, n)):
+                    path = os.path.join(d, n)
+                    break
+            if path:
+                break
+    font = None
+    if path:
+        try:
+            from PIL import ImageFont
+            font = ImageFont.truetype(path, 100)
+        except Exception:
+            font = None
+    _FONT_CACHE[key] = font
+    return font
+
+
+def _text_width(font, text, size):
+    """Ширина строки так, как её нарисует libass: у него размер шрифта = высота строки (подъём + спуск)."""
+    if font is None:
+        return len(text) * size * 0.55
+    asc, desc = font.getmetrics()
+    return font.getlength(text) * size / float(asc + desc or 100)
+
+
+def _round_rect(x0, y0, x1, y1, r):
+    """Контур скруглённого прямоугольника для рисования в ASS (\\p1)."""
+    r = max(0.0, min(r, (x1 - x0) / 2, (y1 - y0) / 2))
+    k = r * 0.448  # 1 − 0.552: кривая Безье ≈ четверть окружности
+    f = lambda v: str(int(round(v)))
+    return " ".join([
+        "m", f(x0 + r), f(y0), "l", f(x1 - r), f(y0),
+        "b", f(x1 - k), f(y0), f(x1), f(y0 + k), f(x1), f(y0 + r), "l", f(x1), f(y1 - r),
+        "b", f(x1), f(y1 - k), f(x1 - k), f(y1), f(x1 - r), f(y1), "l", f(x0 + r), f(y1),
+        "b", f(x0 + k), f(y1), f(x0), f(y1 - k), f(x0), f(y1 - r), "l", f(x0), f(y0 + r),
+        "b", f(x0), f(y0 + k), f(x0 + k), f(y0), f(x0 + r), f(y0)])
+
+
+def _box_event(cue, s, font):
+    """Скруглённая плашка под репликой: свой слой 0 под текстом, тот же тайминг, своё появление."""
+    up = (lambda x: x.upper()) if s["upper"] else (lambda x: x)
+    lines = [" ".join(up(str(w["text"]).strip()) for w in line) for line in cue["lines"]]
+    size = s["size"]
+    tw = max(_text_width(font, ln, size) for ln in lines) if lines else 0
+    th = size * len(lines)
+    padx, pady = max(10, size * 0.42), max(4, size * 0.16)
+    align, (x, y) = _anchor(s)
+    if align == 2:
+        y1 = y + pady * 0.6
+        y0 = y1 - th - 2 * pady
+    elif align == 8:
+        y0 = y - pady * 0.6
+        y1 = y0 + th + 2 * pady
+    else:
+        y0, y1 = y - th / 2 - pady, y + th / 2 + pady
+    x0, x1 = x - tw / 2 - padx, x + tw / 2 + padx
+    fade = "\\fad(180,120)" if s["effect"] == "fade" else "\\fad(120,80)" if s["effect"] in ("pop", "slide") else ""
+    shape = _round_rect(x0, y0, x1, y1, s["box_radius"])
+    col = ass_color(s["box_color"])[4:]  # &H00BBGGRR → BBGGRR
+    alpha = int(round(255 * s["box_alpha"] / 100))
+    return (f"Dialogue: 0,{_t(cue['start'])},{_t(cue['end'])},Box,,0,0,0,,"
+            f"{{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H{col}&\\1a&H{alpha:02X}&{fade}\\p1}}{shape}{{\\p0}}")
+
+
+def ass_document(cues, style, font_dirs=None):
     s = normalize(style)
     align, _ = _anchor(s)
     lr = 40 if s["full_width"] else 160
-    if s["box"]:
+    rounded = s["box"] and s["box_radius"] > 0
+    if rounded:  # плашку рисуем сами (скруглённую), текст — без обводки поверх неё
+        border, outline_c, outline, shadow = 1, ass_color(s["box_color"], s["box_alpha"]), 0, 0
+    elif s["box"]:
         border, outline_c, outline, shadow = 3, ass_color(s["box_color"], s["box_alpha"]), max(6, s["size"] // 5), 0
     else:
         border, outline_c, outline, shadow = 1, ass_color(s["outline_color"]), s["outline"], s["shadow"]
@@ -330,18 +414,24 @@ def ass_document(cues, style):
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, "
         "StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
         f"Style: Main,{s['font']},{s['size']},{primary},{secondary},{outline_c},{ass_color(s['shadow_color'], s['shadow_alpha'])},"
-        f"{-1 if s['bold'] else 0},0,0,0,100,100,0,0,{border},{outline},{shadow},{align},{lr},{lr},{s['margin_v']},1\n\n"
-        "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        f"{-1 if s['bold'] else 0},0,0,0,100,100,0,0,{border},{outline},{shadow},{align},{lr},{lr},{s['margin_v']},1\n"
+        + (f"Style: Box,Arial,20,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1\n" if rounded else "")
+        + "\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
-    lines = [f"Dialogue: 0,{_t(c['start'])},{_t(c['end'])},Main,,0,0,0,,{_cue_text(c, s)}" for c in cues]
+    font = _font_for(s, font_dirs) if rounded else None
+    lines = []
+    for c in cues:
+        if rounded:
+            lines.append(_box_event(c, s, font))
+        lines.append(f"Dialogue: 1,{_t(c['start'])},{_t(c['end'])},Main,,0,0,0,,{_cue_text(c, s)}")
     return head + "\n".join(lines) + "\n"
 
 
-def write_ass(words, path, style):
+def write_ass(words, path, style, font_dirs=None):
     s = normalize(style)
     cues = build_cues(words, s["max_chars"], s["max_lines"])
     with open(path, "w", encoding="utf-8-sig") as f:
-        f.write(ass_document(cues, s))
+        f.write(ass_document(cues, s, font_dirs))
     return len(cues)
 
 
@@ -418,30 +508,42 @@ def burn(ffmpeg, src_mp4, ass_name, out_mp4, work_dir, fonts_sub, creationflags=
 SAMPLE = "Пани Барбара боялась операции, но врач сказал: всё будет хорошо"
 
 
-def preview(ffmpeg, style, out_png, work_dir, font_dirs, background=None, text=SAMPLE, creationflags=0):
-    """Один кадр с субтитром — ровно как его нарисует сборка. background — картинка ролика (или серый фон)."""
+def preview(ffmpeg, style, out_path, work_dir, font_dirs, background=None, text=SAMPLE, creationflags=0):
+    """Субтитр ровно как его нарисует сборка. out_path .mp4 — живой ролик в пару секунд (видно появление и караоке),
+    .jpg/.png — один кадр. background — картинка или видео для фона (или серый фон)."""
     s = normalize(style)
     os.makedirs(work_dir, exist_ok=True)
-    words, t = [], 0.0
+    words, t = [], 0.4
     for w in text.split():
         d = 0.18 + len(w) * 0.05
         words.append({"text": w, "start": t, "end": t + d})
         t += d + 0.05
     cues = build_cues(words, s["max_chars"], s["max_lines"], max_sec=60, glue_gap=60, pause_break=60)
-    cue = dict(cues[0], end=t + 1.0)
+    cue = dict(cues[0], end=t + 0.8)
     with open(os.path.join(work_dir, "preview.ass"), "w", encoding="utf-8-sig") as f:
-        f.write(ass_document([cue], s))
+        f.write(ass_document([cue], s, font_dirs))
     sub = prepare_fonts(work_dir, s["font"], font_dirs)
-    at = min(t * 0.65, t - 0.05) if s["effect"] in ("karaoke", "words") else max(0.5, t * 0.5)
-    if background and os.path.isfile(background):
-        src = ["-loop", "1", "-framerate", "25", "-t", f"{t + 1:.2f}", "-i", background]
+    total = t + 1.2
+    video = str(out_path).lower().endswith(".mp4")
+    bg = background if background and os.path.isfile(background) else None
+    if bg and bg.lower().endswith((".mp4", ".mov", ".webm", ".mkv")):
+        src = ["-stream_loop", "-1", "-t", f"{total:.2f}", "-i", bg]
+        vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps=25,"
+    elif bg:
+        src = ["-loop", "1", "-framerate", "25", "-t", f"{total:.2f}", "-i", bg]
         vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
     else:
-        src = ["-f", "lavfi", "-i", f"color=c=0x3a3f47:s={W}x{H}:d={t + 1:.2f}:r=25"]
+        src = ["-f", "lavfi", "-i", f"color=c=0x3a3f47:s={W}x{H}:d={total:.2f}:r=25"]
         vf = ""
-    r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", *src, "-vf", vf + f"subtitles=preview.ass:fontsdir={sub}",
-                        "-ss", f"{at:.2f}", "-frames:v", "1", "-q:v", "3", out_png],
+    vf += f"subtitles=preview.ass:fontsdir={sub}"
+    if video:
+        out = [ "-vf", vf + ",scale=960:540", "-t", f"{total:.2f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+               "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_path]
+    else:
+        at = min(t * 0.65, t - 0.05) if s["effect"] in ("karaoke", "words") else max(0.9, t * 0.5)
+        out = ["-vf", vf, "-ss", f"{at:.2f}", "-frames:v", "1", "-q:v", "3", out_path]
+    r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", *src, *out],
                        cwd=work_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=creationflags)
-    if r.returncode != 0 or not os.path.exists(out_png):
+    if r.returncode != 0 or not os.path.exists(out_path):
         raise RuntimeError("предпросмотр субтитров: " + (r.stderr or "")[-400:])
-    return out_png
+    return out_path

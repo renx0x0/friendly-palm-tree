@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p38"
+VERSION = "1.7.1-p39"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2082,7 +2082,7 @@ class Api:
         except pipeline.profiles.ProfileError:
             return {}
         return {"voice": pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()), "output_dir": st.get("output_dir") or "",
-                "subfolder": bool(st.get("subfolder"))}
+                "subfolder": bool(st.get("subfolder")), "look": st.get("look") or ""}
 
     def pick_folder(self):
         """Выбрать папку (без сохранения в настройки) — для папки выкладки профиля."""
@@ -2113,27 +2113,18 @@ class Api:
         return {"ok": True}
 
     def sub_preview(self, style):
-        """Кадр с субтитром тем же ffmpeg, что и при сборке. Фон — последняя картинка последнего ролика."""
+        """Субтитр тем же ffmpeg, что и при сборке: живой ролик на пару секунд (видно появление, караоке, по словам).
+        Фон — видео или картинка из набора для предпросмотра, иначе кадр последнего ролика."""
         import base64
         work = os.path.join(data_dir(), "jobs", "_subs_preview")
-        out = os.path.join(work, "preview.jpg")
-        bg = None
-        with LOCK:
-            jd = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
-        dirs = [jd] if jd else []
-        root = os.path.join(data_dir(), "jobs")
-        if os.path.isdir(root):
-            dirs += sorted((os.path.join(root, n) for n in os.listdir(root)), key=lambda d: -os.path.getmtime(d))[:5]
-        for d in dirs:
-            imgs = sorted(f for f in os.listdir(os.path.join(d, "images")) if f.endswith(".png")) if d and os.path.isdir(os.path.join(d, "images")) else []
-            if imgs:
-                bg = os.path.join(d, "images", imgs[len(imgs) // 2])
-                break
+        out = os.path.join(work, "preview.mp4")
+        own_vid = self._pv_files(self.PV_VID)
+        bg = own_vid[0] if own_vid else self._preview_images(1)[0]
         try:
             pipeline.subs_style.preview(pipeline.ffmpeg_bin(), style or {}, out, work, pipeline.font_dirs(), background=bg,
                                         creationflags=pipeline.NO_WINDOW)
             with open(out, "rb") as f:
-                return {"ok": True, "img": "data:image/jpeg;base64," + base64.b64encode(f.read()).decode()}
+                return {"ok": True, "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
         except Exception as e:
             return {"ok": False, "error": str(e)[:300]}
 
@@ -2155,8 +2146,94 @@ class Api:
         save_cfg(cfg)
         return {"ok": True, "settings": st}
 
-    def _preview_images(self, n=3):
-        """n картинок подряд из последнего ролика — для предпросмотров. Нет роликов — рисуем пробные."""
+    # ===== шаблоны оформления: эффекты + субтитры + переходы + движение под своим названием =====
+    LOOK_KEYS = ("fx", "sub_style", "sub_source", "subtitles", "transitions", "motion")
+
+    def looks_list(self):
+        cfg = load_cfg()
+        looks = cfg.get("looks") if isinstance(cfg.get("looks"), dict) else {}
+        return {"names": sorted(looks, key=str.lower), "current": cfg.get("look_current") or ""}
+
+    def look_save(self, name):
+        name = " ".join(str(name or "").split())[:60]
+        if not name:
+            return {"ok": False, "error": "Введите название шаблона."}
+        cfg = load_cfg()
+        looks = cfg.get("looks") if isinstance(cfg.get("looks"), dict) else {}
+        looks[name] = {k: cfg.get(k) for k in self.LOOK_KEYS if k in cfg}
+        cfg["looks"], cfg["look_current"] = looks, name
+        save_cfg(cfg)
+        return dict(self.looks_list(), ok=True)
+
+    def look_apply(self, name):
+        cfg = load_cfg()
+        tpl = (cfg.get("looks") or {}).get(name) if isinstance(cfg.get("looks"), dict) else None
+        if not isinstance(tpl, dict):
+            return {"ok": False, "error": f"Шаблона «{name}» нет."}
+        for k in self.LOOK_KEYS:
+            if k in tpl:
+                cfg[k] = tpl[k]
+        cfg["look_current"] = name
+        save_cfg(cfg)
+        return {"ok": True, "fx": pipeline.fx_settings(cfg), "subtitles": bool(cfg.get("subtitles")), "motion": bool(cfg.get("motion"))}
+
+    def look_delete(self, name):
+        cfg = load_cfg()
+        looks = cfg.get("looks") if isinstance(cfg.get("looks"), dict) else {}
+        looks.pop(name, None)
+        cfg["looks"] = looks
+        if cfg.get("look_current") == name:
+            cfg["look_current"] = ""
+        save_cfg(cfg)
+        return dict(self.looks_list(), ok=True)
+
+    # ===== набор для предпросмотра: свои картинки и видео в папке preview — одни и те же во всех окнах =====
+    PV_IMG, PV_VID = (".png", ".jpg", ".jpeg", ".webp"), (".mp4", ".mov", ".webm")
+
+    def _pv_dir(self):
+        return os.path.join(data_dir(), "preview")
+
+    def _pv_files(self, ext):
+        d = self._pv_dir()
+        try:
+            return [os.path.join(d, f) for f in sorted(os.listdir(d)) if f.lower().endswith(ext)]
+        except OSError:
+            return []
+
+    def preview_set_info(self):
+        return {"dir": self._pv_dir(), "images": len(self._pv_files(self.PV_IMG)), "videos": len(self._pv_files(self.PV_VID))}
+
+    def preview_set_open(self):
+        os.makedirs(self._pv_dir(), exist_ok=True)
+        os.startfile(self._pv_dir())
+        return True
+
+    def preview_set_from_last(self):
+        """Набор из последнего ролика: 4 картинки и до 3 оживлённых клипов подряд из середины."""
+        imgs = [p for p in self._preview_images(4, use_set=False) if os.sep + "_trans_preview" + os.sep not in p]
+        vids = self._preview_video(3, use_set=False) or []
+        if not imgs:
+            return {"ok": False, "error": "В последних роликах нет картинок — сначала сделайте хотя бы один ролик."}
+        d = self._pv_dir()
+        os.makedirs(d, exist_ok=True)
+        for f in os.listdir(d):
+            if f.lower().endswith(self.PV_IMG + self.PV_VID):
+                try:
+                    os.remove(os.path.join(d, f))
+                except OSError:
+                    pass
+        for k, p in enumerate(imgs):
+            shutil.copy(p, os.path.join(d, f"кадр{k + 1}{os.path.splitext(p)[1]}"))
+        for k, p in enumerate(vids):
+            shutil.copy(p, os.path.join(d, f"видео{k + 1}.mp4"))
+        return dict(self.preview_set_info(), ok=True)
+
+    def _preview_images(self, n=3, use_set=True):
+        """n картинок для предпросмотров: из набора preview (если там есть картинки), иначе подряд из последнего ролика.
+        Нет ничего — рисуем пробные."""
+        own = self._pv_files(self.PV_IMG) if use_set else []
+        if own:
+            return [own[k % len(own)] for k in range(n)]
         with LOCK:
             jd = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
         root = os.path.join(data_dir(), "jobs")
@@ -2201,8 +2278,12 @@ class Api:
         finally:
             PREVIEW_LOCK.release()
 
-    def _preview_video(self, n=1):
-        """Оживлённые клипы из последних роликов — для предпросмотра переходов на видео-сцены. n>1 — список подряд идущих."""
+    def _preview_video(self, n=1, use_set=True):
+        """Оживлённые клипы для предпросмотра: из набора preview, иначе из последних роликов. n>1 — список подряд идущих."""
+        own = self._pv_files(self.PV_VID) if use_set else []
+        if own:
+            got = [own[k % len(own)] for k in range(n)]
+            return got if n > 1 else got[0]
         with LOCK:
             jd = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
         root = os.path.join(data_dir(), "jobs")
@@ -2561,7 +2642,7 @@ class Api:
         if audio:
             audio = str(audio).strip().strip('"')
             got = pipeline.short_base(os.path.splitext(os.path.basename(audio))[0])
-            if not base.startswith("script_") and got != base:
+            if not base.startswith("script_") and got != pipeline.plain_base(base):
                 return {"ok": False, "error": f"У этого файла другое имя: задание ролика лежит в папке «{base}», а файл «{os.path.basename(audio)}» "
                                               f"начнёт новую папку «{got}». Выберите тот же файл озвучки, что и в прошлый раз."}
             if args.get("script"):

@@ -479,19 +479,80 @@ def short_base(name, keep=32):
     return base[:keep].rstrip("_") + "_" + hashlib.sha1(name.encode("utf-8")).hexdigest()[:6]
 
 
+def audio_fingerprint(path):
+    """Отпечаток файла озвучки: размер + начало и конец. Разные озвучки с одним именем («2.mp3», «основа.mp3») различаются."""
+    try:
+        size = os.path.getsize(path)
+        h = hashlib.sha1(str(size).encode())
+        with open(path, "rb") as f:
+            h.update(f.read(262144))
+            if size > 524288:
+                f.seek(-262144, 2)
+                h.update(f.read(262144))
+        return h.hexdigest()[:16]
+    except OSError:
+        return ""
+
+
+def _legacy_same_audio(d, audio_path):
+    """Папка из версии без отпечатка: та же ли это озвучка? Нет распознавания — считаем той же (ничего не потеряем).
+    Файл новее распознавания или длиннее/короче его — другая озвучка с тем же именем."""
+    tr = os.path.join(d, "transcript.json")
+    if not os.path.exists(tr):
+        return True
+    try:
+        if os.path.getmtime(audio_path) > os.path.getmtime(tr) + 120:
+            return False
+        words = (read_json(tr) or {}).get("words") or []
+        if words:
+            dur = audio_duration(audio_path)
+            last = float(words[-1].get("end") or 0)
+            if last > dur + 1.5 or last < dur * 0.5:
+                return False
+    except Exception:
+        pass
+    return True
+
+
 def job_dir_for(audio_path):
+    """Папка проекта по имени озвучки. Другая озвучка с тем же именем получает свою папку «имя~2» — иначе новый
+    ролик подхватил бы распознавание, сцены и картинки старого."""
     name = os.path.splitext(os.path.basename(audio_path))[0]
-    base = short_base(name)
+    base0 = short_base(name)
     root = os.path.join(data_dir(), "jobs")
-    d = os.path.join(root, base)
+    d = os.path.join(root, base0)
     old = os.path.join(root, re.sub(r"[^\w\-]+", "_", name))
     if old != d and not os.path.exists(d) and os.path.isdir(old):
         try:
             os.rename(old, d)  # задание из старой версии с длинным именем — переносим, чтобы не делать заново
         except OSError:
             pass
+    fp = audio_fingerprint(audio_path) if os.path.isfile(audio_path) else ""
+    for k in range(1, 200):
+        base = base0 if k == 1 else f"{base0}~{k}"
+        d = os.path.join(root, base)
+        if not fp:
+            break
+        mark = os.path.join(d, "source.json")
+        if not os.path.isdir(d):
+            break
+        rec = read_json(mark)
+        if isinstance(rec, dict) and rec.get("fp"):
+            if rec["fp"] == fp:
+                break
+            continue
+        if _legacy_same_audio(d, audio_path):
+            break
+        log(f"озвучка «{os.path.basename(audio_path)}» — другой файл с тем же именем, завожу для неё новую папку")
     os.makedirs(d, exist_ok=True)
+    if fp and not os.path.exists(os.path.join(d, "source.json")):
+        write_json(os.path.join(d, "source.json"), {"fp": fp, "file": os.path.basename(audio_path)})
     return d, base
+
+
+def plain_base(base):
+    """Имя папки без «~2» — для имени готового файла."""
+    return str(base or "").split("~")[0]
 
 
 # ============ шаг 1: транскрипция ============
@@ -2686,8 +2747,12 @@ FX_LAYER_W, FX_LAYER_H = 960, 540   # слой рисуется в полови�
 _FX_LOCK = threading.Lock()
 
 
+FX_OLD_LEVEL = {1: 25, 2: 50, 3: 80}   # p37: «слабо/средне/сильно» → положение ползунка
+
+
 def fx_settings(cfg):
-    """Эффекты из настроек → {вид: {"on", "power" 1..3, "speed" 1..3, "tone"}}; старый формат {"dust": N} тоже понимаем."""
+    """Эффекты из настроек → {вид: {"on", "pw" 0..100, "sp" 0..100, "tone", "fl" (мерцание винтажа)}}.
+    Понимаем и старое: p37 {"power": 1..3, "speed": 1..3}, p36 {"dust": N}."""
     raw = cfg.get("fx") if isinstance(cfg.get("fx"), dict) else {}
     out = {}
     for k in FX_KINDS:
@@ -2696,16 +2761,35 @@ def fx_settings(cfg):
             v = {"on": v > 0, "power": v}
         v = v if isinstance(v, dict) else {}
 
-        def lv(x, d=2):
+        def pct(new, old, d=50):
             try:
-                return max(1, min(3, int(x)))
+                if v.get(new) is not None:
+                    return max(0, min(100, int(round(float(v.get(new))))))
+                if v.get(old) is not None:
+                    return FX_OLD_LEVEL.get(max(1, min(3, int(v.get(old)))), d)
             except (TypeError, ValueError):
-                return d
-        e = {"on": bool(v.get("on")), "power": lv(v.get("power")), "speed": lv(v.get("speed"))}
+                pass
+            return d
+        e = {"on": bool(v.get("on")), "pw": pct("pw", "power"), "sp": pct("sp", "speed")}
         if k == "film":
             e["tone"] = v.get("tone") if v.get("tone") in FX_TONES else "sepia"
+        if k == "vintage":
+            e["fl"] = pct("fl", "_", 20)
         out[k] = e
     return out
+
+
+def _fi(x, pts):
+    """Значение по положению ползунка x (0..100): ломаная через опорные точки [(x, значение), …]."""
+    x = max(0.0, min(100.0, float(x)))
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / ((x1 - x0) or 1)
+    return pts[-1][1]
+
+
+def _fn(x, pts):
+    return int(round(_fi(x, pts)))
 
 
 def fx_on(fx):
@@ -2720,7 +2804,7 @@ def fx_sig(fx):
     for k in FX_KINDS:
         e = fx.get(k) or {}
         if e.get("on"):
-            parts.append(f"{k}{e.get('power')}{e.get('speed')}{e.get('tone', '')}")
+            parts.append(f"{k}{e.get('pw')}/{e.get('sp')}/{e.get('fl', '')}{e.get('tone', '')}")
     return hashlib.md5("|".join(parts).encode()).hexdigest()[:6]
 
 
@@ -2736,9 +2820,9 @@ class _Layer:
         self.lines, self.band, self.pattern, self.left = [], None, None, 0
 
     def _hold(self):
-        sp = max(e["speed"] for k, e in self.fx.items() if k in ("dust", "white", "vintage") and e.get("on")) if any(
-            self.fx[k]["on"] for k in ("dust", "white", "vintage")) else 3
-        return {3: 1, 2: 2, 1: 4}[sp]
+        """Сколько кадров держится один узор: ползунок скорости 0 → 8 кадров, 50 → 2, 80 и выше → каждый кадр."""
+        on = [self.fx[k]["sp"] for k in ("dust", "white", "vintage") if self.fx[k]["on"]]
+        return max(1, _fn(max(on) if on else 100, [(0, 8), (25, 4), (50, 2), (80, 1), (100, 1)]))
 
     def _pattern(self):
         from PIL import Image, ImageDraw, ImageFilter
@@ -2746,36 +2830,53 @@ class _Layer:
         im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
         e = self.fx["dust"]
-        if e["on"]:  # пылинки и комочки (белые и чёрные), «битые пиксели», волосок
-            n = {1: 6, 2: 14, 3: 26}[e["power"]]
-            for _ in range(rng.randint(n // 2, n)):
-                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([0.6, 1, 1, 1.5, 2, 2.5, 3.5])
-                col = (255, 255, 255) if rng.random() < 0.55 else (10, 10, 10)
-                pts = [(x + r * math.cos(t) * rng.uniform(.6, 1.4), y + r * math.sin(t) * rng.uniform(.6, 1.4)) for t in [k * math.pi / 4 for k in range(8)]]
-                d.polygon(pts, fill=col + (rng.randint(140, 235),))
-            for _ in range(rng.randint(0, max(1, n // 6))):
-                x, y, sz = rng.uniform(0, w), rng.uniform(0, h), rng.choice([2, 3, 4, 5])
-                col = rng.choice([(235, 235, 235), (25, 25, 25), (150, 150, 150)])
-                for k in range(rng.randint(1, 4)):
-                    d.rectangle([x + k * sz * rng.choice([0, 1]), y + k * sz * rng.choice([0, 1]), x + (k + 1) * sz, y + (k + 1) * sz],
-                                fill=col + (rng.randint(150, 220),))
-            if rng.random() < 0.10 * e["power"]:
+        if e["on"]:  # пыль: шарики, рваные комочки, обрывки и ворсинки (белые и чёрные); квадратов нет
+            n = _fn(e["pw"], [(0, 2), (25, 6), (50, 14), (80, 26), (100, 38)])
+            for _ in range(rng.randint(max(1, n // 2), max(1, n))):
+                x, y = rng.uniform(0, w), rng.uniform(0, h)
+                col = (255, 255, 255) if rng.random() < 0.55 else (12, 12, 12)
+                a = rng.randint(140, 235)
+                kind = rng.random()
+                if kind < 0.35:  # шарик (чуть овальный)
+                    r = rng.choice([0.8, 1.1, 1.4, 1.8, 2.3, 3.0])
+                    rx, ry = r * rng.uniform(.85, 1.15), r * rng.uniform(.85, 1.15)
+                    d.ellipse([x - rx, y - ry, x + rx, y + ry], fill=col + (a,))
+                elif kind < 0.70:  # рваный комочек: неровный край
+                    r, m = rng.uniform(1.3, 4.5), rng.randint(9, 14)
+                    t0 = rng.uniform(0, 6.3)
+                    pts = [(x + r * math.cos(t0 + q * 2 * math.pi / m) * rng.uniform(.35, 1.5),
+                            y + r * math.sin(t0 + q * 2 * math.pi / m) * rng.uniform(.35, 1.5)) for q in range(m)]
+                    d.polygon(pts, fill=col + (a,))
+                elif kind < 0.88:  # обрывок: короткая кривая чёрточка, иногда с разрывом
+                    ang, ln = rng.uniform(0, 6.3), rng.uniform(3, 11)
+                    seg = rng.choice([1, 1, 2, 3])
+                    for q in range(seg):
+                        t1, t2 = q / seg, (q + 0.55 + 0.4 * rng.random() * (seg == 1)) / seg
+                        d.line([(x + math.cos(ang) * ln * t1, y + math.sin(ang) * ln * t1),
+                                (x + math.cos(ang + rng.uniform(-.4, .4)) * ln * t2, y + math.sin(ang + rng.uniform(-.4, .4)) * ln * t2)],
+                               fill=col + (a,), width=rng.choice([1, 1, 2]))
+                else:  # ворсинка: тонкая и закрученная
+                    self._hair(d, col, 5, 16, alpha=(a - 40, a))
+            if rng.random() < _fi(e["pw"], [(0, 0), (25, .1), (50, .2), (80, .3), (100, .4)]):
                 self._hair(d, (15, 15, 15) if rng.random() < .6 else (240, 240, 240), 8, 28)
         im = im.filter(ImageFilter.GaussianBlur(0.45))
         e = self.fx["white"]
         if e["on"]:  # белый шум: яркие волоски-завитки и белые точки (без размытия — чёткие, как в CapCut)
             d = ImageDraw.Draw(im)
-            for _ in range(rng.randint(*{1: (0, 1), 2: (1, 2), 3: (1, 3)}[e["power"]])):
+            hi = _fn(e["pw"], [(0, 0), (25, 1), (50, 2), (80, 3), (100, 4)])
+            for _ in range(rng.randint(max(0, hi - 1) if hi > 1 else 0, hi)):
                 if rng.random() < 0.85:
                     self._hair(d, (255, 255, 255), 35, 95, alpha=(225, 255), width=2)
-            for _ in range(rng.randint(e["power"], 4 * e["power"])):
-                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([1, 1.3, 1.8, 2.4])
+            lo = _fn(e["pw"], [(0, 0), (25, 1), (50, 2), (80, 3), (100, 4)])
+            for _ in range(rng.randint(lo, 4 * lo)):
+                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([1.3, 1.6, 1.9, 2.4])
                 d.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 255, rng.randint(190, 255)))
         e = self.fx["vintage"]
         if e["on"]:  # винтажный шум: мягкие светлые хлопья
             soft = Image.new("RGBA", (w, h), (0, 0, 0, 0))
             sd = ImageDraw.Draw(soft)
-            for _ in range(rng.randint(*{1: (0, 2), 2: (1, 4), 3: (2, 6)}[e["power"]])):
+            hi = _fn(e["pw"], [(0, 1), (25, 2), (50, 4), (80, 6), (100, 8)])
+            for _ in range(rng.randint(hi // 3, hi)):
                 x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.uniform(3, 11)
                 sd.ellipse([x - r, y - r * rng.uniform(.7, 1.3), x + r, y + r], fill=(255, 250, 240, rng.randint(70, 150)))
             im = Image.alpha_composite(im, soft.filter(ImageFilter.GaussianBlur(3.5)))
@@ -2803,7 +2904,7 @@ class _Layer:
         im = self.pattern.copy()
         e = self.fx["vintage"]
         if e["on"]:  # вертикальные царапины: живут несколько кадров и чуть дрожат
-            if rng.random() < {1: .04, 2: .08, 3: .14}[e["power"]]:
+            if rng.random() < _fi(e["pw"], [(0, .02), (25, .04), (50, .08), (80, .14), (100, .2)]):
                 self.lines.append([rng.uniform(0, FX_LAYER_W), rng.randint(6, 40), rng.choice([(235, 230, 220), (40, 35, 30)]), rng.randint(50, 110)])
             d = ImageDraw.Draw(im)
             for ln in self.lines:
@@ -2813,7 +2914,7 @@ class _Layer:
             self.lines = [ln for ln in self.lines if ln[1] > 0]
         e = self.fx["vhs"]
         if e["on"]:  # полоса трекинга: изредка проезжает сверху вниз
-            if self.band is None and rng.random() < {1: .01, 2: .02, 3: .04}[e["power"]]:
+            if self.band is None and rng.random() < _fi(e["pw"], [(0, .005), (25, .01), (50, .02), (80, .04), (100, .06)]):
                 self.band = [rng.uniform(-20, FX_LAYER_H * 0.5), rng.uniform(4, 9), rng.randint(5, 12)]
             if self.band:
                 y, hh, life = self.band
@@ -2853,6 +2954,12 @@ def fx_layer(fx):
             if p.poll() is None:
                 p.kill()
         os.replace(tmp, path)
+        try:  # каждый сдвиг ползунка — свой слой; храним последние 12
+            old = sorted((os.path.join(d, x) for x in os.listdir(d) if x.startswith("layer_") and x.endswith(".mov")), key=os.path.getmtime)
+            for x in old[:-12]:
+                os.remove(x)
+        except OSError:
+            pass
         log("эффекты: живой слой готов")
         return path
 
@@ -2865,7 +2972,7 @@ def fx_filter(seed=0, fx=None):
     pre = ["format=yuv420p"]
     e = fx["film"]
     if e["on"]:  # цвет старой плёнки
-        m = {1: .35, 2: .6, 3: .85}[e["power"]]
+        m = _fi(e["pw"], [(0, .15), (25, .35), (50, .6), (80, .85), (100, 1.0)])
         if e["tone"] == "sepia":
             S = ((.393, .769, .189), (.349, .686, .168), (.272, .534, .131))
             c = [[(1 - m) * (1 if i == j else 0) + m * S[i][j] for j in range(3)] for i in range(3)]
@@ -2875,23 +2982,24 @@ def fx_filter(seed=0, fx=None):
             pre.append(f"hue=s={1 - m:.2f}")
         else:
             pre.append(f"eq=saturation={1 - 0.45 * m:.2f}:contrast={1 - 0.12 * m:.2f}")
-        lift = 0.025 * e["power"]
+        lift = _fi(e["pw"], [(0, .01), (25, .025), (50, .05), (80, .075), (100, .09)])
         pre.append(f"curves=all='0/{lift:.3f} 1/{1 - lift:.3f}'")
     e = fx["vhs"]
     if e["on"]:  # сдвиг цветов
-        sh = {1: 2, 2: 4, 3: 6}[e["power"]]
+        sh = max(1, _fn(e["pw"], [(0, 1), (25, 2), (50, 4), (80, 6), (100, 8)]))
         pre.append(f"rgbashift=rh=-{sh}:bh={sh}")
     post = []
     e = fx["vintage"]
-    if e["on"]:  # мерцание яркости
-        a = {1: .012, 2: .02, 3: .032}[e["power"]]
-        post.append(f"eq=brightness='{a}*(sin(t*17.3)+sin(t*29.1+1.3))':eval=frame")
+    if e["on"] and e.get("fl", 0) > 0:  # мерцание яркости — свой ползунок; 20 (по умолчанию) втрое тише, чем было
+        a = 0.03 * e["fl"] / 100
+        f = _fi(e["sp"], [(0, .5), (50, 1.0), (100, 1.5)])
+        post.append(f"eq=brightness='{a:.4f}*(sin(t*{11.3 * f:.2f})+0.6*sin(t*{19.7 * f:.2f}+1.3))':eval=frame")
     e = fx["vignette"]
     if e["on"]:
-        post.append(f"vignette=angle={ {1: .45, 2: .6, 3: .78}[e['power']] }")
+        post.append(f"vignette=angle={_fi(e['pw'], [(0, .3), (25, .45), (50, .6), (80, .78), (100, .95)]):.3f}")
     e = fx["vhs"]
     if e["on"]:  # строки развёртки
-        post.append(f"drawgrid=w=iw:h=4:t=1:c=black@{ {1: .05, 2: .09, 3: .14}[e['power']] }")
+        post.append(f"drawgrid=w=iw:h=4:t=1:c=black@{_fi(e['pw'], [(0, .03), (25, .05), (50, .09), (80, .14), (100, .18)]):.3f}")
     inputs, layer = [], fx_layer(fx)
     if layer:
         off = (seed * 0.37) % FX_SECONDS  # у каждого клипа своё место в петле — слой не повторяется на стыках
@@ -3646,13 +3754,13 @@ def list_profiles():
     return profiles.list_profiles(profile_search_dirs())
 
 
-def load_active_profile(cfg, name=None):
+def load_active_profile(cfg, name=None, need_master=True):
     """Профиль по имени; name=None — из настроек (config.json, поле profile). Пусто — без профиля."""
     name = (cfg.get("profile") or "") if name is None else name
     if not name:
         return None
     try:
-        return profiles.load_profile(name, profile_search_dirs())
+        return profiles.load_profile(name, profile_search_dirs(), need_master)
     except profiles.ProfileError as e:
         raise SystemExit(str(e))
 
@@ -4091,7 +4199,7 @@ def finish_video(spec, progress):
         subs.write_srt(sub_words, srt_path)
         style_cfg = spec.get("sub_style")
         if style_cfg:
-            subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg)
+            subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg, font_dirs())
             fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
             subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW, crf=crf_final())
         else:
@@ -4226,7 +4334,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     look_prof = prof
     if look_prof is None and prompts_file and (profile or cfg.get("profile")):
         try:  # готовые промпты: профиль для текстов не нужен, но вид ролика (переходы, движение, папка) берём из выбранного
-            look_prof = load_active_profile(cfg, profile or cfg.get("profile"))
+            look_prof = load_active_profile(cfg, profile or cfg.get("profile"), need_master=False)
         except SystemExit:
             look_prof = None
     pfx = (look_prof or {}).get("fx")
@@ -4235,7 +4343,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     elif isinstance(pfx, dict) and fx_on(fx_settings({"fx": pfx})):
         FX = fx_settings({"fx": pfx})  # эффекты ниши из профиля
     if fx_on(FX):
-        log("эффекты: " + ", ".join(f"{k} {FX[k]['power']}/{FX[k]['speed']}" for k in FX_KINDS if FX[k]["on"]))
+        log("эффекты: " + ", ".join(f"{k} сила {FX[k]['pw']}" + (f" скорость {FX[k]['sp']}" if k in FX_ANIMATED else "") + (f" мерцание {FX[k]['fl']}" if k == "vintage" else "") for k in FX_KINDS if FX[k]["on"]))
     pt = (look or {}).get("transitions") or (look_prof or {}).get("transitions")
     if isinstance(pt, str):
         pt = {"preset": pt}
@@ -4285,6 +4393,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     os.makedirs(out_dir, exist_ok=True)
     if out_name:
         base = named_output(out_dir, out_name, job_dir)
+    elif "~" in base:  # вторая озвучка с тем же именем — файл «имя (2)», а не «имя~2» и не поверх первого
+        base = named_output(out_dir, plain_base(base), job_dir)
     out_mp4 = os.path.join(out_dir, base + ".mp4")
     if os.path.exists(os.path.join(job_dir, "script.txt")):
         shutil.copy(os.path.join(job_dir, "script.txt"), os.path.join(out_dir, base + ".txt"))  # сценарий рядом с видео

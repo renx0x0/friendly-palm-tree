@@ -186,7 +186,8 @@ def _read_text(path):
         return f.read()
 
 
-def load_profile(name, dirs):
+def load_profile(name, dirs, need_master=True):
+    """need_master=False — профиль только для оформления (свои промпты из .txt): мастер-промпт может быть пустым."""
     if not name:
         return None
     for d in dirs:
@@ -206,8 +207,9 @@ def load_profile(name, dirs):
             raise ProfileError(f"Профиль «{name}»: {SETTINGS_FILE} должен быть объектом {{…}}")
         prof.update({k: v for k, v in data.items() if not k.startswith("_")})
     template = _read_text(os.path.join(pdir, MASTER_FILE)).strip()
-    if not template:
-        raise ProfileError(f"Профиль «{name}»: {MASTER_FILE} пустой")
+    if not template and need_master:
+        raise ProfileError(f"У профиля «{name}» нет мастер-промпта — он только для оформления. Подключите свои промпты "
+                           f"из .txt (шаг 01) или впишите мастер-промпт в профиль.")
     for k in ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "number_width", "max_tokens", "parallel", "attempts", "max_bad_prompts"):
         try:
             prof[k] = int(prof[k])
@@ -228,7 +230,7 @@ def load_profile(name, dirs):
 
 EDIT_KEYS = ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "llm", "llm_model", "llm_fallback_model",
              "reasoning_effort", "temperature", "parallel", "attempts", "check_sync", "prompt_prefix", "prompt_suffix",
-             "motion", "auto_motion", "video_suffix", "transitions", "voice", "output_dir", "subfolder", "fx")
+             "motion", "auto_motion", "video_suffix", "transitions", "voice", "output_dir", "subfolder", "fx", "look")
 TRASH_DIR = "_удалённые"
 
 
@@ -312,6 +314,8 @@ def _clean_settings(st):
         out["fx"] = f if isinstance(f, dict) and f else None
     if "subfolder" in st:
         out["subfolder"] = bool(st["subfolder"])
+    if "look" in st:  # шаблон оформления (эффекты, субтитры, переходы) — подставляется при выборе профиля
+        out["look"] = " ".join(str(st.get("look") or "").split())[:60] or None
     if "output_dir" in st:
         od = str(st.get("output_dir") or "").strip().strip('"')
         out["output_dir"] = od or None
@@ -332,9 +336,7 @@ def save_profile_raw(dirs, data):
     name, err = check_name(data.get("name"))
     if err:
         raise ProfileError(err)
-    master = str(data.get("master") or "").replace("\r\n", "\n").strip()
-    if not master:
-        raise ProfileError("Мастер-промпт пустой — вставьте его.")
+    master = str(data.get("master") or "").replace("\r\n", "\n").strip()  # пусто — профиль только для оформления
     old = data.get("old_name") or None
     old_dir = find_profile_dir(old, dirs) if old else None
     if old and not old_dir:
@@ -368,7 +370,7 @@ def save_profile_raw(dirs, data):
     with open(mp + ".tmp", "w", encoding="utf-8") as f:
         f.write(master + "\n")
     os.replace(mp + ".tmp", mp)
-    load_profile(name, [base])  # проверка, что профиль читается
+    load_profile(name, [base], need_master=bool(master))  # проверка, что профиль читается
     return name
 
 
