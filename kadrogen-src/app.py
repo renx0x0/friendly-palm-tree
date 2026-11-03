@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p28"
+VERSION = "1.7.1-p29"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1950,10 +1950,14 @@ class Api:
     def cancel(self):
         global QUEUE_STOP
         QUEUE_STOP = True
-        pipeline.CANCEL.set()
         with LOCK:
-            STATE["message"] = "останавливаю… (дожидаюсь текущих запросов)"
-        return True
+            busy = bool(STATE["running"] or STATE["preparing"] or STATE.get("queue_active"))
+            if busy:
+                STATE["message"] = "останавливаю… (дожидаюсь текущих запросов)"
+        if busy:
+            pipeline.CANCEL.set()
+            pipeline.log("нажат «Стоп»")
+        return {"ok": True, "running": busy}
 
     def open_result(self):
         with LOCK:

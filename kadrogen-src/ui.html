@@ -1325,7 +1325,15 @@ async function start(o) {
   $('result').classList.remove('show'); $('error').textContent = ''; $('btn_again').disabled = true; $('btn_cancel').disabled = false; $('g_title').textContent = t('frames'); shownPct = 0;
   buildStages(mode()); buildFrames(total || 0); go(6); poll();
 }
-async function cancelJob() { $('btn_cancel').disabled = true; await pywebview.api.cancel(); }
+async function cancelJob() {
+  $('btn_cancel').disabled = true; $('btn_cancel').textContent = pt('Останавливаю…', 'Stopping…');
+  let r = null; try { r = await pywebview.api.cancel(); } catch (e) { uiError('stop', e); }
+  if (r && r.running === false) {  // ничего не делается — экран остался от прошлого запуска
+    jobRunning = false; $('btn_cancel').textContent = t('stop'); $('btn_again').disabled = false;
+    toast(pt('Сейчас ничего не делается — останавливать нечего.', 'Nothing is running.'), 5000);
+  } else toast(pt('Останавливаю: дожидаюсь текущих запросов, обычно несколько секунд.', 'Stopping…'), 5000);
+  poll();
+}
 let shownPct = 0, animating = false;
 function animatePct(target) { if (animating) return; animating = true; const step = () => { if (shownPct < target) { shownPct = Math.min(target, shownPct + 1); $('p_pct').textContent = shownPct + '%'; requestAnimationFrame(step); } else animating = false; }; step(); }
 let lastQueueId = null;
@@ -1394,6 +1402,7 @@ async function pollOnce(gen) {
   $('btn_retry').textContent = pt('Повторить', 'Retry');
   $('btn_retry').style.display = !jobRunning && (st.error || st.cancelled) ? '' : 'none';
   if (jobRunning) { $('btn_again').disabled = false; $('btn_again').textContent = pt('Следующий ролик', 'Next video'); }
+  $('btn_cancel').textContent = jobRunning && /останавлива/i.test(st.message || '') ? pt('Останавливаю…', 'Stopping…') : t('stop');
   if (gen !== pollGen) return;
   if (jobRunning) setTimeout(poll, 1400); else { $('btn_again').disabled = false; $('btn_cancel').disabled = true; }
 }
