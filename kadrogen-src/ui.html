@@ -232,7 +232,9 @@
   .review { flex:1; display:grid; grid-template-columns:minmax(300px, 36%) 1fr; gap:22px; min-height:0; }
   .review .panel.rv { display:flex; flex-direction:column; min-height:0; }
   .review textarea { flex:1; min-height:0; font-size:15px; line-height:1.55; }
-  .rvlist { display:flex; flex-direction:column; gap:10px; overflow-y:auto; }
+  .rvlist { display:flex; flex-direction:column; gap:10px; overflow-y:auto; padding-right:14px; }
+  .rvlist .rvc { display:inline-flex; align-items:center; gap:10px; justify-content:flex-end; }
+  .rvlist .rvcfg { padding:5px 10px; font-size:10px; letter-spacing:.14em; }
   .rvlist div { display:grid; grid-template-columns:1fr minmax(220px, 45%); align-items:center; gap:14px; border-bottom:1px solid var(--line); min-height:56px; padding:6px 0; font-size:14px; }
   .rvlist > div { flex-shrink:0; }  /* иначе строка очереди сжимается до 56px и её список налезает на соседние строки */
   .rvlist div span:first-child { color:var(--ink2); font:500 12px/1.4 "Exo 2", sans-serif; letter-spacing:.14em; text-transform:uppercase; }
@@ -1081,8 +1083,9 @@ function renderReview(script) {
   row(t('o_rw'), rwOn() ? (rwSrc === 'youtube' ? F.rwUrl : t('rw_text_src')) + ` · ${F.rwWords} ${t('rv_words')} · ${langName(F.rwLang)}` : t('rv_no'));
   if (queueMode) { const q = queueItems.filter(x => x.status === 'queued'); rows.push(`<div class="qfull"><span>${t('rv_queue')} · ${q.length}</span><div class="qlist">${q.map((x, i) => `<div><span>${i + 1}. ${esc(x.title)}</span><span>${queueStyles && x.style ? esc(styleName(x.style)) + ' · ' : ''}${esc(x.voice || t('q_default'))}</span></div>`).join('')}</div></div>`); }
   row(t('o_tts'), queueMode ? tts : source === 'script' ? `${tts}${F.voice ? ' · ' + F.voice : ''}` : t('rv_no'));
-  row(t('o_motion'), sw('rv_motion', $('use_motion').checked, ['rv_yes', 'rv_no']), true);
-  row(t('o_subs'), sw('rv_subs', $('use_subs').checked, ['rv_yes', 'rv_no']), true);
+  const cfgBtn = fn => `<button type="button" class="ghost rvcfg" onclick="${fn}()">${pt('Вид ›', 'Style ›')}</button>`;
+  row(t('o_motion'), `<span class="rvc">${sw('rv_motion', $('use_motion').checked, ['rv_yes', 'rv_no'])}${cfgBtn('openTrans')}</span>`, true);
+  row(t('o_subs'), `<span class="rvc">${sw('rv_subs', $('use_subs').checked, ['rv_yes', 'rv_no'])}${cfgBtn('openSubs')}</span>`, true);
   row(t('o_hd'), sw('rv_hd', $('use_hd').checked, ['rv_yes', 'rv_no']), true);
   row(t('o_qa'), sw('rv_qa', $('use_qa').checked, ['rv_yes', 'rv_no']), true);
   row(t('o_speed'), sw('rv_speed', $('use_speed').checked, ['rv_yes', 'rv_no']), true);
@@ -2026,17 +2029,23 @@ async function openSubs() {
   $('sd_off').textContent = pt('Без субтитров', 'No subtitles');
   $('sd_off').onclick = () => {
     $('use_subs').checked = false; mark(); pywebview.api.save_config({subtitles: false});
-    $('sub_dlg').classList.remove('show'); toast(pt('Субтитры выключены. Включить — галочка «Субтитры» или «Сохранить» в этом окне.', 'Subtitles off.'), 5000);
+    $('sub_dlg').classList.remove('show'); syncRv(); toast(pt('Субтитры выключены. Включить — галочка «Субтитры» или «Сохранить» в этом окне.', 'Subtitles off.'), 5000);
   };
   $('sd_cancel').onclick = () => $('sub_dlg').classList.remove('show');
   $('sd_save').onclick = async () => {
     await pywebview.api.sub_style_save(SUBF, !!SUBF.classic, $('sub_src').value);
     if (!$('use_subs').checked) { $('use_subs').checked = true; mark(); pywebview.api.save_config({subtitles: true}); }
-    $('sub_dlg').classList.remove('show'); subBtnLabel();
+    $('sub_dlg').classList.remove('show'); subBtnLabel(); syncRv();
     toast(pt('Вид субтитров сохранён — он будет в следующих роликах.', 'Subtitle style saved for the next videos.'), 4000);
   };
   $('sub_dlg').classList.add('show');
   renderSubPreview();
+}
+function syncRv() {  // экран проверки: переключатели следом за окнами «Вид»
+  for (const [rv, use] of [['rv_motion', 'use_motion'], ['rv_subs', 'use_subs']]) {
+    const e = $(rv); if (!e) continue;
+    e.checked = $(use).checked; const b = e.nextElementSibling && e.nextElementSibling.nextElementSibling; if (b) b.textContent = t(e.checked ? 'rv_yes' : 'rv_no');
+  }
 }
 function subBtnLabel() { $('sub_cfg_btn').textContent = pt('Вид ›', 'Style ›'); }
 $('sub_cfg_btn').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openSubs(); });
@@ -2201,7 +2210,7 @@ async function openTrans() {
     await pywebview.api.trans_save(Object.assign({}, TRF));
     const on = TRF.set.length > 0;
     if ($('use_motion').checked !== on) { $('use_motion').checked = on; mark(); pywebview.api.save_config({motion: on}); }
-    $('tr_dlg').classList.remove('show'); $('tr_video').removeAttribute('src');
+    $('tr_dlg').classList.remove('show'); $('tr_video').removeAttribute('src'); syncRv();
     toast(on ? pt('Переходы сохранены и включены.', 'Transitions saved and enabled.') : pt('Сохранено: сцены встык, без переходов.', 'Saved: hard cuts.'), 4000);
   };
   TRK = {video: 'videos', mixed: 'video'}[mode()] || (vf() ? 'video' : 'images');  // по режиму ролика на шаге 02
