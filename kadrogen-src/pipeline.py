@@ -64,7 +64,7 @@ NONSTOP_CHAIN = [("GEM_PIX_2", 2), ("NARWHAL", 1), ("HARBOR_SEAL", 1)]
 # оживление картинки в видео
 VIDEO_CHAIN_FASTGEN = [("flower_video_from_image", 2), ("flow_video_from_keyframes", 1)]
 VIDEO_CREDITS = {"flower_video_from_image": 1, "flow_video_from_keyframes": 1}
-OMNI_SECONDS = (6, 8, 10)  # Omni Flash делает клип ровно 4/6/8/10 с за 1 кредит — для длинных сцен не нужен «замороженный хвост»
+OMNI_SECONDS = (4, 6, 8, 10)  # Omni Flash делает клип ровно 4/6/8/10 с за 1 кредит — для длинных сцен не нужен «замороженный хвост»
 
 
 FG_IMAGE_MODEL = ""  # модель картинок fast-gen, выбранная для ролика ("" — автоматически, цепочкой)
@@ -2514,11 +2514,73 @@ def render_video_clip(src_mp4, duration, out_path):
     z = max(1.0, min(1.3, float(VIDEO_ZOOM or 1)))
     y = {"top": "0", "bottom": "ih-oh"}.get(VIDEO_ANCHOR, "(ih-oh)/2")
     pre = f"crop=iw/{z:.4f}:ih/{z:.4f}:(iw-ow)/2:{y}," if z > 1.0 else ""
-    vf = (f"{pre}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS},"
-          f"tpad=stop_mode=clone:stop_duration={duration + 1:.3f}")
-    run_ffmpeg(["-i", src_mp4, "-vf", vf, "-t", f"{duration:.3f}", "-an",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", tmp])
+    base_vf = f"{pre}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS}"
+    enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+    try:
+        clip_len = audio_duration(src_mp4)
+    except Exception:
+        clip_len = 0.0
+    if clip_len and duration > clip_len + TAIL_MIN:
+        # клип короче сцены: вместо застывшего последнего кадра — плавный наезд на него до конца сцены
+        main, last, tail = out_path + ".main.mp4", out_path + ".last.png", out_path + ".tail.mp4"
+        try:
+            run_ffmpeg(["-i", src_mp4, "-vf", base_vf, "-t", f"{clip_len:.3f}", *enc, main])
+            got = audio_duration(main)
+            run_ffmpeg(["-sseof", "-0.25", "-i", main, "-update", "1", "-q:v", "2", last])
+            render_tail_zoom(last, duration - got, tail)
+            lst = out_path + ".concat.txt"
+            with open(lst, "w", encoding="utf-8") as f:
+                for c in (main, tail):
+                    f.write("file '" + c.replace("\\", "/").replace("'", "'\\''") + "'\n")
+            run_ffmpeg(["-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", tmp])
+            os.replace(tmp, out_path)
+            return out_path
+        except Exception as e:  # не вышло — как раньше: последний кадр держится
+            log(f"клип {os.path.basename(src_mp4)}: наезд в хвосте не сделался ({str(e)[:120]}) — держу последний кадр")
+        finally:
+            for f in (main, last, tail, out_path + ".concat.txt"):
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+    vf = f"{base_vf},tpad=stop_mode=clone:stop_duration={duration + 1:.3f}"
+    run_ffmpeg(["-i", src_mp4, "-vf", vf, "-t", f"{duration:.3f}", *enc, tmp])
     os.replace(tmp, out_path)
+    return out_path
+
+
+TAIL_MIN = 0.3  # хвост короче — просто держим последний кадр (наезд на долю секунды не нужен)
+
+
+def render_tail_zoom(img_path, seconds, out_path):
+    """Хвост сцены после конца клипа: медленный наезд на последний кадр (от 100 % и плавно дальше), без рывка на стыке."""
+    from PIL import Image
+    seconds = max(0.1, float(seconds))
+    frames = max(1, int(round(seconds * FPS)))
+    im = Image.open(img_path).convert("RGB")
+    if im.size != (W, H):
+        im = im.resize((W, H), Image.LANCZOS)
+    big = im.resize((W * 2, H * 2), Image.LANCZOS)
+    BW, BH = big.size
+    zmax = 1.0 + min(0.10, 0.012 * seconds + 0.01)  # ~1,2 % в секунду, не больше 10 %
+    cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+           "-t", f"{seconds:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", out_path]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
+    try:
+        for n in range(frames):
+            if n % 25 == 0:
+                check_cancel()
+            z = 1.0 + (zmax - 1.0) * (n / max(1, frames - 1))
+            ww, wh = BW / z, BH / z
+            x0, y0 = (BW - ww) / 2, (BH - wh) / 2
+            proc.stdin.write(big.transform((W, H), Image.AFFINE, (ww / W, 0, x0, 0, wh / H, y0), resample=Image.BILINEAR).tobytes())
+        proc.stdin.close()
+        err = proc.stderr.read().decode(errors="replace")
+        if proc.wait() != 0:
+            raise RuntimeError(err[:300])
+    finally:
+        if proc.poll() is None:
+            proc.kill()
     return out_path
 
 
