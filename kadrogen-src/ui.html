@@ -618,6 +618,20 @@
   #pfv_dlg .note { color:var(--ink2); font-size:12px; margin:8px 0; }
   #pfv_text { flex:1; overflow:auto; margin:0; padding:12px; white-space:pre-wrap; font:12.5px/1.45 Consolas, monospace; background:var(--bg2); border:1px solid var(--line); color:var(--ink); }
   #pfv_text mark { background:rgba(0,150,230,.22); color:inherit; padding:0 2px; }
+
+  /* ===== очередь: компактный список ===== */
+  .qqlist { max-height:236px; overflow-y:auto; border-top:1px solid var(--line2); }
+  .qitem { border-bottom:1px solid var(--line2); } .qitem.open { background:var(--bg2); }
+  .qline { display:flex; gap:8px; align-items:center; padding:5px 4px; font-size:13px; min-height:34px; box-sizing:border-box; }
+  .qline .qn { color:var(--ink2); min-width:18px; font-variant-numeric:tabular-nums; } .qline .qt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .qline .qvv { color:var(--ink2); font-size:11px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .qline .qs { min-width:96px; text-align:right; color:var(--ink2); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+  .qline .qs.done { color:#2ec27e; } .qline .qs.error, .qline .qs.stopped { color:var(--err); } .qline .qs.running { color:var(--acc2); } .qline .qs.assembling { color:#e8a33a; }
+  .qline .qa { display:flex; gap:4px; min-width:112px; justify-content:flex-end; }
+  button.qi { padding:3px 7px; font-size:12px; letter-spacing:0; min-width:26px; }
+  .qed { display:flex; gap:8px; padding:0 4px 8px 30px; } .qed input { flex:1; min-width:0; padding:6px 8px; font-size:13px; } .qed select { padding:5px 8px; font-size:12px; }
+  .qset { display:flex; flex-wrap:wrap; gap:4px 18px; margin:2px 0 8px; font-size:12px; color:var(--ink2); } .qset .jdc { margin:0; font-size:12px; }
+  .qbox .qh button.qi.on { border-color:var(--acc2); color:var(--acc2); }
 </style>
 </head>
 <body>
@@ -1600,20 +1614,35 @@ function renderAccess() {
 // ===== очередь заданий: несколько сценариев/файлов подряд, у каждого свой голос =====
 let queueItems = [], APP_VERSION = '';
 const QST = () => t('q_st');
+let QOPEN = new Set(), QSET = false;
 function queueHtml() {
-  const rows = queueItems.map((q, i) => `<div class="qrow" data-id="${q.id}"><span class="qn">${i + 1}</span><span class="qt" title="${esc(q.title)}">${esc(q.title)}</span>` +
-    (queueStyles ? `<select class="qst" data-id="${q.id}">${styleOpts(true).map(([v, n]) => `<option value="${v}"${v === (q.style || '') ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : '') +
-    (q.status === 'queued' || q.status === 'error' || q.status === 'stopped' ? `<input type="text" class="qnm" data-id="${q.id}" value="${esc(q.name || '')}" placeholder="${esc(pt('название файла', 'file name'))}" title="${esc(pt('Так будет назван готовый ролик в output', 'Output file name'))}" spellcheck="false" autocomplete="off">` : '') +
-    `<input type="text" class="qv" list="voice_list" data-id="${q.id}" value="${esc(q.voice || '')}" placeholder="${esc(t('q_voice_ph'))}" spellcheck="false" autocomplete="off">` +
-    `<span class="qs ${q.status}">${QST()[q.status] || q.status}</span>` +
-    (q.status === 'error' || q.status === 'stopped' ? `<button class="ghost" onclick="queueOp('retry','${q.id}')">${t('q_retry')}</button>` : '') +
-    (q.status === 'queued' ? `<button class="ghost" onclick="queueOp('move','${q.id}',-1)">↑</button><button class="ghost" onclick="queueOp('move','${q.id}',1)">↓</button>` : '') +
-    (q.status !== 'running' ? `<button class="ghost" onclick="queueOp('remove','${q.id}')">×</button>` : '') + `</div>`).join('');
+  const editable = q => q.status === 'queued' || q.status === 'error' || q.status === 'stopped';
+  const rows = queueItems.map((q, i) => {
+    const open = QOPEN.has(q.id) && editable(q);
+    const acts = (editable(q) ? `<button class="ghost qi" title="${esc(pt('Название и голос', 'Name and voice'))}" onclick="qToggle('${q.id}')">✎</button>` : '')
+      + (q.status === 'error' || q.status === 'stopped' ? `<button class="ghost qi" title="${esc(t('q_retry'))}" onclick="queueOp('retry','${q.id}')">↻</button>` : '')
+      + (q.status === 'queued' ? `<button class="ghost qi" title="${esc(pt('Выше', 'Up'))}" onclick="queueOp('move','${q.id}',-1)">↑</button><button class="ghost qi" title="${esc(pt('Ниже', 'Down'))}" onclick="queueOp('move','${q.id}',1)">↓</button>` : '')
+      + (q.status !== 'running' && q.status !== 'assembling' ? `<button class="ghost qi" title="${esc(pt('Убрать', 'Remove'))}" onclick="queueOp('remove','${q.id}')">×</button>` : '');
+    const ed = open ? `<div class="qed"><input type="text" class="qnm" data-id="${q.id}" value="${esc(q.name || '')}" placeholder="${esc(pt('название файла (необязательно)', 'file name (optional)'))}" spellcheck="false" autocomplete="off">`
+      + `<input type="text" class="qv" list="voice_list" data-id="${q.id}" value="${esc(q.voice || '')}" placeholder="${esc(t('q_voice_ph'))}" spellcheck="false" autocomplete="off">`
+      + (queueStyles ? `<select class="qst" data-id="${q.id}">${styleOpts(true).map(([v, n]) => `<option value="${v}"${v === (q.style || '') ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : '') + `</div>` : '';
+    return `<div class="qitem${open ? ' open' : ''}" data-id="${q.id}"><div class="qline"><span class="qn">${i + 1}</span><span class="qt" title="${esc(q.title)}">${esc(q.title)}</span>`
+      + (q.voice && !open ? `<span class="qvv" title="${esc(pt('голос', 'voice'))}">${esc(q.voice)}</span>` : '')
+      + `<span class="qs ${q.status}">${QST()[q.status] || q.status}</span><span class="qa">${acts}</span></div>${ed}</div>`;
+  }).join('');
+  const cnt = st => queueItems.filter(q => q.status === st).length;
+  const sum = queueItems.length ? [[queueItems.length, ''], [cnt('done'), pt('готово', 'done')], [cnt('running'), pt('идёт', 'running')], [cnt('assembling'), pt('монтируется', 'assembling')],
+    [cnt('queued'), pt('ждут', 'queued')], [cnt('error') + cnt('stopped'), pt('с ошибкой', 'failed')]].filter(([n, w], k) => k === 0 || n).map(([n, w]) => w ? `${w} ${n}` : n).join(' · ') : '';
   const hasDone = queueItems.some(q => q.status === 'done' || q.status === 'error' || q.status === 'stopped');
-  return `<div class="qbox"><div class="qh"><b>${t('q_title')}</b><span class="note">${t('q_note')}</span><button class="ghost" onclick="queueAdd()">${t('q_add')}</button><button class="ghost${queueStyles ? ' on' : ''}" onclick="toggleQueueStyles()">${t(queueStyles ? 'q_styles_on' : 'q_styles')}</button>${hasDone ? `<button class="ghost" onclick="queueOp('clear')">${t('q_clear')}</button>` : ''}</div>`
-    + `<label class="jdc qpar" title="${esc(pt('Как только у ролика готовы все картинки и видео, его монтаж идёт в фоне, а программа сразу берётся за следующий ролик очереди. Выключите, если комп во время монтажа тормозит.', 'Assemble in the background while the next video is generated.'))}"><input type="checkbox" id="q_par"${ASM.parallel ? ' checked' : ''} onchange="ASM.parallel = this.checked; pywebview.api.save_config({parallel_assembly: this.checked})">${pt('монтаж в фоне — следующий ролик начинается, пока монтируется предыдущий', 'assemble in the background while the next one starts')}</label>`
-    + `${rows || `<div class="note">${t('q_empty')}</div>`}</div>`;
+  return `<div class="qbox"><div class="qh"><b>${t('q_title')}</b><span class="note">${queueItems.length ? esc(sum) : t('q_note')}</span>`
+    + `<button class="ghost" onclick="queueAdd()">${t('q_add')}</button>`
+    + (hasDone ? `<button class="ghost" onclick="queueOp('clear')" title="${esc(t('q_clear'))}">${pt('убрать готовые', 'clear done')}</button>` : '')
+    + `<button class="ghost qi${QSET ? ' on' : ''}" title="${esc(pt('Настройки очереди', 'Queue settings'))}" onclick="QSET = !QSET; renderAccess()">⚙</button></div>`
+    + (QSET ? `<div class="qset"><label class="jdc"><input type="checkbox"${queueStyles ? ' checked' : ''} onchange="toggleQueueStyles()">${pt('разный стиль у каждого ролика (выбор — в ✎ у строки)', 'own style per video (in ✎)')}</label>`
+      + `<label class="jdc qpar" title="${esc(pt('Как только у ролика готовы все картинки и видео, его монтаж идёт в фоне, а программа сразу берётся за следующий ролик очереди. Выключите, если комп во время монтажа тормозит.', 'Assemble in the background while the next video is generated.'))}"><input type="checkbox" id="q_par"${ASM.parallel ? ' checked' : ''} onchange="ASM.parallel = this.checked; pywebview.api.save_config({parallel_assembly: this.checked})">${pt('монтаж в фоне — следующий ролик начинается, пока монтируется предыдущий', 'assemble in the background while the next one starts')}</label></div>` : '')
+    + (rows ? `<div class="qqlist">${rows}</div>` : `<div class="note">${t('q_empty')}</div>`) + `</div>`;
 }
+function qToggle(id) { if (QOPEN.has(id)) QOPEN.delete(id); else QOPEN.add(id); renderAccess(); }
 function toggleQueueStyles() { queueStyles = !queueStyles; pywebview.api.save_config({queue_styles: queueStyles}); renderAccess(); }
 function bindQueue() {
   document.querySelectorAll('input.qnm').forEach(el => el.addEventListener('change', async () => {
