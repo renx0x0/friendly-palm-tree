@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p35"
+VERSION = "1.7.1-p36"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -761,7 +761,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "fx", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -1158,6 +1158,7 @@ class Api:
             "profile_manual": bool(cfg.get("profile_manual", False)), "video_zoom_pct": cfg.get("video_zoom_pct", 104), "video_anchor": cfg.get("video_anchor", "top"),
             "video_quality": cfg.get("video_quality") if cfg.get("video_quality") in pipeline.VIDEO_QUALITIES else "high",
             "output_dir": cfg.get("output_dir") or "", "default_output": os.path.join(data_dir(), "output"),
+            "fx_dust": pipeline.fx_settings(cfg)["dust"],
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -1252,6 +1253,11 @@ class Api:
             cfg["tts_voice"] = (data.get("tts_voice") or "").strip()
         if "motion" in data:
             cfg["motion"] = bool(data["motion"])
+        if "fx_dust" in data:
+            try:
+                cfg["fx"] = {"dust": max(0, min(3, int(data["fx_dust"]))), "grain": 0}
+            except (TypeError, ValueError):
+                pass
         if data.get("video_quality") in ("standard", "high", "max"):
             cfg["video_quality"] = data["video_quality"]
         if "parallel_assembly" in data:
@@ -2181,6 +2187,22 @@ class Api:
                 im.save(p)
             out.append(p)
         return out
+
+    def fx_preview(self, dust):
+        """3 секунды кадра вашего ролика с пылью и точками — для окна."""
+        import base64
+        if not PREVIEW_LOCK.acquire(blocking=False):
+            return {"ok": False, "busy": True}
+        try:
+            work = os.path.join(data_dir(), "jobs", "_trans_preview")
+            os.makedirs(work, exist_ok=True)
+            p = pipeline.fx_preview({"dust": dust}, self._preview_images(1)[0], os.path.join(work, "fx_preview.mp4"))
+            with open(p, "rb") as f:
+                return {"ok": True, "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+        finally:
+            PREVIEW_LOCK.release()
 
     def _preview_video(self, n=1):
         """Оживлённые клипы из последних роликов — для предпросмотра переходов на видео-сцены. n>1 — список подряд идущих."""

@@ -2577,6 +2577,7 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
         run_ffmpeg(["-loop", "1", "-framerate", str(FPS), "-i", still, "-t", f"{duration:.3f}", "-r", str(FPS),
                     "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp])
         os.remove(still)
+        apply_fx(tmp, i)
         os.replace(tmp, out_path)
         return out_path
     frames = max(2, int(round(duration * FPS)))
@@ -2602,6 +2603,7 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
     finally:
         if proc.poll() is None:
             proc.kill()
+    apply_fx(tmp, i)
     os.replace(tmp, out_path)
     return out_path
 
@@ -2640,6 +2642,7 @@ def render_video_clip(src_mp4, duration, out_path):
                 for c in (main, tail):
                     f.write("file '" + c.replace("\\", "/").replace("'", "'\\''") + "'\n")
             run_ffmpeg(["-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", tmp])
+            apply_fx(tmp, zlib_seed(out_path))
             os.replace(tmp, out_path)
             return out_path
         except Exception as e:  # не вышло — как раньше: последний кадр держится
@@ -2652,6 +2655,7 @@ def render_video_clip(src_mp4, duration, out_path):
                     pass
     vf = f"{base_vf},tpad=stop_mode=clone:stop_duration={duration + 1:.3f}"
     run_ffmpeg(["-i", src_mp4, "-vf", vf, "-t", f"{duration:.3f}", *enc, tmp])
+    apply_fx(tmp, zlib_seed(out_path))
     os.replace(tmp, out_path)
     return out_path
 
@@ -2668,7 +2672,135 @@ def crf_clip():
 
 
 def crf_final():
-    return VIDEO_QUALITIES.get(VIDEO_QUALITY, VIDEO_QUALITIES["high"])[1]  # хвост короче — просто держим последний кадр (наезд на долю секунды не нужен)
+    return VIDEO_QUALITIES.get(VIDEO_QUALITY, VIDEO_QUALITIES["high"])[1]
+
+
+# ============ эффекты плёнки: пыль/точки (как Noise в CapCut) и зерно ============
+
+FX_DUST = 0    # 0 — нет, 1 — лёгкие, 2 — средние, 3 — сильные
+FX_GRAIN = 0   # 0 — нет, 1..3
+FX_GRAIN_STRENGTH = {1: 5, 2: 9, 3: 14}
+FX_DUST_SECONDS = 4
+_FX_LOCK = threading.Lock()
+
+
+def fx_settings(cfg):
+    f = cfg.get("fx") if isinstance(cfg.get("fx"), dict) else {}
+
+    def lv(k):
+        try:
+            return max(0, min(3, int(f.get(k) or 0)))
+        except (TypeError, ValueError):
+            return 0
+    return {"dust": lv("dust"), "grain": lv("grain")}
+
+
+def zlib_seed(text):
+    return int(hashlib.md5(str(text).encode("utf-8")).hexdigest()[:6], 16)
+
+
+def _dust_frame(rng, level):
+    from PIL import Image, ImageDraw, ImageFilter
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    n = {1: 6, 2: 14, 3: 26}[level]
+    for _ in range(rng.randint(n // 2, n)):  # пылинки и комочки: белые и чёрные
+        x, y = rng.uniform(0, W), rng.uniform(0, H)
+        r = rng.choice([1, 1, 2, 2, 3, 4, 5, 7])
+        col = (255, 255, 255) if rng.random() < 0.55 else (10, 10, 10)
+        pts = [(x + r * math.cos(t) * rng.uniform(.6, 1.4), y + r * math.sin(t) * rng.uniform(.6, 1.4)) for t in [k * math.pi / 4 for k in range(8)]]
+        d.polygon(pts, fill=col + (rng.randint(140, 235),))
+    for _ in range(rng.randint(0, max(1, n // 6))):  # квадратики «битых пикселей»
+        x, y = rng.uniform(0, W), rng.uniform(0, H)
+        sz = rng.choice([4, 6, 8, 10])
+        col = rng.choice([(235, 235, 235), (25, 25, 25), (150, 150, 150)])
+        for k in range(rng.randint(1, 4)):
+            d.rectangle([x + k * sz * rng.choice([0, 1]), y + k * sz * rng.choice([0, 1]), x + (k + 1) * sz, y + (k + 1) * sz],
+                        fill=col + (rng.randint(150, 220),))
+    if rng.random() < 0.10 * level:  # волосок
+        x, y = rng.uniform(0, W), rng.uniform(0, H)
+        ang, ln = rng.uniform(0, math.pi), rng.uniform(15, 55)
+        pts = [(x + math.cos(ang) * ln * t + math.sin(t * 6) * 3, y + math.sin(ang) * ln * t + math.cos(t * 5) * 3) for t in [k / 11 for k in range(12)]]
+        d.line(pts, fill=(15, 15, 15, 200) if rng.random() < .6 else (240, 240, 240, 200), width=2)
+    return im.filter(ImageFilter.GaussianBlur(0.7))
+
+
+def dust_loop(level):
+    """Петля пыли на 4 секунды (прозрачный фон) — рисуется один раз и хранится в data/fx."""
+    import random
+    d = os.path.join(data_dir(), "fx")
+    path = os.path.join(d, f"dust_{level}.mov")
+    with _FX_LOCK:
+        if os.path.exists(path) and os.path.getsize(path) > 1000:
+            return path
+        os.makedirs(d, exist_ok=True)
+        rng = random.Random(7 + level)
+        tmp = path + ".tmp.mov"
+        p = subprocess.Popen([ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{H}", "-r", str(FPS),
+                              "-i", "-", "-c:v", "qtrle", tmp], stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
+        try:
+            for _ in range(FX_DUST_SECONDS * FPS):
+                p.stdin.write(_dust_frame(rng, level).tobytes())
+            p.stdin.close()
+            if p.wait() != 0:
+                raise RuntimeError(p.stderr.read().decode(errors="replace")[:300])
+        finally:
+            if p.poll() is None:
+                p.kill()
+        os.replace(tmp, path)
+        log(f"эффекты: петля пыли уровня {level} готова")
+        return path
+
+
+def fx_filter(seed=0, dust=None, grain=None):
+    """(доп. входы ffmpeg, filter_complex) для пыли и зерна поверх [0:v]; ничего не включено — (None, None)."""
+    dust = FX_DUST if dust is None else dust
+    grain = FX_GRAIN if grain is None else grain
+    if not dust and not grain:
+        return None, None
+    inputs, chain = [], "[0:v]format=yuv420p"
+    if dust:
+        off = (seed * 0.37) % FX_DUST_SECONDS  # у каждого клипа своё место в петле — пыль не повторяется на стыках
+        inputs = ["-stream_loop", "-1", "-ss", f"{off:.2f}", "-i", dust_loop(dust)]
+        chain += "[b];[b][1:v]overlay=shortest=1:format=auto"
+    if grain:
+        chain += f",noise=alls={FX_GRAIN_STRENGTH[grain]}:allf=t"
+    return inputs, chain + ",format=yuv420p[v]"
+
+
+def apply_fx(clip, seed=0):
+    """Пыль и зерно на готовый клип (на месте). Ошибка — клип остаётся без эффекта, ролик не падает."""
+    inputs, fc = fx_filter(seed)
+    if not fc:
+        return clip
+    out = clip + ".fx.mp4"
+    try:
+        run_ffmpeg(["-i", clip, *inputs, "-filter_complex", fc, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "veryfast",
+                    "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", out])
+        os.replace(out, clip)
+    except Exception as e:
+        log(f"эффекты: {os.path.basename(clip)} — {str(e)[:150]}")
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+    return clip  # хвост короче — просто держим последний кадр (наезд на долю секунды не нужен)
+
+
+def fx_preview(fx, image, out_mp4, seconds=3.0):
+    """3 секунды картинки с пылью/зерном — для окна (настройки ролика не трогаем)."""
+    st = fx_settings({"fx": fx or {}})
+    inputs, fc = fx_filter(5, st["dust"], st["grain"])
+    base = ["-loop", "1", "-framerate", str(FPS), "-t", f"{seconds:.2f}", "-i", image]
+    pre = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+    if fc:
+        fc = fc.replace("[0:v]", f"[0:v]{pre}", 1).replace(",format=yuv420p[v]", ",scale=960:540,format=yuv420p[v]")
+        run_ffmpeg(base + inputs + ["-filter_complex", fc, "-map", "[v]", "-t", f"{seconds:.2f}", "-an", "-c:v", "libx264", "-preset", "veryfast",
+                                    "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_mp4])
+    else:
+        run_ffmpeg(base + ["-vf", pre + "scale=960:540", "-t", f"{seconds:.2f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                           "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_mp4])
+    return out_mp4
 
 
 def render_tail_zoom(img_path, seconds, out_path):
@@ -2795,6 +2927,8 @@ def clips_name(motion):
         name += "_" + KB_MODE
     if VIDEO_QUALITY != "standard":
         name += "_q" + VIDEO_QUALITY
+    if FX_DUST or FX_GRAIN:
+        name += f"_fx{FX_DUST}{FX_GRAIN}"
     return name
 
 
@@ -3788,13 +3922,15 @@ ASSEMBLY_DEFERRED = False               # последний make_video отда
 def look_snapshot():
     """Настройки, от которых зависит монтаж: переходы, движение картинок, обрезка клипов Veo."""
     return {"transitions": list(TRANSITIONS), "transition": TRANSITION, "order": TRANS_ORDER, "video_set": list(TRANS_VIDEO),
-            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY}
+            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY, "fx": [FX_DUST, FX_GRAIN]}
 
 
 def apply_look(lk):
     global TRANSITIONS, TRANSITION, TRANS_ORDER, TRANS_VIDEO, KB_MODE, VIDEO_ZOOM, VIDEO_ANCHOR, VIDEO_QUALITY
     lk = lk or {}
     VIDEO_QUALITY = lk.get("quality") if lk.get("quality") in VIDEO_QUALITIES else "high"
+    global FX_DUST, FX_GRAIN
+    FX_DUST, FX_GRAIN = (list(lk.get("fx") or [0, 0]) + [0, 0])[:2]
     TRANSITIONS = list(lk.get("transitions") or TRANS_CLASSIC)
     TRANSITION = float(lk.get("transition") or 0.5)
     TRANS_ORDER = lk.get("order") or "cycle"
@@ -3923,7 +4059,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
     look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
-    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED, VIDEO_QUALITY
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED, VIDEO_QUALITY, FX_DUST, FX_GRAIN
     ASSEMBLY_DEFERRED = False
     HD_IMAGES = bool(hd)
     LAST_FAILURES.update({"images": 0, "videos": 0})
@@ -3939,6 +4075,10 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         VIDEO_ZOOM = 1.04
     VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
     VIDEO_QUALITY = cfg.get("video_quality") if cfg.get("video_quality") in VIDEO_QUALITIES else "high"
+    _fx = fx_settings(cfg)
+    FX_DUST, FX_GRAIN = _fx["dust"], _fx["grain"]
+    if FX_DUST or FX_GRAIN:
+        log(f"эффекты плёнки: пыль {FX_DUST}, зерно {FX_GRAIN}")
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:

@@ -639,6 +639,15 @@
   .qbox .qh button.qi.on { border-color:var(--acc2); color:var(--acc2); }
 
   #vq_row { gap:12px; } #vq_row .vqh { font-size:12px; color:var(--ink2); }
+
+  /* ===== эффект плёнки ===== */
+  #fx_row { gap:12px; } #fx_row button { padding:6px 12px; font-size:11px; letter-spacing:.14em; } #fx_row .vqh { font-size:12px; color:var(--ink2); }
+  #fx_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:center; background:rgba(0,0,0,.6); } #fx_dlg.show { display:grid; }
+  #fx_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:18px 22px; width:min(1000px, calc(100% - 40px)); }
+  #fx_dlg .row1 { display:flex; align-items:center; gap:10px; margin-bottom:10px; } #fx_dlg h3 { margin:0; font:600 16px/1.3 "Exo 2", sans-serif; }
+  #fx_dlg button { padding:8px 14px; font-size:11px; letter-spacing:.16em; } #fx_dlg .note { color:var(--ink2); font-size:12px; margin-top:8px; }
+  .fxpv { position:relative; aspect-ratio:16 / 9; background:#22262c; } .fxpv video { width:100%; height:100%; display:block; }
+  .fxpv .busy { position:absolute; right:10px; top:8px; font-size:11px; letter-spacing:.2em; color:#fff; background:rgba(0,0,0,.55); padding:4px 8px; display:none; } .fxpv.loading .busy { display:block; }
 </style>
 </head>
 <body>
@@ -702,6 +711,8 @@
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
   <div class="note" id="pfv_n"></div><pre id="pfv_text"></pre></div></div>
+<div id="fx_dlg"><div class="box"><div class="row1"><h3 id="fxd_t"></h3><span style="flex:1"></span><button class="primary" id="fxd_x" onclick="$('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src')"></button></div>
+  <div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span></div><div class="note" id="fxd_n"></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -751,6 +762,7 @@
     <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
       <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
     <div class="vfrow" id="vq_row"><span class="lbl" id="vq_lbl"></span><select id="vquality" class="qst"><option value="standard"></option><option value="high"></option><option value="max"></option></select><span class="vqh" id="vq_hint"></span></div>
+    <div class="vfrow" id="fx_row"><span class="lbl" id="fx_lbl"></span><select id="fx_dust" class="qst"><option value="0"></option><option value="1"></option><option value="2"></option><option value="3"></option></select><button type="button" class="ghost" id="fx_pv_btn" onclick="fxPreview()"></button><span class="vqh" id="fx_hint"></span></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
@@ -976,6 +988,21 @@ $('vanchor').addEventListener('change', () => pywebview.api.save_config({video_a
 let OUTDIR = {dir: '', def: '', sub: false};
 async function pickOutDir() { const p = await pywebview.api.pick_output_dir(); if (p) { OUTDIR.dir = p; renderAccess(); toast(pt('Готовые видео будут сохраняться сюда: ', 'Videos will be saved to: ') + esc(p), 5000); } }
 async function clearOutDir() { await pywebview.api.clear_output_dir(); OUTDIR.dir = ''; renderAccess(); }
+function fxLabels() {
+  $('fx_lbl').textContent = pt('Эффект старой плёнки', 'Old film effect');
+  const o = $('fx_dust').options; o[0].textContent = pt('нет', 'off'); o[1].textContent = pt('пыль и точки — лёгкие', 'dust — light'); o[2].textContent = pt('пыль и точки — средние', 'dust — medium'); o[3].textContent = pt('пыль и точки — сильные', 'dust — strong');
+  $('fx_pv_btn').textContent = pt('Предпросмотр', 'Preview');
+  $('fx_hint').textContent = +$('fx_dust').value ? pt('белые и чёрные пылинки, мусор и «битые пиксели» — на каждом кадре новые, весь ролик', 'animated dust on every frame') : '';
+}
+async function fxPreview() {
+  $('fxd_t').textContent = pt('Эффект старой плёнки', 'Old film effect'); $('fxd_x').textContent = pt('Закрыть', 'Close'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');
+  $('fxd_n').textContent = pt('3 секунды кадра вашего последнего ролика. Первый раз дольше: программа один раз рисует петлю пыли.', '3 seconds of your last video frame.');
+  $('fx_dlg').classList.add('show'); $('fxd_v').removeAttribute('src'); document.querySelector('.fxpv').classList.add('loading');
+  const r = await pywebview.api.fx_preview(+$('fx_dust').value);
+  document.querySelector('.fxpv').classList.remove('loading');
+  if (r.ok) { $('fxd_v').src = r.video; $('fxd_v').play().catch(() => {}); } else if (!r.busy) $('fxd_n').textContent = r.error || '';
+}
+$('fx_dust').addEventListener('change', () => { fxLabels(); pywebview.api.save_config({fx_dust: +$('fx_dust').value}); });
 function vqLabels() {
   $('vq_lbl').textContent = pt('Качество готового видео', 'Output video quality');
   const o = $('vquality').options; o[0].textContent = pt('стандарт (как раньше)', 'standard'); o[1].textContent = pt('высокое — битрейт выше', 'high'); o[2].textContent = pt('максимум', 'maximum');
@@ -1555,6 +1582,7 @@ async function loadConfig(keepScreen) {
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
   OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: !!OUTDIR.sub};
+  if ($('fx_dust')) { $('fx_dust').value = String(c.fx_dust || 0); fxLabels(); }
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
@@ -1793,7 +1821,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
-  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); }
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles();
