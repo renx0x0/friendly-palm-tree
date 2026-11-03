@@ -1344,9 +1344,8 @@ class RateGate:
                     self._say(progress, "fast-gen: часовой лимит кредитов исчерпан — жду новый час у сервера"
                                         + (f" (~{left} мин)" if left else "") + ", продолжу автоматически")
                     set_wait("fastgen", self.blocked_until if now < self.blocked_until else None)
-                for _ in range(10):
-                    check_cancel()
-                    time.sleep(1)
+                check_cancel()
+                time.sleep(1)  # раз в секунду: на смене часа проба уходит вовремя, а не с опозданием до 10 с
             else:
                 self._wait_minute(progress, credits)
 
@@ -1381,16 +1380,23 @@ class RateGate:
                     pass
             now = time.time()
             full = self.hour_limit and self.server_used is not None and self.server_used + credits > self.hour_limit
-            if full and self.hour_end(now) > now + 60:
+            in_grace = 0 <= now - getattr(self, "reset_at", 0.0) < self.RESET_GRACE
+            if full and in_grace:  # новый час уже наступил, сервер ещё не обновил — короткая пауза и проба
+                self.blocked_until = now + self.RESET_RETRY
+                self.after_block = True
+            elif full and self.hour_end(now) > now + 60:
                 # сервер подтвердил: кредиты часа выбраны, и сказал, когда начнётся новый час — ждём ровно до него
                 # (окно показывает настоящий обратный отсчёт, а не «минуту» по кругу); потом один пробный запрос
-                self.blocked_until = self.hour_end(now) + 5
+                self.blocked_until = self.hour_end(now) + 2
+                self.reset_at = self.blocked_until
                 self.after_block = True
                 self.busy = False
                 log(f"fast-gen: лимит {self.hour_limit} кредитов/час выбран ({self.server_used}), новый час у сервера через "
                     f"{int((self.blocked_until - now) // 60)} мин — жду до него")
 
     BUSY_WAIT = 20
+    RESET_RETRY = 5        # после смены часа сервер может обновить кредиты не сразу — пробуем каждые 5 секунд
+    RESET_GRACE = 15 * 60  # столько после ожидаемой смены часа повторяем часто, а не ждём следующий час
 
     def hour_end(self, now):
         """Когда у fast-gen начнутся новые кредиты. Час у них по часам (11:00–12:00, 12:00–13:00): берём начало часа
@@ -1411,17 +1417,23 @@ class RateGate:
                 except Exception:
                     pass
             room = self.hour_limit == 0 or (self.server_used is not None and self.server_used < self.hour_limit)
+            reset_at = getattr(self, "reset_at", 0.0)
             if room:
                 self.busy = True
                 until = now + self.BUSY_WAIT
+            elif reset_at and 0 <= now - reset_at < self.RESET_GRACE:
+                self.busy = False  # новый час уже должен был начаться, а сервер ещё не обновил кредиты — стучимся часто
+                until = now + self.RESET_RETRY
             else:
                 self.busy = False
-                until = self.hour_end(now) + 5
-                until = min(max(until, now + 30), now + 3600)
+                until = self.hour_end(now) + 2
+                until = min(max(until, now + 5), now + 3600)
+                self.reset_at = until
                 if self.hour_limit and self.used < self.hour_limit:
                     self.spent.append((now, self.hour_limit - self.used))
-            log(("fast-gen занят (кредиты есть: " + f"{self.server_used}/{self.hour_limit}" + f"), пауза {self.BUSY_WAIT} с") if room
-                else f"fast-gen: лимит {self.hour_limit} кредитов/час выбран, жду новый час у сервера ({int(until - now)} с)")
+            if room or until - now > self.RESET_RETRY:  # частые повторы на смене часа в журнал не пишем
+                log(("fast-gen занят (кредиты есть: " + f"{self.server_used}/{self.hour_limit}" + f"), пауза {self.BUSY_WAIT} с") if room
+                    else f"fast-gen: лимит {self.hour_limit} кредитов/час выбран, жду новый час у сервера ({int(until - now)} с)")
             self.blocked_until = max(self.blocked_until, until) if not room else until
             self.probe = None
             self.after_block = True
