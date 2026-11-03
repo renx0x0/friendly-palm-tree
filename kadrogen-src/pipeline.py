@@ -1381,16 +1381,23 @@ class RateGate:
                     pass
             now = time.time()
             full = self.hour_limit and self.server_used is not None and self.server_used + credits > self.hour_limit
-            if full and self.window_end > now + 60:
+            if full and self.hour_end(now) > now + 60:
                 # сервер подтвердил: кредиты часа выбраны, и сказал, когда начнётся новый час — ждём ровно до него
                 # (окно показывает настоящий обратный отсчёт, а не «минуту» по кругу); потом один пробный запрос
-                self.blocked_until = self.window_end + 5
+                self.blocked_until = self.hour_end(now) + 5
                 self.after_block = True
                 self.busy = False
                 log(f"fast-gen: лимит {self.hour_limit} кредитов/час выбран ({self.server_used}), новый час у сервера через "
-                    f"{int((self.window_end - now) // 60)} мин — жду до него")
+                    f"{int((self.blocked_until - now) // 60)} мин — жду до него")
 
     BUSY_WAIT = 20
+
+    def hour_end(self, now):
+        """Когда у fast-gen начнутся новые кредиты. Час у них по часам (11:00–12:00, 12:00–13:00): берём начало часа
+        от сервера, а если он его не прислал — ближайший ровный час."""
+        if self.window_end > now:
+            return self.window_end
+        return (math.floor(now / 3600) + 1) * 3600
 
     def server_limit_hit(self, progress):
         """Сервер отказал («лимит», «slots full», «too many»…). Сначала спрашиваем у него, сколько потрачено на самом деле:
@@ -1409,7 +1416,7 @@ class RateGate:
                 until = now + self.BUSY_WAIT
             else:
                 self.busy = False
-                until = self.window_end if self.window_end > now else now + self.PROBE_WAIT
+                until = self.hour_end(now) + 5
                 until = min(max(until, now + 30), now + 3600)
                 if self.hour_limit and self.used < self.hour_limit:
                     self.spent.append((now, self.hour_limit - self.used))
