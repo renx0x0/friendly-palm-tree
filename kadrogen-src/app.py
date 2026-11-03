@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p37"
+VERSION = "1.7.1-p38"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2688,8 +2688,8 @@ class Api:
             return {"ok": False, "error": str(e)}
         return {"ok": True}
 
-    def delete_job(self, job_id):
-        """«Удалить ролик»: папка задания целиком. Готовое видео в output не трогается."""
+    def delete_job(self, job_id, with_video=False):
+        """«Удалить проект»: папка задания целиком. with_video — ещё и готовый файл видео (job.json → result)."""
         name = os.path.basename(str(job_id or ""))
         d = os.path.join(data_dir(), "jobs", name)
         if not name or not os.path.isdir(d):
@@ -2700,9 +2700,18 @@ class Api:
             if (STATE["running"] or STATE.get("queue_active")) and STATE.get("job_dir") and \
                     os.path.normcase(STATE["job_dir"]) == os.path.normcase(d):
                 return {"ok": False, "error": "Этот ролик сейчас делается — сначала нажмите «Стоп»."}
-        freed = pipeline.dir_size(d)
+        freed, video_error = pipeline.dir_size(d), None
+        if with_video:
+            res = (pipeline.read_json(os.path.join(d, "job.json"), {}) or {}).get("result")
+            if res and os.path.isfile(res) and res.lower().endswith((".mp4", ".mov", ".mkv")):
+                try:
+                    freed += os.path.getsize(res)
+                    os.remove(res)
+                except OSError:
+                    video_error = "Видео не удалилось — возможно, оно открыто в плеере."
         shutil.rmtree(d, ignore_errors=True)
-        return {"ok": not os.path.isdir(d), "freed_mb": round(freed / 1048576), "error": None if not os.path.isdir(d) else "Не удалось удалить папку (открыта в другой программе?)."}
+        return {"ok": not os.path.isdir(d), "freed_mb": round(freed / 1048576), "video_error": video_error,
+                "error": None if not os.path.isdir(d) else "Не удалось удалить папку (открыта в другой программе?)."}
 
     def storage_info(self):
         out, jobs = os.path.join(data_dir(), "output"), os.path.join(data_dir(), "jobs")

@@ -479,6 +479,11 @@ def fill_template(prof, part_no, parts_total, part_text):
 
 _NUM = re.compile(r"^\s*(?:\*\*)?\s*(\d{1,4})\s*[.)]\s*(?:\*\*)?\s*(.*)$")
 _SYNC = re.compile(r"^\W*SYNC\b\W*(.*)$", re.I)
+# служебные строки чата между пачками: «Batch 1 of 6 complete…», «BATCH 2 OF 6 — PROMPTS 051–100», «Продолжай», «Часть 2»
+_CHAT_NOISE = re.compile(r"^\W*(?:batch|батч|пачка|part|часть)\s*(?:№\s*)?\d+\b"
+                         r"|\b(?:batch|пачка|батч)\s+\d+\s*(?:of|/|из)\s*\d+"
+                         r"|^\W*(?:prompts?|промпты?)\s+\d+\s*[-–—]\s*\d+", re.I)
+_CHAT_SHORT = re.compile(r"^\W*(?:продолж|continue|go on|дальше|next)\w*\W*$", re.I)
 
 
 def parse_reply(text):
@@ -1065,6 +1070,8 @@ def parse_blocks(text):
         if m and m.group(2).strip():
             cur_prompt = [int(m.group(1)), m.group(2).strip()]
             cur.append(cur_prompt)
+        elif s and (_CHAT_NOISE.search(s) or _CHAT_SHORT.match(s)):
+            cur_prompt = None  # служебная строка чата («Batch 1 of 6 complete», «Продолжай») — не часть промпта
         elif not s:
             cur_prompt = None  # пустая строка заканчивает промпт: служебные строки чата между пачками пропускаются
         elif cur_prompt is not None:
