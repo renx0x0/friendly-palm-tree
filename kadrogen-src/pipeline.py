@@ -844,6 +844,75 @@ STYLE_SYSTEM = """Ты арт-директор видеоролика. По те
 Если в тексте один хозяин — это один конкретный человек, укажи его пол и внешность один раз и навсегда.
 В props — только предметы, которые важны для истории и появляются больше одного раза (часы, письмо, скворечник, нож, машина). Не больше 6."""
 
+MOTION_RULES = """КАК ПИСАТЬ ДВИЖЕНИЕ ДЛЯ ОЖИВЛЕНИЯ КАДРА (видео 4-10 секунд из готовой картинки):
+- По-английски, 20-40 слов, три части по порядку: (1) ОДНО движение камеры, (2) ОДНО главное движение того, что в кадре,
+  (3) лёгкая «жизнь» фона — то, что естественно шевелится в этой сцене.
+- Всё медленное и плавное: slow, gentle, subtle. Никаких рывков, быстрых облётов, смены плана, склеек, зума через весь кадр.
+- Только то, что уже есть на картинке: не добавлять людей, животных, предметы, текст, не менять лица, одежду, цвета, свет.
+- Движение должно подходить содержанию:
+  растения, сад, огород — slow push-in, leaves and petals sway softly in a light breeze;
+  руки за работой — hands continue the action naturally (pressing soil, pouring, cutting), steady close camera;
+  люди говорят или думают — static or very slow push-in, subtle breathing, small natural gestures, blinking;
+  пейзаж, улица, природа — slow pan or slow aerial drift, clouds drift, water ripples, grass moves;
+  интерьер, предметы, еда — slow dolly or parallax, steam rises, light flickers softly, dust in the light;
+  животные — small natural movements (ears twitch, tail sways, head turns slightly);
+  рисунок, схема, иллюстрация, мел на доске — camera only (slow push-in or gentle pan), the drawing itself stays still;
+  драматичный или грустный момент — slow push-in toward the main subject, almost static otherwise.
+- Не двигай камеру резко в спокойных сценах; если в кадре много деталей — камера почти неподвижна, двигается сцена.
+Пример: "Slow push-in toward the clay pot. The gardener's fingers press the soil gently around the seedling.
+Small leaves tremble in a soft breeze, warm morning light shifts slightly." """
+
+MOTION_SYSTEM = MOTION_RULES + """
+Тебе дают промпты картинок кадров видеоролика. К каждому напиши движение для оживления по этим правилам.
+{guidance}Ответ строго JSON: {{"motions": [{{"n": <номер кадра>, "motion": "<движение>"}}, ...]}} — ровно по одному на каждый кадр из списка."""
+
+
+def write_motions(llm, scenes, job_dir, progress, guidance="", batch=40):
+    """Своё движение для каждого оживляемого кадра (профили и готовые промпты): модель читает промпт кадра
+    и пишет движение камеры и сцены по MOTION_RULES. Кэш — motions.json (по тексту промпта и правилам)."""
+    path = os.path.join(job_dir, "motions.json")
+    cache = read_json(path, {}) or {}
+    g = " ".join(str(guidance or "").split())
+    key = lambda sc: hashlib.sha1(((sc.get("raw_prompt") or sc.get("prompt") or "") + "|" + g).encode("utf-8")).hexdigest()[:16]
+    todo = [sc for sc in scenes if key(sc) not in cache]
+    if todo:
+        progress("prompts", 0, len(todo), f"пишу движение для оживления: {len(todo)} кадров")
+        system = MOTION_SYSTEM.format(guidance=(f"Правила этого канала от пользователя (важнее общих): {g}\n" if g else ""))
+        done = 0
+        for i in range(0, len(todo), batch):
+            chunk = todo[i:i + batch]
+            listing = "\n".join(f"{sc['index'] + 1}. {(sc.get('raw_prompt') or sc.get('prompt') or '')[:900]}" for sc in chunk)
+            try:
+                resp = llm.chat_json(system, "Кадры:\n" + listing, max_tokens=90 * len(chunk) + 400)
+            except Cancelled:
+                raise
+            except Exception as e:  # не вышло — у этих кадров останется движение по умолчанию
+                log(f"движение для оживления: не написалось ({str(e)[:150]}) — оставляю общее")
+                continue
+            got = {}
+            for m in (resp or {}).get("motions") or []:
+                try:
+                    got[int(m.get("n"))] = " ".join(str(m.get("motion") or "").split())[:400]
+                except (TypeError, ValueError, AttributeError):
+                    pass
+            for sc in chunk:
+                mo = got.get(sc["index"] + 1)
+                if mo and len(mo.split()) >= 5:
+                    cache[key(sc)] = mo
+            done += len(chunk)
+            write_json(path, cache)
+            progress("prompts", done, len(todo), f"движение для оживления: {done} из {len(todo)}")
+    n = 0
+    for sc in scenes:
+        mo = cache.get(key(sc))
+        if mo:
+            sc["motion"] = mo
+            n += 1
+    if n:
+        log(f"движение для оживления: своё у {n} из {len(scenes)} кадров")
+    return n
+
+
 SCENES_SYSTEM = """Ты режиссёр и оператор: пишешь раскадровку для генерации кадров видеоролика.
 Тебе дана библия (стиль, персонажи, места, предметы) и список сцен (номер, длительность, текст озвучки).
 Для КАЖДОЙ сцены опиши кадр. Главные правила:
@@ -879,8 +948,10 @@ SCENES_SYSTEM = """Ты режиссёр и оператор: пишешь ра�
   "lens": 24|35|50|85, "camera": "static|push-in|pull-out|pan-left|pan-right|track", "light": "2-5 слов на английском",
   "time": "dawn|morning|day|sunset|night|indoor", "mood": "одно слово на английском",
   "gaze": "цель взгляда на английском", "positions": {"LatinName": "left|right"},
-  "prompt": "<содержание кадра>", "motion": "<одно предложение на английском, как сцена движется в видео, без резких движений>"}
-]} — ровно по одному элементу на каждую сцену."""
+  "prompt": "<содержание кадра>", "motion": "<движение для оживления на английском, 20-40 слов, по правилам ниже>"}
+]} — ровно по одному элементу на каждую сцену.
+
+""" + MOTION_RULES
 
 NO_TEXT = ("Absolutely no text, letters, words, numbers, signs, logos, captions, subtitles or watermarks anywhere in the image. "
            "Any paper, letter, document, book, screen or sign in the frame is blank, blurred, turned away or out of focus, "
@@ -970,6 +1041,10 @@ def upload_copy(path, limit=UPLOAD_LIMIT):
 VIDEO_PROMPT = ""  # свой промпт оживления из окна (для всех кадров ролика); пусто — собирается автоматически
 
 
+def _motion_of(scene):
+    return (scene.get("motion") or "slow gentle camera movement").strip().rstrip(".") + "."
+
+
 def video_prompt(scene):
     """Промпт оживления: движение + содержание + стиль + запрет текста.
     Кадр профиля (exact): движение + промпт как есть + свой хвост из профиля, без стиля и запрета текста.
@@ -978,9 +1053,9 @@ def video_prompt(scene):
         frame = scene.get("raw_prompt") or scene.get("prompt") or ""
         return VIDEO_PROMPT.replace("{кадр}", frame).replace("{frame}", frame).strip()
     if scene.get("exact"):
-        return " ".join(x for x in (scene.get("motion", "slow gentle camera movement") + ".", scene.get("prompt") or scene.get("raw_prompt", ""),
+        return " ".join(x for x in (_motion_of(scene), scene.get("prompt") or scene.get("raw_prompt", ""),
                                     scene.get("video_suffix", "")) if x)
-    return f"{scene.get('motion', 'slow gentle camera movement')}. {scene.get('raw_prompt', '')} {scene.get('style_line', '')} {NO_TEXT}"
+    return f"{_motion_of(scene)} {scene.get('raw_prompt', '')} {scene.get('style_line', '')} {NO_TEXT}"
 
 
 def compose_prompt(prompt, names, chars, use_refs, scene=None, props=None, locs=None, anchors=None, style_line=""):
@@ -3937,6 +4012,14 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             refs = ref_fut.result()
             ref_pool.shutdown(wait=True)
         apply_edits(scenes, job_dir)
+        anim_now = animated_scenes(scenes, mode, video_first) if (mode in ("video", "mixed") or video_first) else []
+        anim_now = [sc for sc in anim_now if not os.path.exists(os.path.join(job_dir, "videos", f"{sc['index']:04d}.mp4"))]
+        motion_prof = prof or look_prof
+        if anim_now and not VIDEO_PROMPT and (prof or prompts_file) and (motion_prof or {}).get("auto_motion", True):
+            guide = (motion_prof or {}).get("motion") if motion_prof else ""
+            if guide == profiles.DEFAULTS.get("motion"):
+                guide = ""
+            write_motions(llm, anim_now, job_dir, progress, guide)
         drop_failed_images(scenes, job_dir)
         pre = Prerender(scenes, os.path.join(job_dir, "images"), job_dir, mode, motion, video_first)
         overlap = VideoOverlap(ctx, scenes, job_dir, progress, mode, video_first) if (mode in ("video", "mixed") or video_first) else None

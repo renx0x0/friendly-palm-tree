@@ -2150,7 +2150,11 @@ function pfRenderForm() {
     + `<div class="sec2">${pt('Промпты картинок', 'Image prompts')}</div>`
     + txt('prompt_prefix', pt('Начало каждого', 'Prefix'), '') + txt('prompt_suffix', pt('Конец каждого', 'Suffix'), '')
     + `<div class="sec2">${pt('Оживление', 'Animation')}</div>`
-    + txt('motion', pt('Движение камеры', 'Camera motion'), 'slow gentle camera movement') + txt('video_suffix', pt('Хвост промпта', 'Prompt suffix'), '')
+    + `<label>${pt('Движение под кадр', 'Per-frame motion')}</label><input type="checkbox" data-k="auto_motion"${st.auto_motion !== false ? ' checked' : ''}>`
+    + `<div class="h">${pt('Модель читает промпт каждого оживляемого кадра и пишет движение под него: растения — лёгкое покачивание и наезд, руки — продолжают работу, люди — дыхание и жесты. Выключено — у всех кадров одно движение из поля ниже.', 'The model writes motion for each animated frame from its prompt.')}</div>`
+    + txt('motion', pt('Пожелания к движению', 'Motion wishes'), 'slow gentle camera movement')
+    + `<div class="h">${pt('С «движением под кадр» — правила канала для модели (например: рисунок мелом не двигается, только камера). Без него — движение для всех кадров.', 'With per-frame motion — channel rules for the model; without — one motion for all frames.')}</div>`
+    + txt('video_suffix', pt('Хвост промпта', 'Prompt suffix'), '')
     + `<div class="sec2">${pt('Озвучка', 'Voice-over')}</div>`
     + `<label>${pt('Сервис', 'Service')}</label><select data-kv="service">${[['', 'как в настройках', 'as in settings']].concat(Object.entries(TTS_NAMES).map(([k, v]) => [k, v, v])).map(([v, r, e]) => `<option value="${v}"${((st.voice || {}).service || '') === v ? ' selected' : ''}>${pt(r, e)}</option>`).join('')}</select>`
     + `<label>${pt('ID голоса', 'Voice ID')}</label><input type="text" data-kv="voice_id" value="${esc((st.voice || {}).voice_id || '')}" placeholder="${pt('пусто — голос сервиса по умолчанию', 'empty — default voice')}" spellcheck="false">`

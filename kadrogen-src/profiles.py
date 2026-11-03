@@ -54,7 +54,8 @@ DEFAULTS = {
     "prompt_prefix": "",        # дописать в начало каждого промпта картинки
     "prompt_suffix": "",        # дописать в конец каждого промпта картинки
     "video_suffix": "",         # дописать в конец промпта оживления
-    "motion": "slow gentle camera movement",  # движение для оживления кадра
+    "motion": "slow gentle camera movement",  # движение для оживления кадра (при auto_motion — правила для модели)
+    "auto_motion": True,        # модель пишет движение под каждый кадр по его промпту (motion — пожелания канала)
     "voice": {},                # шаблон озвучки (следующий шаг)
 }
 
@@ -227,7 +228,7 @@ def load_profile(name, dirs):
 
 EDIT_KEYS = ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "llm", "llm_model", "llm_fallback_model",
              "reasoning_effort", "temperature", "parallel", "attempts", "check_sync", "prompt_prefix", "prompt_suffix",
-             "motion", "video_suffix", "transitions", "voice")
+             "motion", "auto_motion", "video_suffix", "transitions", "voice")
 TRASH_DIR = "_удалённые"
 
 
@@ -296,6 +297,8 @@ def _clean_settings(st):
         out["reasoning_effort"] = st["reasoning_effort"] if st["reasoning_effort"] in ("", "low", "medium", "high") else ""
     if "check_sync" in st:
         out["check_sync"] = bool(st["check_sync"])
+    if "auto_motion" in st:
+        out["auto_motion"] = bool(st["auto_motion"])
     for k in ("llm_model", "llm_fallback_model", "prompt_prefix", "prompt_suffix", "motion", "video_suffix"):
         if k in st:
             out[k] = " ".join(str(st[k] or "").split())
