@@ -625,6 +625,7 @@
   .qline { display:flex; gap:8px; align-items:center; padding:5px 4px; font-size:13px; min-height:34px; box-sizing:border-box; }
   .qline .qn { color:var(--ink2); min-width:18px; font-variant-numeric:tabular-nums; } .qline .qt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .qline .qvv { color:var(--ink2); font-size:11px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .qline .qpf { color:var(--acc2); font-size:11px; white-space:nowrap; }
   .qline .qs { min-width:96px; text-align:right; color:var(--ink2); font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
   .qline .qs.done { color:#2ec27e; } .qline .qs.error, .qline .qs.stopped { color:var(--err); } .qline .qs.running { color:var(--acc2); } .qline .qs.assembling { color:#e8a33a; }
   .qline .qa { display:flex; gap:4px; min-width:112px; justify-content:flex-end; }
@@ -632,6 +633,8 @@
   .qed { display:flex; gap:8px; padding:0 4px 8px 30px; } .qed input { flex:1; min-width:0; padding:6px 8px; font-size:13px; } .qed select { padding:5px 8px; font-size:12px; }
   .qset { display:flex; flex-wrap:wrap; gap:4px 18px; margin:2px 0 8px; font-size:12px; color:var(--ink2); } .qset .jdc { margin:0; font-size:12px; }
   .qbox .qh button.qi.on { border-color:var(--acc2); color:var(--acc2); }
+
+  #vq_row { gap:12px; } #vq_row .vqh { font-size:12px; color:var(--ink2); }
 </style>
 </head>
 <body>
@@ -743,6 +746,7 @@
     <div class="crow hidden" id="custom_row"><textarea id="custom_style" spellcheck="false"></textarea></div>
     <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
       <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
+    <div class="vfrow" id="vq_row"><span class="lbl" id="vq_lbl"></span><select id="vquality" class="qst"><option value="standard"></option><option value="high"></option><option value="max"></option></select><span class="vqh" id="vq_hint"></span></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
@@ -965,6 +969,15 @@ $('custom_style').addEventListener('change', () => pywebview.api.save_config({cu
 $('vzoom').addEventListener('input', drawVf);
 $('vzoom').addEventListener('change', () => pywebview.api.save_config({video_zoom_pct: +$('vzoom').value}));
 $('vanchor').addEventListener('change', () => pywebview.api.save_config({video_anchor: $('vanchor').value}));
+let OUTDIR = {dir: '', def: ''};
+async function pickOutDir() { const p = await pywebview.api.pick_output_dir(); if (p) { OUTDIR.dir = p; renderAccess(); toast(pt('Готовые видео будут сохраняться сюда: ', 'Videos will be saved to: ') + esc(p), 5000); } }
+async function clearOutDir() { await pywebview.api.clear_output_dir(); OUTDIR.dir = ''; renderAccess(); }
+function vqLabels() {
+  $('vq_lbl').textContent = pt('Качество готового видео', 'Output video quality');
+  const o = $('vquality').options; o[0].textContent = pt('стандарт (как раньше)', 'standard'); o[1].textContent = pt('высокое — битрейт выше', 'high'); o[2].textContent = pt('максимум', 'maximum');
+  $('vq_hint').textContent = {standard: pt('как раньше', 'as before'), high: pt('битрейт в ~1,5 раза выше, файл больше', '~1.5× bitrate'), max: pt('битрейт в ~2 раза выше, файл заметно больше', '~2× bitrate')}[$('vquality').value] || '';
+}
+$('vquality').addEventListener('change', () => { vqLabels(); pywebview.api.save_config({video_quality: $('vquality').value}); });
 $('video_prompt').addEventListener('change', () => pywebview.api.save_config({video_prompt: $('video_prompt').value.trim()}));
 function drawVf() { const n = +$('vf').value; $('vf_row').classList.toggle('hidden', mode() === 'video');
   $('vp_row').classList.toggle('hidden', !(mode() !== 'images' || n > 0));
@@ -1536,6 +1549,8 @@ async function loadConfig(keepScreen) {
   $('vf').value = c.video_first || 0; drawVf();
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
+  OUTDIR = {dir: c.output_dir || '', def: c.default_output || ''};
+  if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
   stt = c.stt_engine || (c.has_fastgen ? 'fastgen' : 'whisper'); llm = c.llm_engine || (c.has_fastgen ? 'fastgen' : 'openai'); tts = c.tts_service || 'voicegen';
@@ -1634,7 +1649,8 @@ function renderAccess() {
     H.push(row(pt('Сценарий <small>(необязательно)</small>', 'Script <small>(optional)</small>'), '', `<textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it and parts/prompts follow it exactly. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea>`));
   }
   $('tts_body').innerHTML = TH.join('');
-  H.push(row(pt('Название ролика', 'Video name'), '', `<input type="text" id="video_name" value="${esc(F.name)}" maxlength="120" placeholder="${esc(pt('необязательно — так будет назван готовый файл в output (например: Пани Барбара)', 'optional — the finished file gets this name'))}" spellcheck="false" autocomplete="off">`));
+  H.push(row(pt('Куда сохранить', 'Save to'), '', `<input type="text" id="out_dir" readonly value="${esc(OUTDIR.dir)}" placeholder="${esc(pt('папка output программы', 'program output folder') + (OUTDIR.def ? ' — ' + OUTDIR.def : ''))}" title="${esc(OUTDIR.dir || OUTDIR.def)}"><button onclick="pickOutDir()">${pt('Выбрать', 'Choose')}</button>${OUTDIR.dir ? `<button class="ghost eye" title="${esc(pt('Вернуть папку output', 'Back to output'))}" onclick="clearOutDir()">×</button>` : ''}`));
+  H.push(row(pt('Название ролика', 'Video name'), '', `<input type="text" id="video_name" value="${esc(F.name)}" maxlength="120" placeholder="${esc(pt('необязательно — так будет назван готовый файл (например: Пани Барбара)', 'optional — the finished file gets this name'))}" spellcheck="false" autocomplete="off">`));
   if (!rwOn()) H.push(promptsRows());
   H.push(queueHtml());
   $('dropzone').innerHTML = `<div class="alist-in">${H.join('')}</div>`;
@@ -1656,6 +1672,8 @@ function queueHtml() {
       + `<input type="text" class="qv" list="voice_list" data-id="${q.id}" value="${esc(q.voice || '')}" placeholder="${esc(t('q_voice_ph'))}" spellcheck="false" autocomplete="off">`
       + (queueStyles ? `<select class="qst" data-id="${q.id}">${styleOpts(true).map(([v, n]) => `<option value="${v}"${v === (q.style || '') ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select>` : '') + `</div>` : '';
     return `<div class="qitem${open ? ' open' : ''}" data-id="${q.id}"><div class="qline"><span class="qn">${i + 1}</span><span class="qt" title="${esc(q.title)}">${esc(q.title)}</span>`
+      + (q.profile || q.prompts_file ? `<span class="qpf" title="${esc(pt('профиль', 'profile'))}">${esc(q.prompts_file ? pt('готовые промпты', 'ready prompts') : q.profile)}</span>` : '')
+      + (q.out_dir ? `<span class="qvv" title="${esc(pt('папка выкладки: ', 'save to: ') + q.out_dir)}">📁 ${esc(q.out_dir.split(/[\\/]/).filter(Boolean).pop() || q.out_dir)}</span>` : '')
       + (q.voice && !open ? `<span class="qvv" title="${esc(pt('голос', 'voice'))}">${esc(q.voice)}</span>` : '')
       + `<span class="qs ${q.status}">${QST()[q.status] || q.status}</span><span class="qa">${acts}</span></div>${ed}</div>`;
   }).join('');
@@ -1695,12 +1713,13 @@ async function queueAdd() {
   if (!formHasContent()) { $('s_prep').textContent = t('q_need'); return false; }
   const o = opts();
   const item = (rwOn() ? {source: 'rewrite', rewrite: o.rewrite, voice: F.voice, tts} : o.voice_file ? {source: 'script', script: F.script, voice_file: o.voice_file, voice: F.voice, tts} : source === 'script' ? {source: 'script', script: F.script, voice: F.voice, tts} : {source: 'mp3', audio: audioPath, voice: F.voice, tts}); item.name = F.name;
+  item.profile = profileName; if (typeof promptsFile !== 'undefined' && promptsFile) item.prompts_file = promptsFile; if (OUTDIR.dir) item.out_dir = OUTDIR.dir;
   const r = await pywebview.api.queue_add(item);
   if (!r.ok) { $('s_prep').textContent = r.error; return false; }
   queueItems = r.items; $('s_prep').textContent = '';
   // форма освобождается под следующее задание
   if (rwOn()) { if (rwSrc === 'youtube') F.rwUrl = ''; else F.rwText = ''; } else if (source === 'script') F.script = ''; else { audioPath = ''; F.script = ''; }
-  F.name = '';
+  F.name = ''; if (promptsFile) setPrompts(null);  // у следующего ролика свои промпты
   renderAccess(); toast(t('q_added')); return true;
 }
 function bindAccess() {
@@ -1768,7 +1787,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
-  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); }
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles();
@@ -1817,7 +1836,7 @@ async function loadVoices() {
   if (st) { st.textContent = r.voices.length ? t('voices_n').replace('{n}', r.voices.length) : t('voices_none'); st.className = 'status st ok'; }
 }
 function opts() { syncAll(); const o = optsRaw(); if (o.source !== 'script' && !o.rewrite.on && (o.script || '').trim() && o.audio) { o.source = 'script'; o.voice_file = o.audio; } return o; }
-function optsRaw() { return {audio: audioPath, name: F.name, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
+function optsRaw() { return {audio: audioPath, name: F.name, out_dir: OUTDIR.dir, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),
@@ -2194,6 +2213,7 @@ trLabel();
 // ===== профили: создать, изменить, удалить =====
 let PF = {list: [], cur: null, data: null, dirty: false};
 const PF_TRANS = [['', 'как в общих настройках', 'global setting'], ['classic', 'Как сейчас', 'As now'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum'], ['none', 'Без переходов', 'No transitions']];
+async function pfPickFolder() { const p = await pywebview.api.pick_folder(); if (p) { const e = $('pf_form').querySelector('[data-k="output_dir"]'); e.value = p; PF.dirty = true; } }
 function pfLabel() { const e = $('pf_open'); if (e) e.textContent = pt('изменить ›', 'edit ›'); }
 async function openProfiles() {
   $('pf_t').textContent = pt('Профили', 'Profiles');
@@ -2255,6 +2275,9 @@ function pfRenderForm() {
     + `<label>${pt('Сервис', 'Service')}</label><select data-kv="service">${[['', 'как в настройках', 'as in settings']].concat(Object.entries(TTS_NAMES).map(([k, v]) => [k, v, v])).map(([v, r, e]) => `<option value="${v}"${((st.voice || {}).service || '') === v ? ' selected' : ''}>${pt(r, e)}</option>`).join('')}</select>`
     + `<label>${pt('ID голоса', 'Voice ID')}</label><input type="text" data-kv="voice_id" value="${esc((st.voice || {}).voice_id || '')}" placeholder="${pt('пусто — голос сервиса по умолчанию', 'empty — default voice')}" spellcheck="false">`
     + `<div class="h">${pt('Выбрали профиль на шаге 02 — этот голос подставится в «Озвучить программой». Поменять для одного ролика — «Настроить голос». Ключ сервиса — в общих настройках.', 'Picking the profile sets this voice; change it per video in Voice settings.')}</div>`
+    + `<div class="sec2">${pt('Папка выкладки', 'Save folder')}</div>`
+    + `<label>${pt('Готовые видео', 'Finished videos')}</label><div class="ln"><input type="text" data-k="output_dir" value="${esc(st.output_dir || '')}" placeholder="${esc(pt('как в общих настройках (output)', 'as in settings (output)'))}" spellcheck="false"><button class="ghost" type="button" onclick="pfPickFolder()">${pt('Выбрать', 'Choose')}</button></div>`
+    + `<div class="h">${pt('Выбрали профиль на шаге 02 — строка «Куда сохранить» на шаге 04 станет этой папкой. Удобно держать у каждой ниши свою папку, где лежат превью.', 'Choosing the profile sets the save folder.')}</div>`
     + `<div class="sec2">${pt('Вид ролика', 'Video look')}</div>`
     + sel('transitions', pt('Переходы', 'Transitions'), PF_TRANS)
     + `<div class="h">${pt('Если выбрано — у роликов этого профиля всегда эти переходы, что бы ни стояло в «Моушн-дизайн».', 'If set, videos of this profile always use these transitions.')}</div>`;
@@ -2374,7 +2397,12 @@ pfLabel();
 // ===== голос профиля: выбрали профиль — его голос в «Озвучить программой» =====
 async function applyProfileVoice(name, quiet) {
   if (!name) return;
-  const v = await pywebview.api.profile_voice(name);
+  const dfl = await pywebview.api.profile_defaults(name);
+  if (dfl && dfl.output_dir && dfl.output_dir !== OUTDIR.dir) {
+    OUTDIR.dir = dfl.output_dir; if (cur === 4) renderAccess();
+    if (!quiet) toast(pt(`Папка выкладки из профиля «${esc(name)}»: `, 'Save folder from profile: ') + esc(dfl.output_dir), 5000);
+  }
+  const v = dfl && dfl.voice;
   if (!v || !v.service) return;
   if (tts === v.service && (F.voice || '') === (v.voice_id || '')) return;
   syncAll(); tts = v.service; F.voice = v.voice_id || '';

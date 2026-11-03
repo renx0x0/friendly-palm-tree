@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p32"
+VERSION = "1.7.1-p33"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -98,7 +98,7 @@ def queue_save():
 
 
 def queue_public():
-    return [{k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error")} for x in QUEUE]
+    return [{k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file")} for x in QUEUE]
 
 
 def style_key(v, default=None):
@@ -168,7 +168,9 @@ def run_queue(common):
             # стиль у задания свой, если включён «Разный стиль» и выбран; иначе общий
             run_job(audio, common["provider"], common["mode"], style_key(item.get("style"), common["style"]), common["use_refs"], common["subtitles"], common["motion"],
                     script, rw, common["tts"], (item.get("voice") or "").strip(), common["video_first"], common["hd"],
-                    voice_file=(item.get("voice_file") or None) if script else None, out_name=item.get("name") or None)
+                    voice_file=(item.get("voice_file") or None) if script else None, out_name=item.get("name") or None,
+                    profile=item.get("profile") if "profile" in item else None,
+                    prompts_file=item.get("prompts_file") or None, out_dir=item.get("out_dir") or None)
             if item_after_run(item):
                 break
     finally:
@@ -758,7 +760,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "sub_style", "sub_source", "transitions", "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -806,13 +808,13 @@ def _pause(sec, why):
 
 
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
-            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None):
+            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None, out_dir=None):
     """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
     подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
     LAST_RUN.clear()
     LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                          script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name))
+                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name, out_dir=out_dir))
     keep_awake(True)
     tries = fixes = 0
     with LOCK:
@@ -831,7 +833,7 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
                                           use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
                                           tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
                                           prompts_file=prompts_file, remix_from=remix_from, look=look, assembly_hook=assembly_hook,
-                                          out_name=out_name)
+                                          out_name=out_name, out_dir=out_dir or None)
             except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
                 err = str(e)
             except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
@@ -1153,6 +1155,8 @@ class Api:
             "custom_style": cfg.get("custom_style", ""), "video_prompt": cfg.get("video_prompt", ""),
             "fg_models": pipeline.fastgen_models(), "fg_image_model": cfg.get("fg_image_model", ""), "fg_video_model": cfg.get("fg_video_model", ""),
             "profile_manual": bool(cfg.get("profile_manual", False)), "video_zoom_pct": cfg.get("video_zoom_pct", 104), "video_anchor": cfg.get("video_anchor", "top"),
+            "video_quality": cfg.get("video_quality") if cfg.get("video_quality") in pipeline.VIDEO_QUALITIES else "high",
+            "output_dir": cfg.get("output_dir") or "", "default_output": os.path.join(data_dir(), "output"),
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -1247,6 +1251,8 @@ class Api:
             cfg["tts_voice"] = (data.get("tts_voice") or "").strip()
         if "motion" in data:
             cfg["motion"] = bool(data["motion"])
+        if data.get("video_quality") in ("standard", "high", "max"):
+            cfg["video_quality"] = data["video_quality"]
         if "parallel_assembly" in data:
             cfg["parallel_assembly"] = bool(data["parallel_assembly"])
         if "hd" in data:
@@ -1606,8 +1612,9 @@ class Api:
         save_cfg(cfg)
         args = dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                     script=script, rewrite=rw, tts=tts, voice=voice, video_first=video_first, hd=hd,
-                    profile="" if prompts_file else profile, voice_file=voice_file, prompts_file=prompts_file,
-                    out_name=pipeline.safe_title(opts.get("name")) or None)
+                    profile=profile, voice_file=voice_file, prompts_file=prompts_file,
+                    out_name=pipeline.safe_title(opts.get("name")) or None,
+                    out_dir=str(opts.get("out_dir") or "").strip().strip('"') or None)
         return None, args, job_title(opts)
 
     def _enqueue(self, opts):
@@ -1685,7 +1692,16 @@ class Api:
         else:
             title = os.path.basename(item.get("audio") or "")
         name = pipeline.safe_title(item.get("name"))
-        entry = {"id": uuid.uuid4().hex[:8], "title": (name or title)[:80], "name": name or None, "source": src,
+        extra = {}
+        if "profile" in item:
+            extra["profile"] = str(item.get("profile") or "")
+        pf = str(item.get("prompts_file") or "").strip().strip('"')
+        if pf:
+            extra["prompts_file"] = pf
+        od = str(item.get("out_dir") or "").strip().strip('"')
+        if od:
+            extra["out_dir"] = od
+        entry = {"id": uuid.uuid4().hex[:8], "title": (name or title)[:80], "name": name or None, **extra, "source": src,
                  "script": (item.get("script") or "").strip() or None,
                  "audio": (item.get("audio") or "").strip().strip('"') or None,
                  "rewrite": self._rewrite_opts(opts) if src == "rewrite" else None,
@@ -1823,6 +1839,23 @@ class Api:
         """Готовые промпты рядом с озвучкой (<имя>.prompts.txt или <имя>.txt) — подставляются сами при выборе mp3."""
         p = pipeline.find_prompts_file(str(audio or "").strip().strip('"'))
         return self.prompts_info(p, audio) if p else {"ok": False}
+
+    def pick_output_dir(self):
+        """Своя папка для готовых видео. → путь или ""."""
+        res = WINDOW.create_file_dialog(getattr(webview, "FOLDER_DIALOG", 20))
+        if not res:
+            return ""
+        p = res[0] if isinstance(res, (list, tuple)) else str(res)
+        cfg = load_cfg()
+        cfg["output_dir"] = p
+        save_cfg(cfg)
+        return p
+
+    def clear_output_dir(self):
+        cfg = load_cfg()
+        cfg["output_dir"] = ""
+        save_cfg(cfg)
+        return True
 
     def pick_prompts(self):
         res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("Промпты (*.txt)", "Все файлы (*.*)"))
@@ -2032,6 +2065,23 @@ class Api:
 
     def profile_voice(self, name):
         return pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()) if name else None
+
+    def profile_defaults(self, name):
+        """Что профиль подставляет в окно: голос и папку выкладки."""
+        if not name:
+            return {}
+        try:
+            st = pipeline.profiles.read_profile_raw(name, pipeline.profile_search_dirs())["settings"]
+        except pipeline.profiles.ProfileError:
+            return {}
+        return {"voice": pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()), "output_dir": st.get("output_dir") or ""}
+
+    def pick_folder(self):
+        """Выбрать папку (без сохранения в настройки) — для папки выкладки профиля."""
+        res = WINDOW.create_file_dialog(getattr(webview, "FOLDER_DIALOG", 20))
+        if not res:
+            return ""
+        return res[0] if isinstance(res, (list, tuple)) else str(res)
 
     def profile_master_check(self, master):
         return pipeline.profiles.master_check(master)
@@ -2325,7 +2375,8 @@ class Api:
     def open_path(self, path):
         """Открыть готовый ролик (только из папок программы)."""
         p = os.path.abspath(str(path or ""))
-        if os.path.exists(p) and os.path.normcase(p).startswith(os.path.normcase(os.path.abspath(data_dir()))):
+        roots = [os.path.abspath(data_dir())] + ([os.path.abspath(load_cfg().get("output_dir"))] if load_cfg().get("output_dir") else [])
+        if os.path.exists(p) and p.lower().endswith((".mp4", ".srt", ".txt")) and any(os.path.normcase(p).startswith(os.path.normcase(r)) for r in roots):
             os.startfile(p)
             return True
         return False
@@ -2354,8 +2405,12 @@ class Api:
         return {"ok": False, "error": "Готового видео у этого ролика нет — возможно, его переместили или ещё не собрали."}
 
     def open_output(self):
-        out = os.path.join(data_dir(), "output")
-        os.makedirs(out, exist_ok=True)
+        out = load_cfg().get("output_dir") or os.path.join(data_dir(), "output")
+        try:
+            os.makedirs(out, exist_ok=True)
+        except OSError:
+            out = os.path.join(data_dir(), "output")
+            os.makedirs(out, exist_ok=True)
         os.startfile(out)
         return True
 

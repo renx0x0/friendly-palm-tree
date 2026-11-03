@@ -1,0 +1,39 @@
+{
+  "_что_это": "Настройки профиля. Строки, начинающиеся с _, — пояснения, программа их не читает.",
+
+  "_деление": "Частей = символы сценария / chars_per_part (вниз), но не меньше min_parts. max_parts 0 = без предела.",
+  "chars_per_part": 4500,
+  "min_parts": 4,
+  "max_parts": 0,
+  "prompts_per_part": 50,
+
+  "_модель": "fastgen — ключ fast-gen; openai — ключ OpenAI (или свой адрес openai_base_url). Пустой llm_model — модель из настроек KadroGen.",
+  "llm": "fastgen",
+  "llm_model": "",
+  "_запасная": "Если основная модель fast-gen раз за разом падает, перейти на эту (например openai/gpt-4.1). Пусто — не переключать.",
+  "llm_fallback_model": "",
+  "max_tokens": 32000,
+  "_думать": "low | medium | high: просить модель подумать перед ответом — лучше держит длинный мастер-промпт. Пусто — не просить.",
+  "reasoning_effort": "high",
+  "temperature": 0.7,
+  "parallel": 1,
+  "attempts": 3,
+  "check_sync": true,
+
+  "_правила": "Проверка каждого промпта. if — правило действует, только если в промпте есть этот текст; need — нужно всё; need_any — хотя бы одно. Если нарушителей больше max_bad_prompts — часть переписывается.",
+  "prompt_rules": [
+    {"name": "final language reminder", "need": ["final language reminder"]},
+    {"name": "spelling lock у подписи", "if": "«", "need": ["spelling lock"]},
+    {"name": "запрет лишних знаков у подписи", "if": "«", "need_any": ["do not add decorative marks", "do not decorate any letter"]},
+    {"name": "место подписи (placed above/below)", "if": "«", "need_any": ["placed above", "placed below", "placed beneath", "placed across", "placed under", "» above", "» below", "across the top"]}
+  ],
+  "max_bad_prompts": 3,
+
+  "_промпты": "Промпт картинки уходит в генератор как есть. Сюда можно дописать общее начало/конец для всех кадров.",
+  "prompt_prefix": "",
+  "prompt_suffix": "",
+
+  "_оживление": "Для режимов с видео: движение камеры и хвост промпта оживления.",
+  "motion": "slow gentle camera movement, chalk drawing stays still and readable",
+  "video_suffix": "Keep every chalk line and every Polish caption exactly as drawn; do not add, change or animate any letters."
+}

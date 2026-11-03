@@ -2575,7 +2575,7 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
         still = out_path + ".still.png"
         im.resize((W, H), Image.LANCZOS).save(still)
         run_ffmpeg(["-loop", "1", "-framerate", str(FPS), "-i", still, "-t", f"{duration:.3f}", "-r", str(FPS),
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-an", tmp])
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp])
         os.remove(still)
         os.replace(tmp, out_path)
         return out_path
@@ -2584,7 +2584,7 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
     im = im.resize((BW, BH), Image.LANCZOS)
     cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-r", str(FPS), "-i", "-", "-t", f"{duration:.3f}",
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-an", tmp]
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
     try:
         for n in range(frames):
@@ -2622,7 +2622,7 @@ def render_video_clip(src_mp4, duration, out_path):
     y = {"top": "0", "bottom": "ih-oh"}.get(VIDEO_ANCHOR, "(ih-oh)/2")
     pre = f"crop=iw/{z:.4f}:ih/{z:.4f}:(iw-ow)/2:{y}," if z > 1.0 else ""
     base_vf = f"{pre}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS}"
-    enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+    enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p"]
     try:
         clip_len = audio_duration(src_mp4)
     except Exception:
@@ -2656,7 +2656,19 @@ def render_video_clip(src_mp4, duration, out_path):
     return out_path
 
 
-TAIL_MIN = 0.3  # хвост короче — просто держим последний кадр (наезд на долю секунды не нужен)
+TAIL_MIN = 0.3
+
+# качество готового видео: (crf клипов сцен, crf итоговой склейки/субтитров) — меньше число, выше битрейт
+VIDEO_QUALITIES = {"standard": (20, 20), "high": (16, 17), "max": (14, 15)}
+VIDEO_QUALITY = "high"
+
+
+def crf_clip():
+    return VIDEO_QUALITIES.get(VIDEO_QUALITY, VIDEO_QUALITIES["high"])[0]
+
+
+def crf_final():
+    return VIDEO_QUALITIES.get(VIDEO_QUALITY, VIDEO_QUALITIES["high"])[1]  # хвост короче — просто держим последний кадр (наезд на долю секунды не нужен)
 
 
 def render_tail_zoom(img_path, seconds, out_path):
@@ -2671,7 +2683,7 @@ def render_tail_zoom(img_path, seconds, out_path):
     BW, BH = big.size
     zmax = 1.0 + min(0.10, 0.012 * seconds + 0.01)  # ~1,2 % в секунду, не больше 10 %
     cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-           "-t", f"{seconds:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", out_path]
+           "-t", f"{seconds:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", out_path]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
     try:
         for n in range(frames):
@@ -2781,6 +2793,8 @@ def clips_name(motion):
         name += f"_{int(round(TRANSITION * 100))}"
     if KB_MODE != "classic":
         name += "_" + KB_MODE
+    if VIDEO_QUALITY != "standard":
+        name += "_q" + VIDEO_QUALITY
     return name
 
 
@@ -2930,7 +2944,7 @@ def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, pr
     durs = [s["duration"] for s in scenes]
     K = cut_kinds(len(clips), vids)
     kinds_all = K[1:]
-    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p"]
+    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_final()), "-pix_fmt", "yuv420p"]
     if len(clips) > XFADE_GROUP:
         gdir = os.path.join(job_dir or os.path.dirname(clips[0]), "groups")
         os.makedirs(gdir, exist_ok=True)
@@ -3774,12 +3788,13 @@ ASSEMBLY_DEFERRED = False               # последний make_video отда
 def look_snapshot():
     """Настройки, от которых зависит монтаж: переходы, движение картинок, обрезка клипов Veo."""
     return {"transitions": list(TRANSITIONS), "transition": TRANSITION, "order": TRANS_ORDER, "video_set": list(TRANS_VIDEO),
-            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR}
+            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY}
 
 
 def apply_look(lk):
-    global TRANSITIONS, TRANSITION, TRANS_ORDER, TRANS_VIDEO, KB_MODE, VIDEO_ZOOM, VIDEO_ANCHOR
+    global TRANSITIONS, TRANSITION, TRANS_ORDER, TRANS_VIDEO, KB_MODE, VIDEO_ZOOM, VIDEO_ANCHOR, VIDEO_QUALITY
     lk = lk or {}
+    VIDEO_QUALITY = lk.get("quality") if lk.get("quality") in VIDEO_QUALITIES else "high"
     TRANSITIONS = list(lk.get("transitions") or TRANS_CLASSIC)
     TRANSITION = float(lk.get("transition") or 0.5)
     TRANS_ORDER = lk.get("order") or "cycle"
@@ -3808,9 +3823,13 @@ def finish_video(spec, progress):
         if style_cfg:
             subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg)
             fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
-            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW)
+            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW, crf=crf_final())
         else:
-            subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
+            try:
+                subs_style.burn_classic(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", job_dir, font_dirs(), NO_WINDOW, crf=crf_final())
+            except Exception as e:  # не вышло — старый способ
+                log(f"субтитры «Как было»: {str(e)[:150]} — вжигаю старым способом")
+                subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
         os.replace(out_mp4 + ".tmp.mp4", out_mp4)
         progress("subtitles", 1, 1, "субтитры наложены, .srt сохранён в папке output/subtitles")
     else:
@@ -3904,7 +3923,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
     look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
-    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED
+    global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR, ASSEMBLY_DEFERRED, VIDEO_QUALITY
     ASSEMBLY_DEFERRED = False
     HD_IMAGES = bool(hd)
     LAST_FAILURES.update({"images": 0, "videos": 0})
@@ -3919,6 +3938,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     except (TypeError, ValueError):
         VIDEO_ZOOM = 1.04
     VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
+    VIDEO_QUALITY = cfg.get("video_quality") if cfg.get("video_quality") in VIDEO_QUALITIES else "high"
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:
@@ -3933,9 +3953,9 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             raise SystemExit("Папка исходного ролика не найдена.")
     prof = None if (prompts_file or remix_from) else load_active_profile(cfg, profile)
     look_prof = prof
-    if look_prof is None and prompts_file and cfg.get("profile"):
-        try:  # готовые промпты: профиль для текстов не нужен, но вид ролика (переходы) берём из выбранного
-            look_prof = load_active_profile(cfg, cfg.get("profile"))
+    if look_prof is None and prompts_file and (profile or cfg.get("profile")):
+        try:  # готовые промпты: профиль для текстов не нужен, но вид ролика (переходы, движение, папка) берём из выбранного
+            look_prof = load_active_profile(cfg, profile or cfg.get("profile"))
         except SystemExit:
             look_prof = None
     pt = (look or {}).get("transitions") or (look_prof or {}).get("transitions")
@@ -3966,6 +3986,13 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     elif prof:
         job_dir = profile_job_dir(job_dir, prof)
         LAST_JOB_DIR = job_dir
+    custom_out = str((look_prof or {}).get("output_dir") or cfg.get("output_dir") or "").strip()  # папка профиля → общая → output
+    if not out_dir and custom_out:
+        try:
+            os.makedirs(custom_out, exist_ok=True)  # своя папка для готовых видео (флешка отключена — вернёмся в output)
+            out_dir = custom_out
+        except OSError as e:
+            log(f"папка для готовых видео «{custom_out}» недоступна ({e}) — сохраняю в output")
     out_dir = out_dir or os.path.join(data_dir(), "output")
     os.makedirs(out_dir, exist_ok=True)
     if out_name:

@@ -228,7 +228,7 @@ def load_profile(name, dirs):
 
 EDIT_KEYS = ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "llm", "llm_model", "llm_fallback_model",
              "reasoning_effort", "temperature", "parallel", "attempts", "check_sync", "prompt_prefix", "prompt_suffix",
-             "motion", "auto_motion", "video_suffix", "transitions", "voice")
+             "motion", "auto_motion", "video_suffix", "transitions", "voice", "output_dir")
 TRASH_DIR = "_удалённые"
 
 
@@ -265,6 +265,8 @@ def read_profile_raw(name, dirs):
         except ValueError:
             data = {}
     st = {k: data.get(k, DEFAULTS.get(k)) for k in EDIT_KEYS}
+    if st.get("output_dir") is None:
+        st["output_dir"] = ""
     if st.get("transitions") is None:
         st["transitions"] = ""
     elif isinstance(st["transitions"], dict):
@@ -302,6 +304,9 @@ def _clean_settings(st):
     for k in ("llm_model", "llm_fallback_model", "prompt_prefix", "prompt_suffix", "motion", "video_suffix"):
         if k in st:
             out[k] = " ".join(str(st[k] or "").split())
+    if "output_dir" in st:
+        od = str(st.get("output_dir") or "").strip().strip('"')
+        out["output_dir"] = od or None
     if "voice" in st:
         v = st["voice"] if isinstance(st["voice"], dict) else {}
         svc = v.get("service") if v.get("service") in ("edge", "fastgen", "royal", "voicegen", "voicer", "lumean") else ""

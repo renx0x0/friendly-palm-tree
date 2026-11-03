@@ -391,11 +391,25 @@ def prepare_fonts(work_dir, family, dirs, sub="subfonts"):
     return sub
 
 
-def burn(ffmpeg, src_mp4, ass_name, out_mp4, work_dir, fonts_sub, creationflags=0):
-    """Вжечь .ass в видео: перекодирование картинки один раз, звук копируется. ffmpeg работает из work_dir."""
-    vf = f"subtitles={ass_name}:fontsdir={fonts_sub}"
+CLASSIC_FONT = "Intro Demo Black CAPS"
+CLASSIC_STYLE = ("FontName={font},FontSize=15,Bold=0,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H60000000,"
+                 "Outline=1,Shadow=0.6,MarginV=12,Alignment=2")  # вид «Как было» — как в исходном KadroGen
+
+
+def burn_classic(ffmpeg, src_mp4, srt_path, out_mp4, work_dir, font_dirs, creationflags=0, crf=20):
+    """Субтитры «Как было» (.srt со старым стилем). Шрифта нет — Arial."""
+    shutil.copy(srt_path, os.path.join(work_dir, "subs.srt"))
+    sub = prepare_fonts(work_dir, CLASSIC_FONT, font_dirs)
+    has_font = any(f["name"].lower() == CLASSIC_FONT.lower() and f["file"] for f in list_fonts(font_dirs))
+    style = CLASSIC_STYLE.format(font=CLASSIC_FONT if has_font else "Arial")
+    return burn(ffmpeg, src_mp4, "subs.srt", out_mp4, work_dir, sub, creationflags, crf=crf, force_style=style)
+
+
+def burn(ffmpeg, src_mp4, ass_name, out_mp4, work_dir, fonts_sub, creationflags=0, crf=20, force_style=None):
+    """Вжечь субтитры в видео: перекодирование картинки один раз, звук копируется. ffmpeg работает из work_dir."""
+    vf = f"subtitles={ass_name}:fontsdir={fonts_sub}" + (f":force_style='{force_style}'" if force_style else "")
     r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", src_mp4, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
-                        "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4],
+                        "-crf", str(int(crf)), "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4],
                        cwd=work_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=creationflags)
     if r.returncode != 0:
         raise RuntimeError("ffmpeg (субтитры): " + (r.stderr or "")[-600:])
