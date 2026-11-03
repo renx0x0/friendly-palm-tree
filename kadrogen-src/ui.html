@@ -2437,6 +2437,11 @@ function openRemix(r) {
     const x = await pywebview.api.remix_job(RX.id, RX.file, o);
     if (!x.ok) { toast(esc(x.error || ''), 8000); return; }
     $('rx_dlg').classList.remove('show');
+    if (x.queued) {
+      queueItems = x.items || queueItems; refreshRecent();
+      toast(pt(`«${esc(x.title)}» в очереди №${x.pos} — начнётся сам, когда закончится текущий ролик.`, `Queued #${x.pos}: “${esc(x.title)}”.`), 7000);
+      return;
+    }
     $('result').classList.remove('show'); $('error').textContent = ''; $('p_err').textContent = ''; $('btn_cancel').disabled = false; shownPct = 0;
     buildStages(x.mode || mode()); buildFrames(0); go(6); poll();
   };

@@ -144,6 +144,13 @@ def run_queue(common):
                               "result": None, "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0,
                               "queue": {"id": item["id"], "pos": pos, "total": len(QUEUE), "title": item.get("title", "")}})
             queue_save()
+            if item.get("args"):  # «Новая озвучка» из очереди — аргументы уже готовы
+                with LOCK:
+                    STATE["title"] = item.get("title") or "ролик"
+                run_job(**item["args"])
+                if item_after_run(item):
+                    break
+                continue
             if item.get("opts"):  # поставлено во время работы — со своими настройками
                 err, args, _ = Api()._job(item["opts"])
                 if err:
@@ -907,7 +914,7 @@ def _queue_has_next():
     with LOCK:
         if QUEUE_STOP or STATE.get("cancelled"):
             return False
-        return any(x.get("status") == "queued" and (x.get("opts") or QRUN_ALL) for x in QUEUE)
+        return any(x.get("status") == "queued" and (x.get("opts") or x.get("args") or QRUN_ALL) for x in QUEUE)
 
 
 def assembly_hook(spec_path, out_mp4, can_defer):
@@ -1036,11 +1043,14 @@ def job_chain(args):
                 with LOCK:
                     if STATE.get("cancelled") or QUEUE_STOP:
                         break
-                    nxt = next((x for x in QUEUE if x.get("status") == "queued" and x.get("opts")), None)
+                    nxt = next((x for x in QUEUE if x.get("status") == "queued" and (x.get("opts") or x.get("args"))), None)
                     if nxt is None:
                         break
                     nxt["status"] = "running"
-                err, a, title = api._job(nxt["opts"])
+                if nxt.get("args"):  # «Новая озвучка», поставленная в очередь, — аргументы уже готовы
+                    err, a, title = None, dict(nxt["args"]), nxt.get("title") or "ролик"
+                else:
+                    err, a, title = api._job(nxt["opts"])
                 if err:
                     with LOCK:
                         nxt["status"], nxt["error"] = "error", err
@@ -2516,9 +2526,6 @@ class Api:
         audio = str(audio or "").strip().strip('"')
         if not os.path.isfile(audio):
             return {"ok": False, "error": "Файл новой озвучки не найден."}
-        with LOCK:
-            if STATE["running"] or STATE["preparing"] or STATE.get("queue_active"):
-                return {"ok": False, "error": "Сейчас делается другой ролик. Запустите, когда он закончится."}
         if not pipeline.read_json(os.path.join(d, "scenes.json")):
             return {"ok": False, "error": "У этого ролика ещё нет сцен — сначала доделайте его."}
         rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
@@ -2542,6 +2549,17 @@ class Api:
         if name:
             args["out_name"] = name
         title = name or f"{rec.get('title') or base} · новая озвучка"
+        with LOCK:
+            busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
+            if busy:  # сейчас делается другой ролик — в очередь, запустится сам после него
+                entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "name": name or None, "source": "remix", "script": None, "audio": None,
+                         "rewrite": None, "voice": "", "style": "", "status": "queued", "result": None, "error": None, "args": args}
+                QUEUE.append(entry)
+                pos = len(QUEUE)
+        if busy:
+            queue_save()
+            pipeline.log(f"«{title}» поставлен в очередь (№{pos}) — начнётся после текущего ролика")
+            return {"ok": True, "queued": True, "pos": pos, "title": title, "items": queue_public()}
         with LOCK:
             STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "новая озвучка для готового ролика", "log": [],
                           "result": None, "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0, "queue": None, "title": title})
