@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p17"
+VERSION = "1.7.1-p18"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -807,18 +807,18 @@ def _pause(sec, why):
 
 
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
-            profile=None, voice_file=None, prompts_file=None):
+            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None):
     """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
     подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
     LAST_RUN.clear()
     LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                          script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                         prompts_file=prompts_file))
+                         prompts_file=prompts_file, remix_from=remix_from, look=look))
     keep_awake(True)
     tries = fixes = 0
     try:
         apply_engine(provider)
-        d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile, prompts_file)
+        d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile, prompts_file, remix_from)
         with LOCK:
             STATE["job_dir"] = d
         job_record(d, "running")
@@ -829,7 +829,7 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
                 out = pipeline.make_video(audio, progress_cb=progress_cb, provider=provider, mode=mode, style_key=style,
                                           use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
                                           tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                                          prompts_file=prompts_file)
+                                          prompts_file=prompts_file, remix_from=remix_from, look=look)
             except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
                 err = str(e)
             except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
@@ -1860,6 +1860,9 @@ class Api:
             save_cfg(cfg)
         return {"ok": True, "profiles": pipeline.list_profiles()}
 
+    def profile_voice(self, name):
+        return pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()) if name else None
+
     def profile_master_check(self, master):
         return pipeline.profiles.master_check(master)
 
@@ -2046,6 +2049,67 @@ class Api:
                 "text": str(sc.get("text") or ""), "prompt": str(sc.get("raw_prompt") or sc.get("prompt") or ""),
                 "start": round(float(sc.get("start", 0) or 0), 1), "end": round(float(sc.get("end", 0) or 0), 1)}
 
+    def _running_dir(self):
+        with LOCK:
+            if STATE["running"] or STATE["preparing"]:
+                return STATE.get("job_dir")
+        return None
+
+    def frame_edit(self, job_id, i, prompt=None):
+        """Правка кадра: новый промпт (или тот же) → картинка удаляется и рисуется заново при «Продолжить».
+        Пока этот ролик делается — только перерисовка с тем же промптом (как кнопка ↻)."""
+        d = self._frame_dir(job_id)
+        if not d:
+            return {"ok": False, "error": "Папка ролика не найдена."}
+        i = int(i)
+        scenes = pipeline.read_json(os.path.join(d, "scenes.json"), []) or []
+        if not 0 <= i < len(scenes):
+            return {"ok": False, "error": "Нет такого кадра."}
+        cur = scenes[i].get("prompt") or ""
+        prompt = " ".join(str(prompt or "").split())
+        changed = bool(prompt) and prompt != " ".join(cur.split())
+        run = self._running_dir()
+        if run and os.path.normcase(run) == os.path.normcase(d):
+            if changed:
+                return {"ok": False, "error": "Пока этот ролик делается, промпт менять нельзя — дождитесь конца или нажмите «Стоп». "
+                                              "Перерисовать с тем же промптом можно сейчас."}
+            return dict(self.redo_scene(i), running=True)
+        if changed:
+            pipeline.save_edit(d, i, prompt)
+        pipeline.redo_files(d, i)
+        pipeline.log(f"кадр {i + 1}: {'новый промпт, ' if changed else ''}будет нарисован заново")
+        return {"ok": True, "changed": changed, "job_id": os.path.basename(d)}
+
+    def frame_replace(self, job_id, i):
+        """Своя картинка вместо кадра: выбрать файл → он станет кадром (оживление этого кадра удаляется)."""
+        d = self._frame_dir(job_id)
+        if not d:
+            return {"ok": False, "error": "Папка ролика не найдена."}
+        run = self._running_dir()
+        if run and os.path.normcase(run) == os.path.normcase(d):
+            return {"ok": False, "error": "Пока этот ролик делается, кадры не заменить — дождитесь конца или нажмите «Стоп»."}
+        res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False,
+                                        file_types=("Картинки (*.png;*.jpg;*.jpeg;*.webp)", "Все файлы (*.*)"))
+        if not res:
+            return {"ok": False, "cancel": True}
+        src = res[0] if isinstance(res, (list, tuple)) else str(res)
+        i = int(i)
+        try:
+            from PIL import Image
+            im = Image.open(src).convert("RGB")
+        except Exception as e:
+            return {"ok": False, "error": f"Не открылась картинка: {e}"}
+        pipeline.redo_files(d, i)
+        os.makedirs(os.path.join(d, "images"), exist_ok=True)
+        im.save(os.path.join(d, "images", f"{i:04d}.png"))
+        st_path = os.path.join(d, "images.json")
+        st = pipeline.read_json(st_path, {}) or {}
+        st[str(i)] = {"ok": True, "model": "своя картинка"}
+        pipeline.write_json(st_path, st)
+        THUMBS.pop(os.path.join(d, "images", f"{i:04d}.png"), None)
+        pipeline.log(f"кадр {i + 1}: заменён своей картинкой {os.path.basename(src)}")
+        return {"ok": True, "job_id": os.path.basename(d)}
+
     def frame_video(self, job_id, i):
         """Оживлённый клип целиком для плеера в окне (до 40 МБ; больше — открыть в обычном плеере)."""
         import base64
@@ -2131,7 +2195,7 @@ class Api:
             if not title:
                 st = self._job_script(d, base)
                 title = " ".join(st.split()[:7]) if st else base
-            label = "готовые промпты" if args.get("prompts_file") else ((args.get("profile") if rec else prof) or prof or "")
+            label = "новая озвучка" if args.get("remix_from") else "готовые промпты" if args.get("prompts_file") else ((args.get("profile") if rec else prof) or prof or "")
             out.append({"id": n, "title": title[:80], "profile": label,
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else rec.get("status", ""),
@@ -2217,6 +2281,46 @@ class Api:
         QUEUE_STOP = False
         threading.Thread(target=job_chain, args=(args,), daemon=True).start()
         return {"ok": True, "mode": args.get("mode", "images")}
+
+    def remix_job(self, job_id, audio, opts=None):
+        """«Новая озвучка»: тот же визуал готового ролика под другую озвучку. Картинки и клипы не генерируются заново,
+        сцены раскладываются по новой озвучке; переходы и субтитры — как выбрано сейчас (или из opts)."""
+        global QUEUE_STOP
+        d = self._job_path(job_id)
+        if not d:
+            return {"ok": False, "error": "Папка этого ролика не найдена."}
+        audio = str(audio or "").strip().strip('"')
+        if not os.path.isfile(audio):
+            return {"ok": False, "error": "Файл новой озвучки не найден."}
+        with LOCK:
+            if STATE["running"] or STATE["preparing"] or STATE.get("queue_active"):
+                return {"ok": False, "error": "Сейчас делается другой ролик. Запустите, когда он закончится."}
+        if not pipeline.read_json(os.path.join(d, "scenes.json")):
+            return {"ok": False, "error": "У этого ролика ещё нет сцен — сначала доделайте его."}
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
+        a = rec.get("args") or {}
+        cfg = load_cfg()
+        o = opts or {}
+        base = os.path.basename(d).partition("@")[0]
+        script = rec.get("script") or self._job_script(d, base) or None
+        look = {}
+        if o.get("transitions") in pipeline.TRANS_PRESETS:
+            look["transitions"] = {"preset": o["transitions"]}
+        subtitles = bool(o["subtitles"]) if "subtitles" in o else bool(cfg.get("subtitles"))
+        args = dict(audio=None if script else audio, provider=a.get("provider") or pipeline.normalize_providers(cfg.get("image_providers")),
+                    mode=a.get("mode") or cfg.get("mode", "images"), style=a.get("style") or style_key(cfg.get("style"), pipeline.DEFAULT_STYLE),
+                    use_refs=False, subtitles=subtitles, motion=bool(cfg.get("motion")), script=script, rewrite=None,
+                    tts=cfg.get("tts_service"), voice=cfg.get("tts_voice", ""), video_first=a.get("video_first", 0), hd=bool(a.get("hd")),
+                    profile="", voice_file=audio if script else None, prompts_file=None, remix_from=d, look=look or None)
+        if os.path.normcase(os.path.abspath(pipeline.run_job_dir(cfg, args["audio"], script, args["voice_file"], None, "", None, d))) == os.path.normcase(os.path.abspath(d)):
+            return {"ok": False, "error": "Это тот же файл озвучки, из которого сделан ролик. Выберите новую озвучку."}
+        title = f"{rec.get('title') or base} · новая озвучка"
+        with LOCK:
+            STATE.update({"running": True, "stage": "start", "done": 0, "total": 0, "message": "новая озвучка для готового ролика", "log": [],
+                          "result": None, "error": None, "cancelled": False, "started_at": time.time(), "scenes": 0, "queue": None, "title": title})
+        QUEUE_STOP = False
+        threading.Thread(target=job_chain, args=(args,), daemon=True).start()
+        return {"ok": True, "mode": args["mode"]}
 
     @staticmethod
     def _reset_job(d, images=False, videos=True):

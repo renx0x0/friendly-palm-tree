@@ -575,6 +575,21 @@
   .pform input[type=checkbox] { width:auto; } .pform .h { grid-column:1 / -1; font-size:12px; margin-top:-4px; }
   #pf_dlg .row { display:flex; gap:10px; align-items:center; margin-top:14px; } #pf_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
   @media (max-width: 1100px) { #pf_dlg .pbody { grid-template-columns:180px 1fr; } .pform { grid-column:1 / -1; } }
+
+  /* ===== правка кадра ===== */
+  #lb .lbed { display:none; padding:0 24px 16px; gap:8px; flex-direction:column; }
+  #lb.editing .lbed { display:flex; } #lb.editing .lbcap .pr { display:none; }
+  #lb .lbed textarea { width:100%; box-sizing:border-box; height:110px; resize:vertical; padding:10px; font:13px/1.45 Consolas, monospace; background:#11151b; color:#e8edf3; border:1px solid #3a4250; }
+  #lb .lbed .r { display:flex; gap:8px; align-items:center; flex-wrap:wrap; } #lb .lbed .r .n { color:#8b96a3; font-size:12px; flex:1; }
+  #lb .lbed button { padding:8px 14px; font-size:11px; letter-spacing:.16em; }
+  /* ===== новая озвучка ===== */
+  #rx_dlg { position:fixed; inset:0; z-index:63; display:none; place-items:center; background:rgba(0,0,0,.6); }
+  #rx_dlg.show { display:grid; }
+  #rx_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(680px, calc(100% - 40px)); }
+  #rx_dlg h3 { margin:0 0 6px; font:600 16px/1.3 "Exo 2", sans-serif; } #rx_dlg .note { color:var(--ink2); font-size:13px; line-height:1.5; margin-bottom:14px; }
+  #rx_dlg .g { display:grid; grid-template-columns:150px 1fr; gap:10px 12px; align-items:center; font-size:13px; color:var(--ink2); }
+  #rx_dlg .g .f { display:flex; gap:8px; } #rx_dlg .g .f input { flex:1; padding:8px 10px; font-size:13px; } #rx_dlg select { padding:8px 10px; font-size:13px; }
+  #rx_dlg .row { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; } #rx_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
 </style>
 </head>
 <body>
@@ -599,7 +614,7 @@
   <div class="jdg"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
   <label class="jdc"><input type="checkbox" id="jd_rimg"><span id="jd_t_rimg"></span></label>
   <label class="jdc"><input type="checkbox" id="jd_rvid"><span id="jd_t_rvid"></span></label>
-  <div class="row"><button class="danger" id="jd_del"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div></div></div>
+  <div class="row"><button class="danger" id="jd_del"></button><button class="ghost" id="jd_remix"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div></div></div>
 <div id="rec_dlg"><div class="box"><h3 id="rec_t"></h3><div id="rec_all"></div><div class="row"><button class="ghost" id="rec_close" onclick="$('rec_dlg').classList.remove('show')"></button></div></div></div>
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
   <button class="ghost" id="vo_cancel"></button><button class="ghost" id="vo_tts"></button><button class="primary" id="vo_file"></button>
@@ -614,9 +629,10 @@
 <div id="tts_dlg"><div class="box"><h3 id="tts_t"></h3><div class="note2" id="tts_n"></div><div class="alist-in" id="tts_body"></div>
   <div class="row"><button class="primary" id="tts_ok" onclick="closeTts()"></button></div></div></div>
 <div id="lb"><div class="lbtop"><b id="lb_n"></b><span id="lb_t"></span><span class="sp"></span>
-  <button class="ghost" id="lb_sw"></button><button class="ghost" id="lb_ext"></button><button class="primary" id="lb_x" onclick="closeLB()"></button></div>
+  <button class="ghost" id="lb_edit"></button><button class="ghost" id="lb_own"></button><button class="ghost" id="lb_sw"></button><button class="ghost" id="lb_ext"></button><button class="primary" id="lb_x" onclick="closeLB()"></button></div>
   <div class="lbmid"><button class="nav2 l" id="lb_prev">&#8249;</button><div id="lb_media" style="display:contents"></div><button class="nav2 r" id="lb_next">&#8250;</button></div>
-  <div class="lbcap" id="lb_cap"></div></div>
+  <div class="lbcap" id="lb_cap"></div>
+  <div class="lbed"><textarea id="lb_prompt" spellcheck="false"></textarea><div class="r"><span class="n" id="lb_en"></span><button class="ghost" id="lb_ecancel"></button><button class="primary" id="lb_ego"></button></div></div></div>
 <div id="tr_dlg"><div class="box"><h3 id="tr_t"></h3>
   <div class="tbody"><div><div id="tr_pv"><video id="tr_video" autoplay loop muted playsinline></video><span class="busy" id="tr_busy"></span></div><div id="tr_err"></div>
     <div class="spres" id="tr_pres"></div><div id="tr_desc"></div></div>
@@ -628,6 +644,10 @@
       <textarea id="pf_master" spellcheck="false"></textarea><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div></div>
     <div class="pform" id="pf_form"></div></div>
   <div class="row"><button class="danger" id="pf_del"></button><span class="note" id="pf_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="pf_cancel"></button><button class="primary" id="pf_save"></button></div></div></div>
+<div id="rx_dlg"><div class="box"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div>
+  <div class="g"><label id="rx_l1"></label><div class="f"><input type="text" id="rx_file" readonly><button class="ghost" id="rx_pick"></button></div>
+    <label id="rx_l2"></label><select id="rx_tr"></select><label id="rx_l3"></label><select id="rx_sub"></select></div>
+  <div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -887,7 +907,7 @@ function fillProfiles() {
   $('style_sel').disabled = !!profileName;
 }
 $('use_pm').addEventListener('change', () => { profileManual = $('use_pm').checked; pywebview.api.save_config({profile_manual: profileManual}); });
-$('prof_sel').addEventListener('change', () => { profileName = $('prof_sel').value; fillProfiles(); pywebview.api.save_config({profile: profileName}); });
+$('prof_sel').addEventListener('change', async () => { profileName = $('prof_sel').value; fillProfiles(); pywebview.api.save_config({profile: profileName}); applyProfileVoice(profileName); });
 function fillStyles() {
   $('style_sel').innerHTML = styleOpts(false).map(([v, n]) => `<option value="${v}"${v === styleKey ? ' selected' : ''}>${esc(n)}</option>`).join('');
   $('custom_style').placeholder = t('custom_ph');
@@ -1129,6 +1149,8 @@ function jobMenu(id) {
   $('jd_rimg').checked = false; $('jd_rvid').checked = false;
   $('jd_del').textContent = pt('Удалить ролик', 'Delete video'); $('jd_cancel').textContent = pt('Отмена', 'Cancel'); $('jd_go').textContent = pt('Перезапустить', 'Restart');
   $('jd_cancel').onclick = () => $('job_dlg').classList.remove('show');
+  $('jd_remix').textContent = pt('Новая озвучка…', 'New voice-over…');
+  $('jd_remix').onclick = () => { $('job_dlg').classList.remove('show'); openRemix(r); };
   $('jd_go').onclick = () => {
     const o = {fg_image_model: $('jd_img').value, fg_video_model: $('jd_vid').value, mode: $('jd_mode').value, reset_images: $('jd_rimg').checked, reset_videos: $('jd_rvid').checked};
     if (o.reset_images && !confirm(pt(`Удалить ${r.images} картинок этого ролика и нарисовать заново? Это снова потратит кредиты.`, `Delete ${r.images} images and redraw? This spends credits again.`))) return;
@@ -1644,7 +1666,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
-  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); }
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles();
@@ -1926,7 +1948,7 @@ async function openLB(job, i, total, kind) {
 }
 function closeLB() { $('lb').classList.remove('show'); $('lb_media').innerHTML = ''; }
 async function showLB() {
-  const seq = ++LB.seq, i = LB.i;
+  const seq = ++LB.seq, i = LB.i; $('lb').classList.remove('editing');
   $('lb_n').textContent = String(i + 1).padStart(2, '0') + (LB.total ? ' / ' + LB.total : '');
   $('lb_media').innerHTML = `<span class="lbmsg">${pt('загружаю…', 'loading…')}</span>`;
   $('lb_prev').disabled = i <= 0; $('lb_next').disabled = LB.total ? i >= LB.total - 1 : false;
@@ -1955,7 +1977,7 @@ function fmtT(x) { x = Math.max(0, x || 0); const m = Math.floor(x / 60), s = Ma
 function stepLB(d) { const n = LB.i + d; if (n < 0 || (LB.total && n >= LB.total)) return; LB.i = n; LB.kind = 'auto'; showLB(); }
 $('lb_prev').onclick = () => stepLB(-1); $('lb_next').onclick = () => stepLB(1);
 document.addEventListener('keydown', e => {
-  if (!$('lb').classList.contains('show')) return;
+  if (!$('lb').classList.contains('show') || (e.target.closest && e.target.closest('textarea, input'))) return;
   if (e.key === 'ArrowLeft') { stepLB(-1); e.preventDefault(); } else if (e.key === 'ArrowRight') { stepLB(1); e.preventDefault(); } else if (e.key === 'Escape') closeLB();
 });
 
@@ -2095,14 +2117,21 @@ function pfRenderForm() {
     + txt('prompt_prefix', pt('Начало каждого', 'Prefix'), '') + txt('prompt_suffix', pt('Конец каждого', 'Suffix'), '')
     + `<div class="sec2">${pt('Оживление', 'Animation')}</div>`
     + txt('motion', pt('Движение камеры', 'Camera motion'), 'slow gentle camera movement') + txt('video_suffix', pt('Хвост промпта', 'Prompt suffix'), '')
+    + `<div class="sec2">${pt('Озвучка', 'Voice-over')}</div>`
+    + `<label>${pt('Сервис', 'Service')}</label><select data-kv="service">${[['', 'как в настройках', 'as in settings']].concat(Object.entries(TTS_NAMES).map(([k, v]) => [k, v, v])).map(([v, r, e]) => `<option value="${v}"${((st.voice || {}).service || '') === v ? ' selected' : ''}>${pt(r, e)}</option>`).join('')}</select>`
+    + `<label>${pt('ID голоса', 'Voice ID')}</label><input type="text" data-kv="voice_id" value="${esc((st.voice || {}).voice_id || '')}" placeholder="${pt('пусто — голос сервиса по умолчанию', 'empty — default voice')}" spellcheck="false">`
+    + `<div class="h">${pt('Выбрали профиль на шаге 02 — этот голос подставится в «Озвучить программой». Поменять для одного ролика — «Настроить голос». Ключ сервиса — в общих настройках.', 'Picking the profile sets this voice; change it per video in Voice settings.')}</div>`
     + `<div class="sec2">${pt('Вид ролика', 'Video look')}</div>`
     + sel('transitions', pt('Переходы', 'Transitions'), PF_TRANS)
     + `<div class="h">${pt('Если выбрано — у роликов этого профиля всегда эти переходы, что бы ни стояло в «Моушн-дизайн».', 'If set, videos of this profile always use these transitions.')}</div>`;
+  $('pf_form').querySelectorAll('[data-kv]').forEach(e => e.addEventListener('input', () => PF.dirty = true));
+  $('pf_form').querySelectorAll('[data-kv]').forEach(e => e.addEventListener('change', () => PF.dirty = true));
   $('pf_form').querySelectorAll('[data-k]').forEach(e => e.addEventListener(e.type === 'checkbox' || e.tagName === 'SELECT' ? 'change' : 'input', () => PF.dirty = true));
 }
 function pfCollect() {
   const st = {};
   $('pf_form').querySelectorAll('[data-k]').forEach(e => { st[e.dataset.k] = e.type === 'checkbox' ? e.checked : e.value; });
+  st.voice = {}; $('pf_form').querySelectorAll('[data-kv]').forEach(e => { st.voice[e.dataset.kv] = e.value; });
   return {name: $('pf_name').value, old_name: PF.cur, master: $('pf_master').value, settings: st};
 }
 async function pfChips() {
@@ -2125,6 +2154,7 @@ async function pfSave() {
   PF.list = r.profiles; PROFILES = r.profiles;
   if (PF.cur && PF.cur === profileName && r.name !== PF.cur) profileName = r.name;
   fillProfiles(); toast(pt(`Профиль «${esc(r.name)}» сохранён`, `Profile “${esc(r.name)}” saved`), 4000);
+  if (r.name === profileName) applyProfileVoice(profileName, true);
   await pfOpen(r.name);
 }
 async function pfDelete() {
@@ -2137,6 +2167,77 @@ async function pfDelete() {
   PF.dirty = false; await pfOpen(PF.list[0] || null);
 }
 pfLabel();
+
+// ===== голос профиля: выбрали профиль — его голос в «Озвучить программой» =====
+async function applyProfileVoice(name, quiet) {
+  if (!name) return;
+  const v = await pywebview.api.profile_voice(name);
+  if (!v || !v.service) return;
+  if (tts === v.service && (F.voice || '') === (v.voice_id || '')) return;
+  syncAll(); tts = v.service; F.voice = v.voice_id || '';
+  pywebview.api.save_config({tts_service: tts, tts_voice: F.voice});
+  if (cur === 4) renderAccess();
+  if (!quiet) toast(pt(`Голос из профиля «${esc(name)}»: ${esc(voiceSummary())}`, `Voice from profile: ${esc(voiceSummary())}`), 5000);
+}
+
+// ===== правка кадра в окне просмотра =====
+function lbJobId() { return LB.job; }
+function lbEditLabels() {
+  $('lb_edit').textContent = pt('✎ Промпт', '✎ Prompt'); $('lb_own').textContent = pt('Своя картинка…', 'Own image…');
+  $('lb_ecancel').textContent = pt('Отмена', 'Cancel'); $('lb_ego').textContent = pt('Перерисовать', 'Redraw');
+  $('lb_en').textContent = pt('Поменяйте промпт (или оставьте как есть) — кадр нарисуется заново, ролик пересоберётся. Тратится 1 картинка (и 1 видео, если кадр оживлён).', 'Edit the prompt — the frame is redrawn and the video reassembled.');
+}
+async function afterFrameChange(r, what) {
+  if (r.running) { if (r.ok) toast(pt(`Кадр ${LB.i + 1} перерисуется до сборки этого ролика.`, 'The frame will be redrawn before assembly.'), 6000); else if (r.late) toast(t('redo_late'), 7000); return; }
+  if (!r.ok) { if (!r.cancel) toast(esc(r.error || ''), 8000); return; }
+  if (confirm(pt(`${what}. Пересобрать ролик сейчас? (Нет — пересоберётся, когда нажмёте «Продолжить» у этого ролика.)`, `${what}. Rebuild the video now?`))) {
+    closeLB(); $('fr_dlg').classList.remove('show'); continueJob(r.job_id);
+  } else { showLB(); refreshRecent(); }
+}
+$('lb_edit').onclick = () => { $('lb_prompt').value = (LB.info && LB.info.prompt) || ''; $('lb').classList.add('editing'); $('lb_prompt').focus(); };
+$('lb_ecancel').onclick = () => $('lb').classList.remove('editing');
+$('lb_ego').onclick = async () => {
+  const r = await pywebview.api.frame_edit(lbJobId(), LB.i, $('lb_prompt').value);
+  $('lb').classList.remove('editing');
+  await afterFrameChange(r, pt(r.changed ? `Кадр ${LB.i + 1}: промпт сохранён, кадр будет нарисован заново` : `Кадр ${LB.i + 1} будет нарисован заново`, 'Frame queued for redraw'));
+};
+$('lb_own').onclick = async () => {
+  const r = await pywebview.api.frame_replace(lbJobId(), LB.i);
+  await afterFrameChange(r, pt(`Кадр ${LB.i + 1} заменён вашей картинкой`, 'Frame replaced'));
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('lb').classList.contains('editing')) { $('lb').classList.remove('editing'); e.stopImmediatePropagation(); } }, true);
+lbEditLabels();
+
+// ===== новая озвучка для готового ролика =====
+let RX = null;
+function openRemix(r) {
+  RX = {id: r.id, file: ''};
+  $('rx_t').textContent = pt(`Новая озвучка: ${r.title}`, `New voice-over: ${r.title}`);
+  $('rx_n').innerHTML = pt('Тот же визуал — картинки и оживлённые клипы этого ролика, ничего не генерируется и кредиты не тратятся. '
+    + 'Сцены сами разложатся по новой озвучке (тот же текст другим голосом или темпом). Переходы и субтитры — какие выберете ниже. '
+    + 'Получится отдельный ролик, исходный не меняется.', 'Same visuals, no generation. Scenes are re-timed to the new voice-over.');
+  $('rx_l1').textContent = pt('Файл озвучки', 'Voice-over file'); $('rx_pick').textContent = pt('Выбрать', 'Pick');
+  $('rx_file').value = ''; $('rx_file').placeholder = pt('другой mp3 / wav этого же сценария', 'another mp3 of the same script');
+  $('rx_l2').textContent = pt('Переходы', 'Transitions');
+  $('rx_tr').innerHTML = [['', 'как сейчас в настройках', 'as in settings'], ['classic', 'Как сейчас', 'As now'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum'], ['none', 'Без переходов', 'No transitions']]
+    .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
+  $('rx_l3').textContent = pt('Субтитры', 'Subtitles');
+  $('rx_sub').innerHTML = [['on', 'с субтитрами (вид — как в «Вид субтитров»)', 'on'], ['off', 'без субтитров', 'off']].map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
+  $('rx_sub').value = $('use_subs').checked ? 'on' : 'off';
+  $('rx_cancel').textContent = pt('Отмена', 'Cancel'); $('rx_go').textContent = pt('Собрать', 'Build');
+  $('rx_pick').onclick = async () => { const p = await pywebview.api.pick_file(); if (p) { RX.file = p; $('rx_file').value = p; } };
+  $('rx_cancel').onclick = () => $('rx_dlg').classList.remove('show');
+  $('rx_go').onclick = async () => {
+    if (!RX.file) { toast(pt('Выберите файл новой озвучки', 'Pick the new voice-over file'), 4000); return; }
+    const o = {subtitles: $('rx_sub').value === 'on'}; if ($('rx_tr').value) o.transitions = $('rx_tr').value;
+    const x = await pywebview.api.remix_job(RX.id, RX.file, o);
+    if (!x.ok) { toast(esc(x.error || ''), 8000); return; }
+    $('rx_dlg').classList.remove('show');
+    $('result').classList.remove('show'); $('error').textContent = ''; $('p_err').textContent = ''; $('btn_cancel').disabled = false; shownPct = 0;
+    buildStages(x.mode || mode()); buildFrames(0); go(6); poll();
+  };
+  $('rx_dlg').classList.add('show');
+}
 </script>
 </body>
 </html>

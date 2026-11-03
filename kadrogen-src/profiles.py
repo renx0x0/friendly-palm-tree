@@ -227,7 +227,7 @@ def load_profile(name, dirs):
 
 EDIT_KEYS = ("chars_per_part", "min_parts", "max_parts", "prompts_per_part", "llm", "llm_model", "llm_fallback_model",
              "reasoning_effort", "temperature", "parallel", "attempts", "check_sync", "prompt_prefix", "prompt_suffix",
-             "motion", "video_suffix", "transitions")
+             "motion", "video_suffix", "transitions", "voice")
 TRASH_DIR = "_удалённые"
 
 
@@ -268,6 +268,8 @@ def read_profile_raw(name, dirs):
         st["transitions"] = ""
     elif isinstance(st["transitions"], dict):
         st["transitions"] = st["transitions"].get("preset", "")
+    if not isinstance(st.get("voice"), dict):
+        st["voice"] = {}
     rules = data.get("prompt_rules") or []
     return {"name": name, "master": _read_text(os.path.join(pdir, MASTER_FILE)), "settings": st, "dir": pdir,
             "rules": len(rules) if isinstance(rules, list) else 0}
@@ -297,6 +299,11 @@ def _clean_settings(st):
     for k in ("llm_model", "llm_fallback_model", "prompt_prefix", "prompt_suffix", "motion", "video_suffix"):
         if k in st:
             out[k] = " ".join(str(st[k] or "").split())
+    if "voice" in st:
+        v = st["voice"] if isinstance(st["voice"], dict) else {}
+        svc = v.get("service") if v.get("service") in ("edge", "fastgen", "royal", "voicegen", "voicer", "lumean") else ""
+        vid = " ".join(str(v.get("voice_id") or "").split())[:200]
+        out["voice"] = {"service": svc, "voice_id": vid} if svc else None
     if "transitions" in st:
         t = st["transitions"]
         out["transitions"] = t if t in ("classic", "soft", "full", "none") else None
@@ -1148,3 +1155,12 @@ def ready_profile():
     p = dict(DEFAULTS)
     p.update({"name": READY_NAME, "key": "ready"})
     return p
+
+
+def profile_voice(name, dirs):
+    """Голос профиля {"service", "voice_id"} или None."""
+    try:
+        v = read_profile_raw(name, dirs)["settings"].get("voice") or {}
+    except ProfileError:
+        return None
+    return {"service": v["service"], "voice_id": v.get("voice_id", "")} if v.get("service") else None

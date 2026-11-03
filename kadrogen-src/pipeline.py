@@ -1833,6 +1833,35 @@ def take_redo():
     return batch
 
 
+EDITS_FILE = "edits.json"  # свои промпты кадров из окна просмотра: {"номер": "промпт"}
+
+
+def apply_edits(scenes, job_dir):
+    """Свои правки промптов поверх сцен (правка из окна кадра переживает повторную сборку и «Продолжить»)."""
+    ed = read_json(os.path.join(job_dir, EDITS_FILE), {}) or {}
+    n = 0
+    for s in scenes:
+        p = ed.get(str(s["index"]))
+        if p and s.get("prompt") != p:
+            s["prompt"] = p
+            n += 1
+    if n:
+        log(f"свои промпты из правки кадров: {n}")
+    return scenes
+
+
+def save_edit(job_dir, index, prompt):
+    path = os.path.join(job_dir, EDITS_FILE)
+    ed = read_json(path, {}) or {}
+    ed[str(int(index))] = prompt
+    write_json(path, ed)
+    sp = os.path.join(job_dir, "scenes.json")
+    sc = read_json(sp) or []
+    if 0 <= int(index) < len(sc):
+        sc[int(index)]["prompt"] = prompt
+        write_json(sp, sc)
+
+
 def redo_files(job_dir, index):
     """Удаляет картинку сцены и всё, что из неё сделано (клип с движением, оживление), чтобы нарисовать заново."""
     for rel in [f"images/{index:04d}.png", f"videos/{index:04d}.mp4"] + [f"{d}/{index:04d}.mp4" for d in clip_dirs(job_dir)]:
@@ -3163,7 +3192,117 @@ def profile_job_dir(job_dir, prof):
     return d
 
 
-def run_job_dir(cfg, audio_path=None, script_text=None, voice_file=None, rewrite=None, profile=None, prompts_file=None):
+# ============ новый ролик из готового: тот же визуал, другая озвучка ============
+
+REMIX_DIR = "новая озвучка"
+
+
+def remix_job_dir(job_dir, src_dir):
+    """Папка ремикса рядом с папкой новой озвучки. Совпала с исходной (тот же файл озвучки) — стоп."""
+    d = profile_job_dir(job_dir, {"name": REMIX_DIR})
+    if os.path.normcase(os.path.abspath(d)) == os.path.normcase(os.path.abspath(src_dir)):
+        raise SystemExit("Новая озвучка должна быть другим файлом — этот ролик и так сделан из неё.")
+    return d
+
+
+def _link_or_copy(src, dst):
+    if os.path.exists(dst):
+        return
+    try:
+        os.link(src, dst)  # жёсткая ссылка: место на диске не тратится
+    except OSError:
+        shutil.copy2(src, dst)
+
+
+def remix_prepare(src_dir, job_dir):
+    """Картинки и оживлённые клипы исходного ролика → в папку ремикса."""
+    n = 0
+    for sub, ext in (("images", ".png"), ("videos", ".mp4")):
+        sd, dd = os.path.join(src_dir, sub), os.path.join(job_dir, sub)
+        if not os.path.isdir(sd):
+            continue
+        os.makedirs(dd, exist_ok=True)
+        for f in os.listdir(sd):
+            if f.endswith(ext) and f[:4].isdigit():
+                _link_or_copy(os.path.join(sd, f), os.path.join(dd, f))
+                n += 1
+    for f in ("images.json", "videos.json"):
+        if os.path.exists(os.path.join(src_dir, f)) and not os.path.exists(os.path.join(job_dir, f)):
+            shutil.copy(os.path.join(src_dir, f), os.path.join(job_dir, f))
+    return n
+
+
+def remap_times(old_words, new_words, times, old_dur, new_dur):
+    """Моменты старой озвучки → моменты новой: по совпавшим словам (та же речь, другой голос/темп).
+    Не совпало и половины слов — растягиваем пропорционально длительности. → (новые моменты, способ)."""
+    import bisect
+    ow = [w for w in old_words or [] if str(w.get("text", "")).strip()]
+    nw = [w for w in new_words or [] if str(w.get("text", "")).strip()]
+    scale = (new_dur / old_dur) if old_dur else 1.0
+    if len(ow) < 10 or len(nw) < 10:
+        return [t * scale for t in times], "пропорционально"
+    m = subs_style.match_keys([subs_style._key(str(w["text"])) for w in ow], [subs_style._key(str(w["text"])) for w in nw])
+    pairs = [(i, j) for i, j in enumerate(m) if j is not None]
+    if len(pairs) < 0.5 * len(ow):
+        return [t * scale for t in times], "пропорционально"
+    starts = [float(w["start"]) for w in ow]
+    out = []
+    pa = [i for i, _ in pairs]
+    for t in times:
+        i = min(len(ow) - 1, bisect.bisect_left(starts, t - 0.05))  # первое слово сцены
+        k = bisect.bisect_left(pa, i)
+        if k < len(pairs) and pairs[k][0] == i:
+            j = pairs[k][1]
+            nt = float(nw[j]["start"])
+            if i > 0 and m[i - 1] is not None and m[i - 1] == j - 1:  # граница в паузе — на той же доле паузы, что в исходнике
+                gap_old = starts[i] - float(ow[i - 1]["end"])
+                pos = (t - float(ow[i - 1]["end"])) / gap_old if gap_old > 0 else 1.0
+                pe = float(nw[j - 1]["end"])
+                nt = pe + max(0.0, min(1.0, pos)) * max(0.0, nt - pe)
+        elif k == 0:
+            i1, j1 = pairs[0]
+            nt = max(0.0, float(nw[j1]["start"]) - (starts[i1] - t) * scale)
+        elif k >= len(pairs):
+            i0, j0 = pairs[-1]
+            nt = float(nw[j0]["end"]) + (t - float(ow[i0]["end"])) * scale
+        else:
+            (i0, j0), (i1, j1) = pairs[k - 1], pairs[k]
+            a, b = float(ow[i0]["end"]), starts[i1]
+            na, nb = float(nw[j0]["end"]), float(nw[j1]["start"])
+            nt = na + (nb - na) * ((t - a) / (b - a) if b > a else 0.5)
+        out.append(nt)
+    return out, f"по словам ({len(pairs)} из {len(ow)} совпали)"
+
+
+def remix_scenes(src_dir, tr, duration, job_dir, progress):
+    """Сцены исходного ролика с новыми таймкодами под новую озвучку; промпты и картинки те же."""
+    old = read_json(os.path.join(src_dir, "scenes.json")) or []
+    if not old:
+        raise SystemExit("У исходного ролика нет сцен (scenes.json) — сначала доделайте его.")
+    old_tr = read_json(os.path.join(src_dir, "transcript.json")) or {}
+    old_dur = float(old[-1].get("end") or 0) or duration
+    starts = [float(s.get("start") or 0) for s in old]
+    new_starts, how = remap_times(old_tr.get("words"), tr.get("words"), starts[1:], old_dur, duration)
+    bounds = [0.0] + new_starts + [duration]
+    for k in range(1, len(bounds) - 1):  # только вперёд, сцена не короче 0,4 с
+        bounds[k] = max(bounds[k], bounds[k - 1] + 0.4)
+    if bounds[-2] > duration - 0.4:  # хвост не влез — сжимаем последние границы
+        for k in range(len(bounds) - 2, 0, -1):
+            bounds[k] = min(bounds[k], bounds[k + 1] - 0.4)
+    scenes = []
+    for k, sc in enumerate(old):
+        s2 = dict(sc)
+        s2.update({"index": k, "start": round(bounds[k], 3), "end": round(bounds[k + 1], 3)})
+        s2["duration"] = round(s2["end"] - s2["start"], 3)
+        scenes.append(s2)
+    write_json(os.path.join(job_dir, "scenes.json"), scenes)
+    msg = f"сцены разложены по новой озвучке {how}: {len(scenes)} сцен, {old_dur:.0f} с → {duration:.0f} с"
+    log(msg)
+    progress("scenes", len(scenes), len(scenes), msg)
+    return scenes
+
+
+def run_job_dir(cfg, audio_path=None, script_text=None, voice_file=None, rewrite=None, profile=None, prompts_file=None, remix_from=None):
     """Папка задания заранее (для окна, чтобы показывать кадры). None — станет известна только после рерайта."""
     if rewrite and rewrite.get("on"):
         return None
@@ -3173,6 +3312,8 @@ def run_job_dir(cfg, audio_path=None, script_text=None, voice_file=None, rewrite
         d = job_dir_for(os.path.abspath(audio_path))[0]
     else:
         return None
+    if remix_from:
+        return profile_job_dir(d, {"name": REMIX_DIR})
     if prompts_file:
         return profile_job_dir(d, {"name": READY_DIR})
     try:
@@ -3236,6 +3377,7 @@ def profile_script_text(job_dir, tr):
 def apply_new_scenes(job_dir, scenes):
     """Записать сцены задания. Промпт кадра поменялся — его картинка и клипы удаляются (нарисуется заново);
     поменялась только длительность — пересобирается лишь клип. → сколько кадров перерисуется."""
+    apply_edits(scenes, job_dir)  # свои промпты из правки кадра — не считаем их «изменившимися» и не стираем кадр
     scenes_path = os.path.join(job_dir, "scenes.json")
     old = {s.get("index"): s for s in (read_json(scenes_path) or []) if isinstance(s, dict)}
     redrawn = 0
@@ -3419,8 +3561,9 @@ def prepare(audio_path=None, progress_cb=None, provider=None, mode="images", use
 
 def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, mode="images", style_key=None, use_refs=False,
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
-               video_first=0, hd=False, profile=None, voice_file=None, prompts_file=None):
-    """profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
+               video_first=0, hd=False, profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None):
+    """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
+    look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
     global FASTGEN_QUALITY, HD_IMAGES, LAST_JOB_DIR, VIDEO_PROMPT, VIDEO_ZOOM, VIDEO_ANCHOR
     HD_IMAGES = bool(hd)
@@ -3444,20 +3587,24 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     FASTGEN_QUALITY = (fastgen_quality or cfg.get("quality") or cfg.get("fastgen_quality") or "speed")
     if FASTGEN_QUALITY not in IMAGE_CHAINS:
         FASTGEN_QUALITY = "speed"
-    prof = None if prompts_file else load_active_profile(cfg, profile)
-    look = prof
-    if look is None and prompts_file and cfg.get("profile"):
+    if remix_from:
+        prompts_file, profile = None, ""
+        if not os.path.isdir(remix_from):
+            raise SystemExit("Папка исходного ролика не найдена.")
+    prof = None if (prompts_file or remix_from) else load_active_profile(cfg, profile)
+    look_prof = prof
+    if look_prof is None and prompts_file and cfg.get("profile"):
         try:  # готовые промпты: профиль для текстов не нужен, но вид ролика (переходы) берём из выбранного
-            look = load_active_profile(cfg, cfg.get("profile"))
+            look_prof = load_active_profile(cfg, cfg.get("profile"))
         except SystemExit:
-            look = None
-    pt = (look or {}).get("transitions")
+            look_prof = None
+    pt = (look or {}).get("transitions") or (look_prof or {}).get("transitions")
     if isinstance(pt, str):
         pt = {"preset": pt}
     if isinstance(pt, dict) and pt.get("preset") in list(TRANS_PRESETS) + ["custom"]:
         cfg = dict(cfg, transitions=pt)
         motion = pt.get("preset") != "none"
-        log(f"переходы из профиля «{look['name']}»: {pt.get('preset')}")
+        log(f"переходы: {pt.get('preset')}" + (f" (профиль «{look_prof['name']}»)" if look_prof and not (look or {}).get("transitions") else ""))
     motion = apply_trans(cfg, motion)
     if motion or KB_MODE != "classic":
         log(f"переходы: {'вперемешку' if TRANS_ORDER == 'random' else 'по кругу'} из {len(TRANSITIONS)} по {TRANSITION} с, движение картинок: {KB_MODE}"
@@ -3468,7 +3615,12 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     if prof or prompts_file:
         use_refs = False  # героев с портретами нет: всё описано в самих промптах
     audio_path, job_dir, base = resolve_source(cfg, audio_path, script_text, tts_service, tts_voice, progress, rewrite, voice_file)
-    if prompts_file:
+    if remix_from:
+        job_dir = remix_job_dir(job_dir, remix_from)
+        LAST_JOB_DIR = job_dir
+        n = remix_prepare(remix_from, job_dir)
+        log(f"новая озвучка для готового ролика: взято {n} картинок и клипов из «{os.path.basename(remix_from)}»")
+    elif prompts_file:
         job_dir = profile_job_dir(job_dir, {"name": READY_DIR})
         LAST_JOB_DIR = job_dir
     elif prof:
@@ -3504,7 +3656,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
 
     tr = transcribe(engine, text_api, audio_path, job_dir, progress, duration)
     refs, ref_pool = {}, None
-    if prompts_file:
+    if remix_from:
+        scenes = remix_scenes(remix_from, tr, duration, job_dir, progress)
+        style = {"style_key": "remix", "style": "", "characters": [], "props": [], "locations": []}
+        use_refs = False
+    elif prompts_file:
         scenes = ready_scenes(prompts_file, tr, duration, job_dir, progress)
         style = {"style_key": "ready", "style": "", "characters": [], "props": [], "locations": []}
     elif prof:
@@ -3521,39 +3677,51 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             write_json(scenes_path, scenes)
         progress("scenes", len(scenes), len(scenes), f"сцен: {len(scenes)}")
         style = build_style(llm, tr["text"], job_dir, progress, style_key, style_hint)
-    if use_refs:
-        # портреты героев зависят только от библии — рисуем их, пока пишутся промпты сцен (сообщения пока в журнал)
-        ref_quiet = threading.Event()
-        ref_quiet.set()
+    if remix_from:  # всё нарисовано и оживлено — только сборка
+        img_dir = os.path.join(job_dir, "images")
+        missing = [s["index"] + 1 for s in scenes if not os.path.exists(os.path.join(img_dir, f"{s['index']:04d}.png"))]
+        if missing:
+            raise SystemExit(f"В исходном ролике нет {len(missing)} картинок (кадры {', '.join(map(str, missing[:8]))}"
+                             f"{'…' if len(missing) > 8 else ''}) — сначала доделайте его кнопкой «Продолжить».")
+        vid_dir = os.path.join(job_dir, "videos")
+        videos = {s["index"]: os.path.join(vid_dir, f"{s['index']:04d}.mp4") for s in scenes
+                  if os.path.exists(os.path.join(vid_dir, f"{s['index']:04d}.mp4"))}
+        progress("images", len(scenes), len(scenes), f"картинки готовые: {len(scenes)}" + (f", клипов: {len(videos)}" if videos else ""))
+    else:
+        if use_refs:
+            # портреты героев зависят только от библии — рисуем их, пока пишутся промпты сцен (сообщения пока в журнал)
+            ref_quiet = threading.Event()
+            ref_quiet.set()
 
-        def ref_progress(*a):
-            if ref_quiet.is_set():
-                if len(a) > 3 and a[3]:
-                    log(a[3])
-                return
-            return progress(*a)
-        ref_pool = cf.ThreadPoolExecutor(max_workers=1)
-        ref_fut = ref_pool.submit(make_references, ctx, style, job_dir, ref_progress)
-    if not prof and not prompts_file:
-        scenes = build_prompts(llm, style, scenes, job_dir, progress, use_refs)
-    if ref_pool:
-        ref_quiet.clear()
-        if not ref_fut.done():
-            progress("refs", 0, 0, "дорисовываю портреты героев")
-        refs = ref_fut.result()
-        ref_pool.shutdown(wait=True)
-    drop_failed_images(scenes, job_dir)
-    pre = Prerender(scenes, os.path.join(job_dir, "images"), job_dir, mode, motion, video_first)
-    overlap = VideoOverlap(ctx, scenes, job_dir, progress, mode, video_first) if (mode in ("video", "mixed") or video_first) else None
-    try:
-        img_dir = generate_all_images(ctx, scenes, style, job_dir, progress, refs, on_image=pre.submit)
-    except BaseException:
-        if overlap:
-            overlap.abort()
-        raise
-    videos = overlap.result() if overlap else {}
-    pre.wait()
-    videos = redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_first, videos)
+            def ref_progress(*a):
+                if ref_quiet.is_set():
+                    if len(a) > 3 and a[3]:
+                        log(a[3])
+                    return
+                return progress(*a)
+            ref_pool = cf.ThreadPoolExecutor(max_workers=1)
+            ref_fut = ref_pool.submit(make_references, ctx, style, job_dir, ref_progress)
+        if not prof and not prompts_file:
+            scenes = build_prompts(llm, style, scenes, job_dir, progress, use_refs)
+        if ref_pool:
+            ref_quiet.clear()
+            if not ref_fut.done():
+                progress("refs", 0, 0, "дорисовываю портреты героев")
+            refs = ref_fut.result()
+            ref_pool.shutdown(wait=True)
+        apply_edits(scenes, job_dir)
+        drop_failed_images(scenes, job_dir)
+        pre = Prerender(scenes, os.path.join(job_dir, "images"), job_dir, mode, motion, video_first)
+        overlap = VideoOverlap(ctx, scenes, job_dir, progress, mode, video_first) if (mode in ("video", "mixed") or video_first) else None
+        try:
+            img_dir = generate_all_images(ctx, scenes, style, job_dir, progress, refs, on_image=pre.submit)
+        except BaseException:
+            if overlap:
+                overlap.abort()
+            raise
+        videos = overlap.result() if overlap else {}
+        pre.wait()
+        videos = redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_first, videos)
     if subtitles:
         raw_mp4 = os.path.join(job_dir, "nosubs.mp4")
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, raw_mp4, progress, motion=motion)

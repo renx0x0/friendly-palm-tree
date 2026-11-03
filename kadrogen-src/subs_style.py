@@ -113,36 +113,44 @@ def script_tokens(text):
     return toks
 
 
-def align_script(script_text, words, min_share=0.45):
-    """Слова сценария с временем из распознавания: [{"text","start","end"}] или None, если сценарий
-    не похож на озвучку (совпало меньше min_share слов) — тогда субтитры по распознаванию.
-    Совпавшие слова берут время своего распознанного слова; несовпавшие (ослышки, числа словами, пропуски)
-    делят время между соседними совпавшими пропорционально длине."""
+def match_keys(sk, rk):
+    """Сопоставить две последовательности слов (уже нормализованных): для каждого слова sk — индекс в rk или None.
+    Совпадения ищутся целиком, затем ещё раз в «дырах» между ними — мельче."""
     import difflib
-    toks = script_tokens(script_text)
-    rw = [w for w in words or [] if str(w.get("text", "")).strip()]
-    if not toks or not rw:
-        return None
-    sk = [_key(t) for t in toks]
-    rk = [_key(str(w["text"])) for w in rw]
-    match = [None] * len(toks)  # индекс распознанного слова
+    match = [None] * len(sk)
 
     def fill(a0, a1, b0, b1, depth=0):
         if a0 >= a1 or b0 >= b1:
             return
         sm = difflib.SequenceMatcher(None, sk[a0:a1], rk[b0:b1], autojunk=(a1 - a0) > 3000)
-        blocks = [m for m in sm.get_matching_blocks() if m.size]
         pa, pb = a0, b0
-        for m in blocks:
+        for m in sm.get_matching_blocks():
+            if not m.size:
+                continue
             if depth < 2 and (m.a + a0 > pa and m.b + b0 > pb):
-                fill(pa, m.a + a0, pb, m.b + b0, depth + 1)  # дыры между совпадениями — сверяем ещё раз, мельче
+                fill(pa, m.a + a0, pb, m.b + b0, depth + 1)
             for k in range(m.size):
                 match[a0 + m.a + k] = b0 + m.b + k
             pa, pb = a0 + m.a + m.size, b0 + m.b + m.size
         if depth < 2 and pa < a1 and pb < b1:
             fill(pa, a1, pb, b1, depth + 1)
 
-    fill(0, len(toks), 0, len(rw))
+    fill(0, len(sk), 0, len(rk))
+    return match
+
+
+def align_script(script_text, words, min_share=0.45):
+    """Слова сценария с временем из распознавания: [{"text","start","end"}] или None, если сценарий
+    не похож на озвучку (совпало меньше min_share слов) — тогда субтитры по распознаванию.
+    Совпавшие слова берут время своего распознанного слова; несовпавшие (ослышки, числа словами, пропуски)
+    делят время между соседними совпавшими пропорционально длине."""
+    toks = script_tokens(script_text)
+    rw = [w for w in words or [] if str(w.get("text", "")).strip()]
+    if not toks or not rw:
+        return None
+    sk = [_key(t) for t in toks]
+    rk = [_key(str(w["text"])) for w in rw]
+    match = match_keys(sk, rk)
     if sum(m is not None for m in match) < min_share * len(toks):
         return None
     out = [None] * len(toks)
