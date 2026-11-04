@@ -8,6 +8,7 @@ import json
 import math
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -42,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p44"
+VERSION = "1.7.1-p45"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -679,7 +680,13 @@ def mask(key):
 def progress_cb(stage, done, total, message):
     with LOCK:
         STATE.update({"stage": stage, "done": done, "total": total, "message": message})
-        STATE["log"].append(f"{time.strftime('%H:%M:%S')}  {message}" + (f"  {done}/{total}" if total else ""))
+        line = f"{time.strftime('%H:%M:%S')}  {message}" + (f"  {done}/{total}" if total else "")
+        key = stage + re.sub(r"\d+", "#", str(message))  # та же строка, поменялись только числа («склейка: 41%») — обновляем, а не копим
+        if STATE["log"] and STATE.get("_logkey") == key:
+            STATE["log"][-1] = line
+        else:
+            STATE["log"].append(line)
+        STATE["_logkey"] = key
         STATE["log"] = STATE["log"][-400:]
 
 
@@ -822,6 +829,7 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
         STATE["deferred"] = False
     try:
         apply_engine(provider)
+        pipeline.LAST_JOB_DIR = None  # кадры прошлого проекта не должны мелькать в окне нового ролика
         d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile, prompts_file, remix_from)
         with LOCK:
             STATE["job_dir"] = d
@@ -1920,12 +1928,36 @@ class Api:
         except (TypeError, ValueError):
             return {"n": n, "prompts": [], "problems": [], "status": "wait", "live": ""}
 
+    def job_stats(self):
+        """Цифры для панели прогресса: картинки, клипы сцен, оживление, брак — прямо по файлам проекта."""
+        with LOCK:
+            jd, n = STATE.get("job_dir") or pipeline.LAST_JOB_DIR, STATE.get("scenes") or 0
+        if not jd or not os.path.isdir(jd):
+            return {"ok": False}
+        cnt = lambda d, ext: sum(1 for f in os.listdir(d) if f.endswith(ext) and f[:4].isdigit()) if os.path.isdir(d) else 0
+        scenes = pipeline.read_json(os.path.join(jd, "scenes.json")) or []
+        n = n or len(scenes)
+        clips = max([cnt(os.path.join(jd, c), ".mp4") for c in pipeline.clip_dirs(jd)] or [0])
+        img_state = pipeline.read_json(os.path.join(jd, "images.json"), {}) or {}
+        bad = sum(1 for v in img_state.values() if isinstance(v, dict) and not v.get("ok"))
+        vids = cnt(os.path.join(jd, "videos"), ".mp4")
+        anim = 0
+        try:
+            rec = pipeline.read_json(os.path.join(jd, "job.json"), {}) or {}
+            a = rec.get("args") or {}
+            if scenes and (a.get("mode") in ("video", "mixed") or a.get("video_first")):
+                anim = len(pipeline.animated_scenes(scenes, a.get("mode") or "images", a.get("video_first") or 0))
+        except Exception:
+            anim = 0
+        return {"ok": True, "job": os.path.basename(jd), "scenes": n, "images": cnt(os.path.join(jd, "images"), ".png"),
+                "clips": clips, "videos": vids, "anim": anim, "bad": bad}
+
     def gallery(self, known):
         """Кадры сцен, которых окно ещё не видело. known — список индексов, уже показанных."""
         with LOCK:
             job_dir, n = STATE.get("job_dir") or pipeline.LAST_JOB_DIR, STATE.get("scenes") or 0
         if not job_dir:
-            return {"total": 0, "items": []}
+            return {"total": 0, "items": [], "job": ""}
         known = set(int(x) for x in (known or []))
         img_dir = os.path.join(job_dir, "images")
         vid_dir = os.path.join(job_dir, "videos")
@@ -1952,7 +1984,7 @@ class Api:
         if not n:
             scenes = pipeline.read_json(os.path.join(job_dir, "scenes.json")) or []
             n = len(scenes)
-        return {"total": n, "items": items[:12], "redo": redo}
+        return {"total": n, "items": items[:24], "redo": redo, "job": os.path.basename(job_dir)}
 
     def redo_scene(self, index):
         """Кнопка ↻ на кадре. Пока ролик рисуется — кадр перерисуется до сборки; когда ролик готов — картинка

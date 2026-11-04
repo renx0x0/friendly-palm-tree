@@ -718,6 +718,27 @@
   @media (min-width:1900px) { .opt.sec, .optx { min-height:72px !important; padding-top:12px !important; padding-bottom:12px !important; } .opts { gap:10px 12px !important; } }
   @media (min-width:2300px) { .wrap { zoom:1.45; height:calc(100vh / 1.45); } }
   @media (min-width:3200px) { .wrap { zoom:1.9; height:calc(100vh / 1.9); } }
+  /* экран создания (p45): во всю ширину, слева — живые цифры и журнал, справа — сетка кадров */
+  body.s6 .wrap { max-width:min(96vw, 2600px); }
+  #screen6 .proc { grid-template-columns:minmax(330px, 24%) 1fr; }
+  #screen6 .proc.with-parts { grid-template-columns:minmax(320px, 22%) minmax(300px, 20%) 1fr; }
+  #screen6 .proc.parts-mini { grid-template-columns:minmax(330px, 24%) 1fr; grid-template-rows:auto 1fr; }
+  #screen6 .proc.parts-mini > .panel:first-child { grid-row:1 / span 2; }
+  #screen6 .proc.parts-mini #parts_panel { display:flex; padding:10px 16px; max-height:42vh; } #screen6 .proc.parts-mini #parts_panel h3, #screen6 .proc.parts-mini #parts_panel .phint { display:none; }
+  #screen6 .proc.parts-mini #parts_panel .pp { margin:0; }
+  #screen6 .frames { grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
+  #fr_tabs { display:flex; gap:6px; margin:-4px 0 10px; } #fr_tabs button { padding:5px 12px; font-size:11px; letter-spacing:.12em; } #fr_tabs button.on { color:var(--acc2); border-color:var(--acc2); }
+  .pstats { display:flex; flex-direction:column; gap:7px; margin-top:12px; font-size:12.5px; }
+  .psr { display:grid; grid-template-columns:auto 1fr auto; grid-template-areas:"l v e" "b b b"; gap:3px 8px; align-items:center; }
+  .psr .l { grid-area:l; color:var(--ink); letter-spacing:.06em; } .psr .v { grid-area:v; color:var(--ink2); font-variant-numeric:tabular-nums; }
+  .psr .e { grid-area:e; color:var(--acc2); font-variant-numeric:tabular-nums; } .psr.ok .e { color:var(--ok); }
+  .psr i { grid-area:b; height:3px; background:var(--line2); display:block; } .psr i b { display:block; height:100%; background:var(--acc2); transition:width .6s; } .psr.ok i b { background:var(--ok); }
+  .pnote { color:var(--ink2); font-size:11.5px; line-height:1.4; margin-top:4px; word-break:break-word; }
+  .pbtns { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .plog { margin-top:14px; display:flex; flex-direction:column; flex:1 1 auto; min-height:120px; }
+  .plh { display:flex; align-items:center; justify-content:space-between; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink2); margin-bottom:6px; }
+  .plh .jdc { margin:0; font-size:11px; letter-spacing:.02em; text-transform:none; }
+  #screen6 .plog pre#log { max-height:none; flex:1; min-height:100px; margin:0; overflow:auto; font-size:11.5px; line-height:1.45; white-space:pre-wrap; background:var(--bg); border:1px solid var(--line); padding:8px 10px; }
   @media (min-width:20000px) { .opts { max-width:1400px; } .opt .t, .optx .t { font-size:19px !important; } .opt .t .dsc, .optx .dsc { font-size:14.5px; } .optx svg, .opt.sec svg { width:42px !important; height:42px !important; } }
 </style>
 </head>
@@ -897,13 +918,15 @@
         <ul class="stages" id="stages"></ul>
         <div class="bar"><i id="stage_bar"></i></div>
         <div class="time" id="p_time"></div><div id="p_err"></div>
+        <div class="pstats" id="p_stats"></div>
         <div class="wait" id="p_wait"><div class="wr"><svg viewBox="0 0 24 24"><path d="M6 2h12M6 22h12M7 2v4l5 6 5-6V2M7 22v-4l5-6 5 6v4"/></svg><span class="wt" id="w_title"></span><span class="cd" id="w_cd"></span></div><small id="w_sub"></small></div>
-        <div style="margin-top:auto; padding-top:16px; display:flex; gap:8px; flex-wrap:wrap"><button id="btn_cancel" class="danger" onclick="cancelJob()" data-i18n="stop"></button><button id="btn_retry" class="ghost" onclick="retryJob()" style="display:none"></button><button id="btn_again" class="ghost" onclick="go(4)" disabled data-i18n="again"></button><button id="btn_report" class="ghost" onclick="sendReport()" data-i18n="report"></button></div>
+        <div class="pbtns"><button id="btn_cancel" class="danger" onclick="cancelJob()" data-i18n="stop"></button><button id="btn_retry" class="ghost" onclick="retryJob()" style="display:none"></button><button id="btn_again" class="ghost" onclick="go(4)" disabled data-i18n="again"></button><button id="btn_report" class="ghost" onclick="sendReport()" data-i18n="report"></button></div>
+        <div class="plog"><div class="plh"><b data-i18n="log"></b><label class="jdc"><input type="checkbox" id="log_err" onchange="renderLog()"><span id="log_err_l"></span></label></div><pre id="log"></pre></div>
       </div>
       <div class="panel" id="parts_panel"><h3 id="parts_title"></h3><div class="phint" id="parts_hint"></div><div id="parts"></div></div>
       <div class="panel"><h3 id="g_title"></h3><div class="frames" id="frames"></div>
         <div id="result" class="result"><b data-i18n="done"></b><div class="path" id="r_path"></div><button class="primary" onclick="pywebview.api.open_result()" data-i18n="open"></button> <button class="ghost" onclick="pywebview.api.open_output()" data-i18n="folder"></button></div>
-        <div id="error" class="status err"></div><details><summary data-i18n="log"></summary><pre id="log"></pre></details>
+        <div id="error" class="status err"></div>
       </div>
     </div>
   </div>
@@ -999,6 +1022,7 @@ document.querySelectorAll('[data-tipkey]').forEach(el => { el.addEventListener('
 gtip.addEventListener('mouseenter', () => clearTimeout(tipTimer)); gtip.addEventListener('mouseleave', hideTip);
 
 function go(n) {
+  document.body.classList.toggle('s6', n === 6);
   if (n === 2 && typeof styleHint === 'function') setTimeout(styleHint, 0);
   if (n === 2 && cur === 1 && provs().length === 0) { $('hint1').textContent = t('hint_err'); $('hint1').style.color = 'var(--err)'; return; }
   const from = $('screen' + cur); from.classList.add('leaving');
@@ -1648,6 +1672,7 @@ function uiError(where, e) {
 window.addEventListener('error', ev => uiError('js', ev.error || ev.message));
 window.addEventListener('unhandledrejection', ev => uiError('promise', ev.reason));
 async function pollOnce(gen) {
+  frTabs();
   const st = await pywebview.api.get_state();
   if (!document.querySelector('#stages li') && (st.running || st.queue_active || st.result)) buildStages((st.config && st.config.mode) || mode());
   jobRunning = !!(st.running || st.queue_active);
@@ -1663,9 +1688,10 @@ async function pollOnce(gen) {
   $('p_stage').textContent = (t('stages')[st.stage] || st.stage_name || '').toUpperCase();
   $('p_time').textContent = st.running ? t('elapsed') + fmt(st.elapsed).toUpperCase() : (st.result && st.elapsed ? t('spent') + fmt(st.elapsed).toUpperCase() : '');
   showWait(st.running ? st.wait : null);
-  $('log').textContent = (st.log || []).join('\n');
+  LOGL = st.log || []; renderLog(); renderStats(st);
   if (st.scenes && st.scenes !== total) buildFrames(st.scenes);
   const g = await pywebview.api.gallery(Array.from(known));
+  if (g.job && g.job !== FRJOB) { FRJOB = g.job; buildFrames(g.total || 0); }  // другой проект — кадры прошлого не оставляем
   if (g.total && g.total !== total) buildFrames(g.total);
   (g.redo || []).forEach(i => markRedo(i));
   g.items.forEach((it, k) => {
@@ -1676,7 +1702,8 @@ async function pollOnce(gen) {
       d.classList.remove('redo');
       if (!d.querySelector('img')) { d.classList.remove('pending', 'active'); d.classList.add('flash'); d.innerHTML = `<span class="ph"></span><img src="${it.img}"><span class="n">${String(it.i + 1).padStart(2, '0')}</span><button class="redo" title="${esc(t('redo_btn'))}" onclick="redoScene(${it.i})">&#8635;</button>`; setTimeout(() => d.classList.remove('flash'), 800); }
       if (it.video && !d.querySelector('.live')) { const b = document.createElement('span'); b.className = 'live'; b.textContent = 'LIVE'; d.appendChild(b); }
-    }, k * 160);
+      d.classList.toggle('isvid', !!it.video); frFilter(); frFollow(d);
+    }, k * 90);
   });
   if (st.stage === 'images' && st.running) { let n = 0; document.querySelectorAll('.frame.pending').forEach(d => { d.classList.toggle('active', n < 6); n++; }); }
   if (st.queue && !st.queue_active) { $('result').classList.add('show'); $('r_path').innerHTML = queueSummary(st); $('g_title').textContent = t('frames_done'); queueItems = st.queue_items || queueItems; }
@@ -1695,6 +1722,70 @@ async function pollOnce(gen) {
   $('btn_cancel').textContent = jobRunning && /останавлива/i.test(st.message || '') ? pt('Останавливаю…', 'Stopping…') : t('stop');
   if (gen !== pollGen) return;
   if (jobRunning) setTimeout(poll, 1400); else { $('btn_again').disabled = false; $('btn_cancel').disabled = true; }
+}
+// ===== экран создания: живые цифры, журнал, вкладки кадров =====
+let LOGL = [], FRJOB = '', FRTAB = 'all', FRUSER = 0, STH = {};
+const LOG_BAD = /ошибк|не удал|не вышл|брак|копи[яю] соседн|лимит|занят|повтор|error|fail|429|5\d\d/i;
+function renderLog() {
+  const e = $('log'); if (!e) return;
+  const onlyErr = $('log_err') && $('log_err').checked;
+  const atEnd = e.scrollTop + e.clientHeight >= e.scrollHeight - 30;
+  e.textContent = (onlyErr ? LOGL.filter(l => LOG_BAD.test(l)) : LOGL).join('\n');
+  if (atEnd) e.scrollTop = e.scrollHeight;
+  if ($('log_err_l')) $('log_err_l').textContent = pt('только проблемы', 'problems only');
+}
+function etaText(key, done, total) {  // сколько осталось — по скорости за последние минуты
+  const now = Date.now() / 1000, h = (STH[key] = STH[key] || []);
+  if (!h.length || h[h.length - 1][1] !== done) h.push([now, done]);
+  while (h.length > 2 && now - h[0][0] > 240) h.shift();
+  if (done >= total || h.length < 2) return '';
+  const [t0, d0] = h[0], rate = (done - d0) / Math.max(1, now - t0);
+  if (rate <= 0) return '';
+  const left = (total - done) / rate;
+  return '~' + (left < 60 ? Math.ceil(left) + ' ' + pt('с', 's') : Math.ceil(left / 60) + ' ' + pt('мин', 'min'));
+}
+let STATS = null, statsBusy = false;
+async function renderStats(st) {
+  const box = $('p_stats'); if (!box) return;
+  if (!statsBusy) { statsBusy = true; try { STATS = await pywebview.api.job_stats(); } catch (e) {} statsBusy = false; }
+  const S = STATS && STATS.ok ? STATS : null, rows = [];
+  const row = (key, label, done, total, extra) => {
+    if (!total) return;
+    const pc = Math.min(100, Math.round(100 * done / total)), eta = st.running ? etaText(key, done, total) : '';
+    rows.push(`<div class="psr${done >= total ? ' ok' : ''}"><span class="l">${label}</span><span class="v">${done} / ${total}</span><i><b style="width:${pc}%"></b></i><span class="e">${done >= total ? '✓' : eta}${extra || ''}</span></div>`);
+  };
+  if (S) {
+    row('img', pt('Картинки', 'Images'), S.images, S.scenes);
+    row('clip', pt('Клипы сцен', 'Scene clips'), Math.min(S.clips, S.scenes - (S.anim || 0)), Math.max(0, S.scenes - (S.anim || 0)));
+    if (S.anim) row('vid', pt('Оживление', 'Animation'), S.videos, S.anim);
+  }
+  if (st.stage === 'render' && st.total) row('render', (st.message || '').startsWith('финальная') ? pt('Склейка', 'Final glue') : pt('Сборка', 'Assembly'), st.done, st.total);
+  const notes = [];
+  if (S && S.bad) notes.push(pt(`заменено соседними кадрами: ${S.bad}`, `replaced by neighbours: ${S.bad}`));
+  if (st.message && st.running) notes.push(esc(st.message).slice(0, 140));
+  let asm = '';
+  try { const a = await pywebview.api.assembly_info(); if (a && a.current) asm = `<div class="pnote">${pt('В фоне монтируется', 'Assembling in background')}: ${esc(a.current.title || '')}${a.current.message ? ' · ' + esc(a.current.message) : ''}</div>`; } catch (e) {}
+  box.innerHTML = rows.join('') + (notes.length ? `<div class="pnote">${notes.join('<br>')}</div>` : '') + asm;
+}
+function frFollow(d) {  // лента сама едет к новому кадру, пока вы её не листаете
+  const f = $('frames'); if (!f || Date.now() - FRUSER < 8000) return;
+  if (d.offsetTop > f.scrollTop + f.clientHeight - 40) f.scrollTop = d.offsetTop - f.clientHeight / 2;
+}
+function frFilter() {
+  document.querySelectorAll('#frames .frame').forEach(d => {
+    const show = FRTAB === 'all' || (FRTAB === 'vid' && d.classList.contains('isvid')) || (FRTAB === 'wait' && !d.querySelector('img'));
+    d.style.display = show ? '' : 'none';
+  });
+  document.querySelectorAll('#fr_tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === FRTAB));
+}
+function frTabs() {
+  const h = $('g_title'); if (!h || $('fr_tabs')) return;
+  const tb = document.createElement('div'); tb.id = 'fr_tabs';
+  tb.innerHTML = [['all', 'Все', 'All'], ['vid', 'Оживлённые', 'Animated'], ['wait', 'Ещё нет', 'Pending']].map(([k, r, e]) => `<button type="button" class="ghost" data-t="${k}">${pt(r, e)}</button>`).join('');
+  tb.querySelectorAll('button').forEach(b => b.onclick = () => { FRTAB = b.dataset.t; frFilter(); });
+  h.after(tb);
+  $('frames').addEventListener('scroll', () => { if (!$('frames')._auto) FRUSER = Date.now(); }, {passive: true});
+  frFilter();
 }
 async function retryJob() {
   const r = await pywebview.api.retry_last();
@@ -1720,7 +1811,9 @@ async function updateParts() {
   let ps;
   try { ps = await pywebview.api.profile_state(); } catch (e) { return; }
   const on = !!(ps && ps.profile && ps.parts && ps.parts.length);
-  document.querySelector('#screen6 .proc').classList.toggle('with-parts', !!(ps && ps.profile));
+  const mini = !!(ps && ps.profile && (ps.parts || []).length <= 1);  // один блок своих промптов — колонка не нужна, хватит строки над кадрами
+  document.querySelector('#screen6 .proc').classList.toggle('with-parts', !!(ps && ps.profile) && !mini);
+  document.querySelector('#screen6 .proc').classList.toggle('parts-mini', mini);
   if (!ps || !ps.profile) return;
   $('parts_title').textContent = pt('Промпты по частям', 'Prompts by part');
   $('parts_hint').textContent = !on ? pt('Сценарий ещё делится на части…', 'Splitting the script into parts…')

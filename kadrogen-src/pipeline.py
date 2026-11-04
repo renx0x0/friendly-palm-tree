@@ -407,6 +407,39 @@ def run_ffmpeg(args, check=True):
     return r
 
 
+def run_ffmpeg_progress(args, total_sec, on_pct):
+    """ffmpeg с отчётом о ходе: on_pct(0..100) по мере кодирования (out_time из -progress)."""
+    cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1", *args]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
+    err = []
+    t = threading.Thread(target=lambda: err.append(proc.stderr.read()), daemon=True)
+    t.start()
+    last = -1
+    try:
+        for line in proc.stdout:
+            line = line.decode(errors="replace").strip()
+            if line.startswith("out_time_us=") or line.startswith("out_time_ms="):
+                try:
+                    sec = int(line.split("=", 1)[1]) / 1e6
+                except ValueError:
+                    continue
+                pct = int(max(0, min(99, 100 * sec / max(1.0, total_sec))))
+                if pct != last:
+                    last = pct
+                    on_pct(pct)
+            if CANCEL.is_set():
+                proc.kill()
+                break
+        rc = proc.wait()
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    t.join(5)
+    check_cancel()
+    if rc != 0:
+        raise RuntimeError("ffmpeg: " + (err[0] if err else b"").decode(errors="replace")[:400])
+
+
 def audio_duration(path):
     out = subprocess.run(
         [ffmpeg_bin("ffprobe"), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
@@ -2783,7 +2816,7 @@ FX_KINDS = ("dust", "white", "vintage", "vignette", "film", "vhs")
 FX_ANIMATED = ("dust", "white", "vintage", "vhs")   # у этих есть живой слой поверх кадра
 FX_TONES = ("sepia", "faded", "bw")
 FX = {}                 # текущие эффекты сборки (нормализованные); пусто — без эффектов
-FX_SECONDS = 4          # длина петли живого слоя
+FX_SECONDS = 8          # длина петли живого слоя (длиннее — повтор узора незаметнее)
 FX_LAYER_W, FX_LAYER_H = 960, 540   # слой рисуется в половину кадра и растягивается — быстрее и мягче
 _FX_LOCK = threading.Lock()
 
@@ -2912,16 +2945,7 @@ class _Layer:
             for _ in range(rng.randint(lo, 4 * lo)):
                 x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([1.3, 1.6, 1.9, 2.4])
                 d.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 255, rng.randint(190, 255)))
-        e = self.fx["vintage"]
-        if e["on"]:  # винтажный шум: мягкие светлые хлопья
-            soft = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-            sd = ImageDraw.Draw(soft)
-            hi = _fn(e["pw"], [(0, 1), (25, 2), (50, 4), (80, 6), (100, 8)])
-            for _ in range(rng.randint(hi // 3, hi)):
-                x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.uniform(3, 11)
-                sd.ellipse([x - r, y - r * rng.uniform(.7, 1.3), x + r, y + r], fill=(255, 250, 240, rng.randint(70, 150)))
-            im = Image.alpha_composite(im, soft.filter(ImageFilter.GaussianBlur(3.5)))
-        return im
+        return im  # хлопья винтажного шума — в frame(): у каждого своя короткая жизнь, без общего мигания узором
 
     def _hair(self, d, col, lo, hi, alpha=(170, 235), width=1):
         rng = self.rng
@@ -2944,6 +2968,24 @@ class _Layer:
         self.left -= 1
         im = self.pattern.copy()
         e = self.fx["vintage"]
+        if e["on"]:  # мелкие мягкие хлопья: появляются по одному в случайный момент, живут 2–6 кадров и гаснут
+            from PIL import ImageFilter
+            if not hasattr(self, "flakes"):
+                self.flakes = []
+            rate = _fi(e["pw"], [(0, .5), (25, 1.1), (50, 2.0), (80, 3.4), (100, 4.8)]) * _fi(e["sp"], [(0, .5), (50, 1.0), (100, 1.6)])
+            for _ in range(int(rate) + (1 if rng.random() < rate - int(rate) else 0)):
+                life = rng.randint(2, 6)
+                self.flakes.append([rng.uniform(0, FX_LAYER_W), rng.uniform(0, FX_LAYER_H), rng.uniform(0.9, 2.4), life, life, rng.randint(140, 220)])
+            if self.flakes:
+                soft = Image.new("RGBA", im.size, (0, 0, 0, 0))
+                sd = ImageDraw.Draw(soft)
+                for f in self.flakes:
+                    x, y, r, left, life, a = f
+                    k = left / life
+                    sd.ellipse([x - r, y - r * 0.85, x + r, y + r * 0.85], fill=(255, 250, 240, int(a * k)))
+                    f[3] -= 1
+                im = Image.alpha_composite(im, soft.filter(ImageFilter.GaussianBlur(1.1)))
+                self.flakes = [f for f in self.flakes if f[3] > 0]
         if e["on"]:  # вертикальные царапины: живут несколько кадров и чуть дрожат
             if rng.random() < _fi(e["pw"], [(0, .02), (25, .04), (50, .08), (80, .14), (100, .2)]):
                 self.lines.append([rng.uniform(0, FX_LAYER_W), rng.randint(6, 40), rng.choice([(235, 230, 220), (40, 35, 30)]), rng.randint(50, 110)])
@@ -2974,7 +3016,7 @@ def fx_layer(fx):
     import random
     if not any(fx[k]["on"] for k in FX_ANIMATED):
         return None
-    key = hashlib.md5(repr([(k, fx[k]) for k in FX_ANIMATED if fx[k]["on"]]).encode()).hexdigest()[:8]
+    key = hashlib.md5(repr(["v2", FX_SECONDS] + [(k, fx[k]) for k in FX_ANIMATED if fx[k]["on"]]).encode()).hexdigest()[:8]
     d = os.path.join(data_dir(), "fx")
     path = os.path.join(d, f"layer_{key}.mov")
     with _FX_LOCK:
@@ -3383,14 +3425,16 @@ def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, pr
     args, fc = xfade_chain(clips, durs, kinds=kinds_all)
     args += ["-i", audio_path]
     total_min = sum(durs) / 60
-    say("render", 0, 0, f"финальная склейка всего ролика ({total_min:.0f} мин видео) — идёт без сообщений, "
-                          f"на длинном ролике это десятки минут; ffmpeg работает, если нагружает процессор")
+    say("render", 0, 100, f"финальная склейка всего ролика ({total_min:.0f} мин видео)")
     tmp = out_mp4 + ".tmp.mp4"
+    glue = lambda pct: say("render", pct, 100, f"финальная склейка: {pct}% ({total_min:.0f} мин видео)")
     if fc:
-        run_ffmpeg(args + ["-filter_complex", fc, "-map", "[vout]", "-map", f"{len(clips)}:a:0", *enc,
-                           "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", tmp])
+        run_ffmpeg_progress(args + ["-filter_complex", fc, "-map", "[vout]", "-map", f"{len(clips)}:a:0", *enc,
+                                    "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", tmp], sum(durs), glue)
     else:
-        run_ffmpeg(args + ["-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", tmp])
+        run_ffmpeg_progress(args + ["-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", tmp],
+                            sum(durs), glue)
+    say("render", 100, 100, "финальная склейка готова")
     os.replace(tmp, out_mp4)
     return out_mp4
 
