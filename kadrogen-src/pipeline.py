@@ -2892,6 +2892,7 @@ class _Layer:
     def __init__(self, fx, rng):
         self.fx, self.rng = fx, rng
         self.lines, self.band, self.pattern, self.left = [], None, None, 0
+        self.share = 1.0
 
     def _hold(self):
         """Сколько кадров держится один узор: ползунок скорости 0 → 8 кадров, 50 → 2, 80 и выше → каждый кадр."""
@@ -2905,7 +2906,7 @@ class _Layer:
         d = ImageDraw.Draw(im)
         e = self.fx["dust"]
         if e["on"]:  # пыль: шарики, рваные комочки, обрывки и ворсинки (белые и чёрные); квадратов нет
-            n = _fn(e["pw"], [(0, 2), (25, 6), (50, 14), (80, 26), (100, 38)])
+            n = max(1, int(round(_fn(e["pw"], [(0, 2), (25, 6), (50, 14), (80, 26), (100, 38)]) * self.share)))
             for _ in range(rng.randint(max(1, n // 2), max(1, n))):
                 x, y = rng.uniform(0, w), rng.uniform(0, h)
                 col = (255, 255, 255) if rng.random() < 0.55 else (12, 12, 12)
@@ -2938,11 +2939,12 @@ class _Layer:
         if e["on"]:  # белый шум: яркие волоски-завитки и белые точки (без размытия — чёткие, как в CapCut)
             d = ImageDraw.Draw(im)
             hi = _fn(e["pw"], [(0, 0), (25, 1), (50, 2), (80, 3), (100, 4)])
+            hi = int(hi * self.share) + (1 if rng.random() < (hi * self.share) % 1 else 0)
             for _ in range(rng.randint(max(0, hi - 1) if hi > 1 else 0, hi)):
                 if rng.random() < 0.85:
                     self._hair(d, (255, 255, 255), 35, 95, alpha=(225, 255), width=2)
             lo = _fn(e["pw"], [(0, 0), (25, 1), (50, 2), (80, 3), (100, 4)])
-            for _ in range(rng.randint(lo, 4 * lo)):
+            for _ in range(int(rng.randint(lo, 4 * lo) * self.share + rng.random())):
                 x, y, r = rng.uniform(0, w), rng.uniform(0, h), rng.choice([1.3, 1.6, 1.9, 2.4])
                 d.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 255, rng.randint(190, 255)))
         return im  # хлопья винтажного шума — в frame(): у каждого своя короткая жизнь, без общего мигания узором
@@ -2963,10 +2965,18 @@ class _Layer:
     def frame(self):
         from PIL import Image, ImageDraw
         rng = self.rng
-        if self.left <= 0:
-            self.pattern, self.left = self._pattern(), self._hold()
-        self.left -= 1
-        im = self.pattern.copy()
+        # пыль и белый шум — три независимых слоя, у каждого своя случайная длина жизни:
+        # точки меняются вразнобой, а не всем узором разом через ровные промежутки
+        if not hasattr(self, "subs"):
+            self.share, self.subs = 1 / 3, [[None, 0] for _ in range(3)]
+        hold = self._hold()
+        for sub in self.subs:
+            if sub[1] <= 0:
+                sub[0], sub[1] = self._pattern(), rng.randint(max(1, hold // 2), max(1, hold * 2))
+            sub[1] -= 1
+        im = self.subs[0][0].copy()
+        for sub in self.subs[1:]:
+            im = Image.alpha_composite(im, sub[0])
         e = self.fx["vintage"]
         if e["on"]:  # мелкие мягкие хлопья: появляются по одному в случайный момент, живут 2–6 кадров и гаснут
             from PIL import ImageFilter
@@ -3016,7 +3026,7 @@ def fx_layer(fx):
     import random
     if not any(fx[k]["on"] for k in FX_ANIMATED):
         return None
-    key = hashlib.md5(repr(["v2", FX_SECONDS] + [(k, fx[k]) for k in FX_ANIMATED if fx[k]["on"]]).encode()).hexdigest()[:8]
+    key = hashlib.md5(repr(["v3", FX_SECONDS] + [(k, fx[k]) for k in FX_ANIMATED if fx[k]["on"]]).encode()).hexdigest()[:8]
     d = os.path.join(data_dir(), "fx")
     path = os.path.join(d, f"layer_{key}.mov")
     with _FX_LOCK:
