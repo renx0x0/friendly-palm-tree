@@ -721,6 +721,8 @@
   @media (min-width:3200px) { .wrap { zoom:1.6; height:calc(100vh / 1.6); } }
   /* экран создания (p45): во всю ширину, слева — живые цифры и журнал, справа — сетка кадров */
   body.s6 .wrap { max-width:min(96vw, 2600px); }
+  .rkids { display:none; margin:-4px 0 6px 22px; } .rkids.open { display:block; } .rjob.kid { opacity:.92; } .rjob.kid .rt { font-size:13px; }
+  .rkt { color:var(--acc2); font-size:12px; cursor:pointer; white-space:nowrap; margin-left:8px; } .rkt::after { content:" ▸"; } .rkt.open::after { content:" ▾"; }
   body.s6 #screen6 .topbar { padding-right:240px; }
   #screen6 .proc > .panel:first-child > * { flex-shrink:0; } #screen6 .proc > .panel:first-child > .plog { flex:1 1 auto; }
   #screen6 .qhead { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0 0 10px; }
@@ -805,6 +807,7 @@
 <div id="rx_dlg"><div class="box"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div>
   <div class="g"><label id="rx_l1"></label><div class="f"><input type="text" id="rx_file" readonly><button class="ghost" id="rx_pick"></button></div>
     <label id="rx_l4"></label><input type="text" id="rx_name" maxlength="120" spellcheck="false" autocomplete="off">
+    <label id="rx_l8"></label><div class="f"><input type="text" id="rx_out" readonly><button class="ghost" id="rx_outb"></button></div>
     <div class="sep"></div><div class="sep"></div>
     <label id="rx_l5"></label><select id="rx_look"></select>
     <label id="rx_l6"></label><div class="f"><select id="rx_fx"></select><button class="ghost" id="rx_fxb"></button></div>
@@ -1463,7 +1466,15 @@ function ago(ts) {
   const h = Math.round(m / 60); if (h < 24) return `${h} ${pt('ч назад', 'h ago')}`;
   const d = new Date(ts * 1000); return d.toLocaleDateString(L === 'ru' ? 'ru-RU' : 'en-GB', {day: 'numeric', month: 'short'});
 }
-function recentRow(r) {
+let RKIDS = new Set();  // раскрытые оригиналы (видны их переозвучки)
+function recentKids(id) { if (RKIDS.has(id)) RKIDS.delete(id); else RKIDS.add(id); document.querySelectorAll(`.rkids[data-p="${CSS.escape(id)}"]`).forEach(e => e.classList.toggle('open', RKIDS.has(id))); document.querySelectorAll(`.rkt[data-p="${CSS.escape(id)}"]`).forEach(e => e.classList.toggle('open', RKIDS.has(id))); }
+function recentGroup(r) {
+  const kids = r.children || [];
+  if (!kids.length) return recentRow(r);
+  const tg = `<span class="rkt${RKIDS.has(r.id) ? ' open' : ''}" data-p="${esc(r.id)}" onclick="recentKids('${esc(r.id).replace(/'/g, '&#39;')}')" title="${pt('Показать переозвучки этого ролика', 'Show re-voiced versions')}">${pt('переозвучки', 're-voiced')}: ${kids.length}</span>`;
+  return recentRow(r, tg) + `<div class="rkids${RKIDS.has(r.id) ? ' open' : ''}" data-p="${esc(r.id)}">${kids.map(k => recentRow(k)).join('')}</div>`;
+}
+function recentRow(r, extra) {
   const st = r.status === 'running' ? `<span class="rs ok">${pt('делается сейчас', 'in progress')}</span>`
     : r.status === 'assembling' ? `<span class="rs" style="color:#e8a33a">${pt('монтируется в фоне', 'assembling')}</span>`
     : `<span class="rs${r.status === 'done' ? ' ok' : (r.status === 'error' ? ' bad' : '')}">${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''}${r.status === 'done' ? ' · ✓' : ''}</span>`;
@@ -1473,7 +1484,7 @@ function recentRow(r) {
       + (r.has_video ? `<button class="ghost more" title="${pt('Смотреть готовый ролик', 'Play the video')}" onclick="recentPlay('${esc(r.id).replace(/'/g, '&#39;')}')">▶</button>`
         + `<button class="ghost more" title="${pt('Открыть папку с готовым роликом', 'Show in folder')}" onclick="recentReveal('${esc(r.id).replace(/'/g, '&#39;')}')">📁</button>` : '')
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
-  return `<div class="rjob"><span class="rt" title="${esc(r.title)}">${esc(r.title)}</span>${r.profile ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
+  return `<div class="rjob${r.parent ? ' kid' : ''}"><span class="rt" title="${esc(r.title)}">${r.parent ? '↳ ' : ''}${esc(r.title)}</span>${extra || ''}${r.profile && !r.parent ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
 async function recentReveal(id) { const r = await pywebview.api.reveal_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function recentPlay(id) { const r = await pywebview.api.play_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
@@ -1481,14 +1492,14 @@ async function refreshRecent() {
   try { RECENT = await pywebview.api.recent_jobs(); } catch (e) { return; }
   const box = $('recent');
   if (!RECENT || !RECENT.length) { box.innerHTML = ''; return; }
-  box.innerHTML = `<div class="rh">${pt('Недавние ролики', 'Recent videos')}${RECENT.length > 3 ? `<span class="lk" onclick="showAllRecent()">${pt('все', 'all')} (${RECENT.length})</span>` : ''}</div>` + RECENT.slice(0, 3).map(recentRow).join('');
+  box.innerHTML = `<div class="rh">${pt('Недавние ролики', 'Recent videos')}${RECENT.length > 3 ? `<span class="lk" onclick="showAllRecent()">${pt('все', 'all')} (${RECENT.length})</span>` : ''}</div>` + RECENT.slice(0, 3).map(recentGroup).join('');
 }
 function showAllRecent() {
   $('rec_t').textContent = pt('Недавние ролики', 'Recent videos'); $('rec_close').textContent = pt('Закрыть', 'Close');
-  $('rec_all').innerHTML = RECENT.map(recentRow).join(''); $('rec_dlg').classList.add('show');
+  $('rec_all').innerHTML = RECENT.map(recentGroup).join(''); $('rec_dlg').classList.add('show');
 }
 function jobMenu(id) {
-  const r = RECENT.find(x => x.id === id); if (!r) return;
+  const r = RECENT.find(x => x.id === id) || RECENT.flatMap(x => x.children || []).find(x => x.id === id); if (!r) return;
   $('rec_dlg').classList.remove('show');
   const modeName = m => ({images: pt('только картинки', 'images only'), mixed: pt('50 на 50', '50/50'), video: pt('только видео', 'video only')})[m] || '';
   const opt = (list, cur) => {
@@ -2869,7 +2880,11 @@ lbEditLabels();
 // ===== новая озвучка для готового ролика =====
 let RX = null;
 function openRemix(r) {
-  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null, trans: null};
+  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null, trans: null, out: ''};
+  $('rx_l8').textContent = pt('Куда сохранить', 'Save to'); $('rx_outb').textContent = pt('Выбрать', 'Choose'); $('rx_out').value = '';
+  $('rx_out').placeholder = pt('туда же, где оригинал', 'next to the original');
+  pywebview.api.remix_default_dir(r.id).then(d => { if (!RX.out) $('rx_out').placeholder = d ? pt('туда же, где оригинал: ', 'next to the original: ') + d : pt('как в настройках', 'as in settings'); });
+  $('rx_outb').onclick = async () => { const p = await pywebview.api.pick_folder(); if (p) { RX.out = p; $('rx_out').value = p; } };
   $('rx_t').textContent = pt(`Новая озвучка: ${r.title}`, `New voice-over: ${r.title}`);
   $('rx_n').innerHTML = pt('Тот же визуал — картинки и оживлённые клипы этого ролика, ничего не генерируется и кредиты не тратятся. '
     + 'Сцены сами разложатся по новой озвучке. Получится отдельный ролик, исходный не меняется.', 'Same visuals, no generation. Scenes are re-timed to the new voice-over.');
@@ -2923,6 +2938,7 @@ function openRemix(r) {
   $('rx_go').onclick = async () => {
     if (!RX.file) { toast(pt('Выберите файл новой озвучки', 'Pick the new voice-over file'), 4000); return; }
     const o = {subtitles: $('rx_sub').value === 'on', motion: $('rx_mot').value === 'on', name: $('rx_name').value.trim()};
+    if (RX.out) o.out_dir = RX.out;
     if (RX.trans && $('rx_tr').value === 'own') o.transitions = RX.trans; else if ($('rx_tr').value) o.transitions = $('rx_tr').value;
     if (RX.look) o.look_name = RX.look;
     if (RX.fxNone) o.fx = 'none'; else if (RX.fx) o.fx = RX.fx;

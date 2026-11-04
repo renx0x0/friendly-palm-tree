@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p47"
+VERSION = "1.7.1-p48"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2636,9 +2636,23 @@ class Api:
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else self._asm_status(d, rec),
                         "result": rec.get("result"), "has_video": bool(rec.get("result") and os.path.exists(rec.get("result"))),
                         "known": bool(rec), "mode": args.get("mode", ""),
+                        "parent": os.path.basename(os.path.normpath(args["remix_from"])) if args.get("remix_from") else "",
                         "fg_image_model": (rec.get("cfg") or {}).get("fg_image_model") or "", "fg_video_model": (rec.get("cfg") or {}).get("fg_video_model") or ""})
-        out.sort(key=lambda x: -x["updated"])
-        return out[:limit]
+        # переозвучки — под своим оригиналом (раскрываются), а не отдельными строками
+        by_id = {x["id"]: x for x in out}
+        top = []
+        for x in out:
+            par = by_id.get(x.get("parent") or "")
+            if par is not None and par is not x:
+                par.setdefault("children", []).append(x)
+            else:
+                top.append(x)
+        for x in top:
+            kids = sorted(x.get("children") or [], key=lambda k: -k["updated"])
+            x["children"] = kids
+            x["group_updated"] = max([x["updated"]] + [k["updated"] for k in kids])
+        top.sort(key=lambda x: -x["group_updated"])
+        return top[:limit]
 
     @staticmethod
     def _asm_status(d, rec):
@@ -2736,6 +2750,12 @@ class Api:
         threading.Thread(target=job_chain, args=(args,), daemon=True).start()
         return {"ok": True, "mode": args.get("mode", "images")}
 
+    def remix_default_dir(self, job_id):
+        d = self._job_path(job_id)
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) if d else {}
+        res = (rec or {}).get("result") or ""
+        return os.path.dirname(res) if res and os.path.isdir(os.path.dirname(res)) else ""
+
     def remix_job(self, job_id, audio, opts=None):
         """«Новая озвучка»: тот же визуал готового ролика под другую озвучку. Картинки и клипы не генерируются заново,
         сцены раскладываются по новой озвучке; переходы и субтитры — как выбрано сейчас (или из opts)."""
@@ -2797,6 +2817,12 @@ class Api:
         name = pipeline.safe_title(o.get("name"))
         if name:
             args["out_name"] = name
+        od = str(o.get("out_dir") or "").strip().strip('"')
+        orig = rec.get("result") or ""
+        if od:  # выбрал свою папку в окне
+            args["out_dir"], args["out_sub"] = od, False
+        elif orig and os.path.isdir(os.path.dirname(orig)):  # по умолчанию — туда же, где лежит оригинал
+            args["out_dir"], args["out_sub"] = os.path.dirname(orig), False
         title = name or f"{rec.get('title') or base} · новая озвучка"
         with LOCK:
             busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
