@@ -714,12 +714,16 @@
   .optx button { padding:7px 12px; font-size:11px; letter-spacing:.16em; } .optx select { width:auto; max-width:230px; padding:7px 10px; font-size:12px; }
   #screen2 .tiles.c3 { margin-top:auto; }
   /* 2K и больше без масштабирования Windows: всё окно крупнее, а не узкая колонка посередине */
-  @media (min-width:1900px) { .wrap { zoom:1.25; height:calc(100vh / 1.25); } }
+  @media (min-width:1900px) { .wrap { zoom:1.1; height:calc(100vh / 1.1); } }
   @media (min-width:1900px) { .opt.sec, .optx { min-height:72px !important; padding-top:12px !important; padding-bottom:12px !important; } .opts { gap:10px 12px !important; } }
-  @media (min-width:2300px) { .wrap { zoom:1.45; height:calc(100vh / 1.45); } }
-  @media (min-width:3200px) { .wrap { zoom:1.9; height:calc(100vh / 1.9); } }
+  @media (min-width:2300px) { .wrap { zoom:1.2; height:calc(100vh / 1.2); } }
+  @media (min-width:3200px) { .wrap { zoom:1.6; height:calc(100vh / 1.6); } }
   /* экран создания (p45): во всю ширину, слева — живые цифры и журнал, справа — сетка кадров */
   body.s6 .wrap { max-width:min(96vw, 2600px); }
+  body.s6 #screen6 .topbar { padding-right:240px; }
+  #screen6 .proc > .panel:first-child > * { flex-shrink:0; } #screen6 .proc > .panel:first-child > .plog { flex:1 1 auto; }
+  #screen6 .qhead { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0 0 10px; }
+  #screen6 .ring { width:150px; height:150px; margin-bottom:10px; } #screen6 .ring svg { width:150px; height:150px; } #screen6 .ring .pct { font-size:36px; }
   #screen6 .proc { grid-template-columns:minmax(330px, 24%) 1fr; }
   #screen6 .proc.with-parts { grid-template-columns:minmax(320px, 22%) minmax(300px, 20%) 1fr; }
   #screen6 .proc.parts-mini { grid-template-columns:minmax(330px, 24%) 1fr; grid-template-rows:auto 1fr; }
@@ -1677,7 +1681,7 @@ async function pollOnce(gen) {
   if (!document.querySelector('#stages li') && (st.running || st.queue_active || st.result)) buildStages((st.config && st.config.mode) || mode());
   jobRunning = !!(st.running || st.queue_active);
   if (st.queue) {
-    $('p_queue').textContent = `${t('q_job')} ${st.queue.pos} ${t('q_of')} ${st.queue.total} · ${st.queue.title}`;
+    $('p_queue').textContent = `${t('q_job')} ${st.queue.pos} ${t('q_of')} ${st.queue.total} · ${st.queue.title}`; $('p_queue').title = st.queue.title;
     if (st.queue.id !== lastQueueId) { lastQueueId = st.queue.id; buildFrames(0); $('result').classList.remove('show'); $('error').textContent = ''; shownPct = 0; }
   } else $('p_queue').textContent = '';
   const idx = ORDER[st.stage] ?? 0;
