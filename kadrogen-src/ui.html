@@ -667,6 +667,29 @@
   #fx_dlg button { padding:8px 14px; font-size:11px; letter-spacing:.16em; } #fx_dlg .note { color:var(--ink2); font-size:12px; margin-top:8px; }
   .fxpv { position:relative; aspect-ratio:16 / 9; background:#22262c; } .fxpv video { width:100%; height:100%; display:block; }
   .fxpv .busy { position:absolute; right:10px; top:8px; font-size:11px; letter-spacing:.2em; color:#fff; background:rgba(0,0,0,.55); padding:4px 8px; display:none; } .fxpv.loading .busy { display:block; }
+  /* ===== компактный вид (p41): ниже строки, мельче подписи ===== */
+  .alist-in { gap:8px; }
+  .lrow { padding:9px 16px 9px 20px; box-shadow:none; column-gap:18px; }
+  .lrow .lab { font-size:13px; letter-spacing:.1em; } .lrow .lab .lk { font-size:11.5px; margin-top:2px; }
+  .lrow .ctl { height:40px; } .lrow .ctl input, .lrow .ctl textarea, .lrow .ctl select { font-size:14px; padding:0 12px; }
+  .lrow .ctl button { padding:0 14px; font-size:11px; } .lrow .ctl button.eye { width:42px; }
+  .lrow .ctl .note { font-size:12px; padding:0 12px; line-height:1.3; letter-spacing:.02em; }
+  .lrow .ctl.tall textarea, .lrow .ctl textarea { min-height:130px; }
+  .keysbox { border:1.5px solid var(--line); background:var(--bg2); }
+  .keysbox .khead { display:flex; align-items:center; gap:14px; padding:10px 18px; cursor:pointer; font-size:12.5px; color:var(--ink2); }
+  .keysbox .khead b { font:600 13px/1 "Exo 2", sans-serif; letter-spacing:.1em; text-transform:uppercase; color:var(--ink); white-space:nowrap; }
+  .keysbox .ksum { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .keysbox .kmore { color:var(--acc2); white-space:nowrap; } .keysbox .kmore::after { content:" ›"; } .keysbox.open .kmore::after { content:" ˅"; }
+  .keysbox .kbody { display:none; padding:0 8px 8px; flex-direction:column; gap:8px; } .keysbox.open .kbody { display:flex; }
+  .opts .optq { font-size:24px; margin-bottom:4px; }
+  .opt { padding:11px 22px; gap:18px; box-shadow:none; } .opt svg { width:38px; height:38px; } .opt .t { font-size:18px; }
+  .opt.sec { padding:8px 22px; } .opt.sec svg { width:30px; height:30px; } .opt.sec .t { font-size:15px; }
+  .opts .grp.sec { margin-top:14px; }
+  .opts { gap:8px !important; }
+  #screen2 .tiles { flex:0 0 auto; } #screen2 .tile { aspect-ratio:auto; height:96px; max-height:none; flex-direction:row; gap:16px; }
+  #screen2 .tile svg { width:40px !important; height:40px !important; } #screen2 .tile .t { font-size:16px !important; }
+  #vq_row select { width:auto !important; min-width:260px; flex:0 0 auto; padding:6px 10px; font-size:12px; } #vq_row .lbl br { display:none; }
+  .vfrow { margin-top:6px; }
 </style>
 </head>
 <body>
@@ -691,7 +714,7 @@
   <div class="jdg"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
   <label class="jdc"><input type="checkbox" id="jd_rimg"><span id="jd_t_rimg"></span></label>
   <label class="jdc"><input type="checkbox" id="jd_rvid"><span id="jd_t_rvid"></span></label>
-  <div class="row"><button class="ghost" id="jd_remix"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div>
+  <div class="row"><button class="ghost" id="jd_remix"></button><button class="ghost" id="jd_files"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div>
   <div class="row jdd"><button class="danger" id="jd_del"></button><button class="danger" id="jd_delv"></button></div></div></div>
 <div id="rec_dlg"><div class="box"><h3 id="rec_t"></h3><div id="rec_all"></div><div class="row"><button class="ghost" id="rec_close" onclick="$('rec_dlg').classList.remove('show')"></button></div></div></div>
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
@@ -930,6 +953,7 @@ let rwEngine = 'fastgen', rwSrc = 'youtube'; const rwKeys = {};
 function rwOn() { return $('use_rw').checked; }
 $('use_rw').addEventListener('change', () => { if (rwOn()) setSource('script'); mark(); pywebview.api.save_config({rewrite: rwOn()}); });
 const LINKS = {whisper:'https://platform.openai.com/api-keys', assemblyai:'https://www.assemblyai.com/app', openai:'https://platform.openai.com/api-keys', anthropic:'https://console.anthropic.com/settings/keys', gemini:'https://aistudio.google.com/apikey', openrouter:'https://openrouter.ai/settings/keys', voicegen:'https://qw1voicegencore.pro', voicer:'https://voicer.mat3u.com/docs', lumean:'https://lumean.app/developers/docs'};
+let KEYS_OPEN = false;
 let stt = 'whisper', llm = 'openai', tts = 'voicegen', recent = [], autoStart = false;
 const IMG = ['fastgen','nonstop','yougen','royal','slider','google'];
 const KPH = {nonstop:'veo_...', yougen:'sf_...', royal:'rt_live_...', google:'AIza...'};
@@ -1415,6 +1439,8 @@ function jobMenu(id) {
   $('jd_cancel').onclick = () => $('job_dlg').classList.remove('show');
   $('jd_remix').textContent = pt('Новая озвучка…', 'New voice-over…');
   $('jd_remix').onclick = () => { $('job_dlg').classList.remove('show'); openRemix(r); };
+  $('jd_files').textContent = pt('Сценарий и .srt', 'Script & .srt'); $('jd_files').title = pt('Папка с файлами этого ролика: сценарий (.txt) и субтитры (.srt)', 'Script and subtitles of this video');
+  $('jd_files').onclick = async () => { const x = await pywebview.api.open_job_files(id); if (!x.ok) toast(esc(x.error || ''), 6000); };
   $('jd_go').onclick = () => {
     const o = {fg_image_model: $('jd_img').value, fg_video_model: $('jd_vid').value, mode: $('jd_mode').value, reset_images: $('jd_rimg').checked, reset_videos: $('jd_rvid').checked};
     if (o.reset_images && !confirm(pt(`Удалить ${r.images} картинок этого ролика и нарисовать заново? Это снова потратит кредиты.`, `Delete ${r.images} images and redraw? This spends credits again.`))) return;
@@ -1751,7 +1777,7 @@ async function loadConfig(keepScreen) {
   $('vf').value = c.video_first || 0; drawVf();
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
-  OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: !!OUTDIR.sub};
+  OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: c.out_sub !== false};
   FXS = c.fx || {}; if ($('fx_lbl')) fxLabels(); lookLoad();
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
@@ -1826,6 +1852,15 @@ function renderAccess() {
     H.push(row(t('qa_row'), LINKS[qaEngine], sel('qa_eng', QA_ENGINES, qaEngine) + qctl
       + keyIn('k_qa', qaEngine, 0, single[qaEngine] || '', RW_PH[qaEngine]) + eye('k_qa') + chk('qa', 0, 's_qa'), 's_qa'));
   }
+  {  // ключи и сервисы — в одну строку, когда всё введено; «изменить ›» раскрывает
+    const KH = H.splice(0, H.length);
+    const keysOk = p.every(k => (keyRows[k] || []).some(r => r && r.value));
+    const nm = {fastgen: 'fast-gen', whisper: 'Whisper', assemblyai: 'AssemblyAI', openai: 'OpenAI', anthropic: 'Claude', gemini: 'Gemini'};
+    const sum = p.map(k => `${SVC_TITLES[k] || k} ${(keyRows[k] || []).some(r => r && r.value) ? '✓' : pt('— нет ключа', '— no key')}`).join(' · ')
+      + ` · ${pt('речь', 'speech')}: ${nm[stt] || stt} · ${pt('тексты', 'texts')}: ${nm[llm] || llm}`;
+    H.push(`<div class="keysbox${KEYS_OPEN || !keysOk ? ' open' : ''}"><div class="khead" onclick="KEYS_OPEN = !this.parentNode.classList.contains('open'); this.parentNode.classList.toggle('open')">`
+      + `<b>${pt('Ключи и сервисы', 'Keys & services')}</b><span class="ksum">${esc(sum)}</span><span class="kmore">${pt('изменить', 'edit')}</span></div><div class="kbody">${KH.join('')}</div></div>`);
+  }
   if (rwOn()) {
     H.push(row(t('src_lbl'), '', sel('rw_src', [['youtube','YouTube'],['text', t('rw_text_src')]], rwSrc)
       + (rwSrc === 'youtube' ? `<input type="text" id="rw_url" value="${esc(F.rwUrl)}" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" autocomplete="off">`
@@ -1853,7 +1888,7 @@ function renderAccess() {
   }
   $('tts_body').innerHTML = TH.join('');
   H.push(row(pt('Куда сохранить', 'Save to'), '', `<input type="text" id="out_dir" readonly value="${esc(OUTDIR.dir)}" placeholder="${esc(pt('папка output программы', 'program output folder') + (OUTDIR.def ? ' — ' + OUTDIR.def : ''))}" title="${esc(OUTDIR.dir || OUTDIR.def)}"><button onclick="pickOutDir()">${pt('Выбрать', 'Choose')}</button>${OUTDIR.dir ? `<button class="ghost eye" title="${esc(pt('Вернуть папку output', 'Back to output'))}" onclick="clearOutDir()">×</button>` : ''}`
-    + `<label class="osub" title="${esc(pt('Папка\\Название ролика\\Название ролика.mp4 — рядом с превью, если такая папка уже есть', 'Folder\\Video name\\video.mp4'))}"><input type="checkbox" id="out_sub"${OUTDIR.sub ? ' checked' : ''} onchange="OUTDIR.sub = this.checked">${pt('в подпапку с названием ролика', 'into a subfolder named after the video')}</label>`));
+    + `<label class="osub" title="${esc(pt('Папка\\Название ролика\\Название ролика.mp4 — рядом с превью, если такая папка уже есть', 'Folder\\Video name\\video.mp4'))}"><input type="checkbox" id="out_sub"${OUTDIR.sub ? ' checked' : ''} onchange="OUTDIR.sub = this.checked; pywebview.api.save_config({out_sub: this.checked})">${pt('в подпапку с названием ролика', 'into a subfolder named after the video')}</label>`));
   H.push(row(pt('Название ролика', 'Video name'), '', `<input type="text" id="video_name" value="${esc(F.name)}" maxlength="120" placeholder="${esc(pt('необязательно — так будет назван готовый файл (например: Пани Барбара)', 'optional — the finished file gets this name'))}" spellcheck="false" autocomplete="off">`));
   if (!rwOn()) H.push(promptsRows());
   H.push(queueHtml());

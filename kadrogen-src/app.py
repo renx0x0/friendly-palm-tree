@@ -42,7 +42,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p40"
+VERSION = "1.7.1-p41"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1158,6 +1158,7 @@ class Api:
             "profile_manual": bool(cfg.get("profile_manual", False)), "video_zoom_pct": cfg.get("video_zoom_pct", 104), "video_anchor": cfg.get("video_anchor", "top"),
             "video_quality": cfg.get("video_quality") if cfg.get("video_quality") in pipeline.VIDEO_QUALITIES else "high",
             "output_dir": cfg.get("output_dir") or "", "default_output": os.path.join(data_dir(), "output"),
+            "out_sub": bool(cfg.get("out_sub", True)),
             "fx": pipeline.fx_settings(cfg),
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
@@ -1186,6 +1187,8 @@ class Api:
                     cfg[key] = ""
                 if field in pipeline.SINGLE_KEY and "•" not in v:
                     cfg.setdefault("image_keys", {})[field] = [v] if v else []
+        if "out_sub" in data:  # «в подпапку с названием ролика» — запоминается, по умолчанию включено
+            cfg["out_sub"] = bool(data["out_sub"])
         if isinstance(data.get("keys"), dict):
             ik = cfg.setdefault("image_keys", {})
             for p, rows in data["keys"].items():
@@ -2081,8 +2084,11 @@ class Api:
             st = pipeline.profiles.read_profile_raw(name, pipeline.profile_search_dirs())["settings"]
         except pipeline.profiles.ProfileError:
             return {}
-        return {"voice": pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()), "output_dir": st.get("output_dir") or "",
-                "subfolder": bool(st.get("subfolder")), "look": st.get("look") or ""}
+        out = {"voice": pipeline.profiles.profile_voice(name, pipeline.profile_search_dirs()), "output_dir": st.get("output_dir") or "",
+               "look": st.get("look") or ""}
+        if st.get("subfolder"):  # профиль просит подпапку — включаем; не просит — не трогаем выбор пользователя
+            out["subfolder"] = True
+        return out
 
     def pick_folder(self):
         """Выбрать папку (без сохранения в настройки) — для папки выкладки профиля."""
@@ -2506,6 +2512,15 @@ class Api:
                 os.startfile(os.path.dirname(res))
                 return {"ok": True}
         return {"ok": False, "error": "Готового видео у этого ролика нет — возможно, его переместили или ещё не собрали."}
+
+    def open_job_files(self, job_id):
+        """Сценарий и .srt готового ролика — папка «файлы ролика» внутри проекта."""
+        d = self._job_path(job_id)
+        f = os.path.join(d, pipeline.FILES_DIR) if d else ""
+        if not f or not os.path.isdir(f) or not os.listdir(f):
+            return {"ok": False, "error": "У этого ролика нет сохранённых файлов (сценарий и .srt появляются после сборки, начиная с p41)."}
+        os.startfile(f)
+        return {"ok": True}
 
     def play_job(self, job_id):
         d = self._job_path(job_id)

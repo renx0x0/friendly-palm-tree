@@ -4209,7 +4209,7 @@ def finish_video(spec, progress):
                 log(f"субтитры «Как было»: {str(e)[:150]} — вжигаю старым способом")
                 subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
         os.replace(out_mp4 + ".tmp.mp4", out_mp4)
-        progress("subtitles", 1, 1, "субтитры наложены, .srt сохранён в папке output/subtitles")
+        progress("subtitles", 1, 1, "субтитры наложены, .srt — в «файлах ролика» проекта")
     else:
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=motion)
     if spec.get("speed_copies"):
@@ -4280,6 +4280,9 @@ def safe_title(name, limit=120):
     if s.split(".")[0].upper() in {"CON", "PRN", "AUX", "NUL"} | {f"COM{i}" for i in range(1, 10)} | {f"LPT{i}" for i in range(1, 10)}:
         s = "_" + s  # зарезервированные имена Windows
     return s
+
+
+FILES_DIR = "файлы ролика"   # сценарий и .srt готового ролика — внутри папки проекта
 
 
 def named_output(out_dir, name, job_dir):
@@ -4400,8 +4403,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     elif "~" in base:  # вторая озвучка с тем же именем — файл «имя (2)», а не «имя~2» и не поверх первого
         base = named_output(out_dir, plain_base(base), job_dir)
     out_mp4 = os.path.join(out_dir, base + ".mp4")
+    # в папку сохранения — только готовое видео; сценарий и .srt под тем же названием — в папку проекта (jobs\…\файлы ролика)
+    files_dir = os.path.join(job_dir, FILES_DIR)
+    os.makedirs(files_dir, exist_ok=True)
     if os.path.exists(os.path.join(job_dir, "script.txt")):
-        shutil.copy(os.path.join(job_dir, "script.txt"), os.path.join(out_dir, base + ".txt"))  # сценарий рядом с видео
+        shutil.copy(os.path.join(job_dir, "script.txt"), os.path.join(files_dir, base + ".txt"))
 
     duration = audio_duration(audio_path)
     progress("start", 0, 0, f"аудио {duration:.0f} с · картинки: {' + '.join(PROVIDER_NAMES[p] for p in providers)} · режим: {mode} · "
@@ -4510,10 +4516,9 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     srt_path = None
     sub_words = None
     if subtitles:
-        # .srt кладём в подпапку: файл с тем же именем рядом с mp4 плееры подхватывают сами и рисуют
-        # свои субтитры поверх уже вшитых — у тестера текст «двоился»
-        os.makedirs(os.path.join(out_dir, "subtitles"), exist_ok=True)
-        srt_path = os.path.join(out_dir, "subtitles", base + ".srt")
+        # .srt — в папку проекта, не рядом с mp4: файл с тем же именем рядом с видео плееры подхватывают сами
+        # и рисуют свои субтитры поверх уже вшитых — у тестера текст «двоился»
+        srt_path = os.path.join(files_dir, base + ".srt")
         sub_words = subtitle_words(cfg, job_dir, tr, bool((script_text and script_text.strip()) or (rewrite and rewrite.get("on"))))
     spec = {"version": 1, "scenes": scenes, "img_dir": img_dir, "videos": {str(k): v for k, v in videos.items()}, "audio_path": audio_path,
             "job_dir": job_dir, "out_mp4": out_mp4, "motion": bool(motion), "subtitles": bool(subtitles), "srt_path": srt_path,
