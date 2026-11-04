@@ -690,6 +690,17 @@
   #screen2 .tile svg { width:40px !important; height:40px !important; } #screen2 .tile .t { font-size:16px !important; }
   #vq_row select { width:auto !important; min-width:260px; flex:0 0 auto; padding:6px 10px; font-size:12px; } #vq_row .lbl br { display:none; }
   .vfrow { margin-top:6px; }
+  /* большой экран: кнопки внизу, середина по центру и крупнее (p42) */
+  #screen2 > .nav, #screen3 > .nav { margin-top:auto; }
+  #screen2 .tiles { margin-top:clamp(8px, 4vh, 48px); } #screen2 .tile { height:clamp(92px, 15vh, 170px); flex-direction:column; gap:12px; }
+  #screen2 .tile svg { width:clamp(36px, 5vh, 60px) !important; height:clamp(36px, 5vh, 60px) !important; } #screen2 .tile .t { font-size:clamp(15px, 2vh, 21px) !important; }
+  #screen2 .sgrid { margin-top:clamp(6px, 3vh, 36px); } #screen2 #vq_row { margin-top:clamp(8px, 3vh, 34px); }
+  .opts { display:grid !important; grid-template-columns:1fr 1fr; max-width:min(1080px, 100%); gap:12px 14px !important; align-content:center; }
+  .opts > * { grid-column:1 / -1; } .opts > .opt.sec { grid-column:auto; }
+  .opt .t { display:flex; flex-direction:column; gap:5px; } .opt .t .dsc { font:400 12.5px/1.35 "Exo 2", sans-serif; letter-spacing:.02em; text-transform:none; color:var(--ink2); }
+  .opt.sec { padding:16px 20px !important; min-height:clamp(70px, 10vh, 112px); align-items:center; } .opt.sec .t { font-size:16px !important; }
+  .opt.sec svg { width:34px !important; height:34px !important; }
+  .opts .optq { margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -908,7 +919,7 @@ const I18N = {
        tip_quality:'Скорость: Flower у fast-gen по 1 кредиту, у остальных лёгкие модели, без референсов. Качество: Nano Banana 2 / Pro / ChatGPT по 4 кредита, герои одинаковые во всех сценах — программа рисует портрет каждого и использует как референс. Если сервис трижды ошибся, сцену добирает любой другой сервис с ключом.',
        tip_rw:'Берёт сценарий с ролика YouTube (по ссылке) или ваш текст и переписывает его заново: убирает призывы к подписке, делает цепляющее вступление, задаёт объём в словах и язык. Переписывает ChatGPT, Claude, Gemini или fast-gen по вашему ключу. Новый сценарий сразу озвучивается.',
        tip_tts:'Озвучка из текста сценария. Бесплатно и без ключа — голоса Microsoft Edge (по-русски Дмитрий и Светлана, качество среднее). Дороже и живее — ElevenLabs v3 через VoiceGen, Voicer или Lumean, понадобится их ключ. Без этой галочки нужен готовый mp3.',
-       tip_subs:'Текст озвучки накладывается на видео с точными таймингами: строки до 42 символов, без мигания на паузах. Файл .srt сохраняется рядом с видео.',
+       tip_subs:'Текст озвучки накладывается на видео с точными таймингами: строки до 42 символов, без мигания на паузах. Файл .srt — в «файлах ролика» проекта («…» у ролика → «Сценарий и .srt»).',
        tip_motion:'Плавные переходы между сценами: затемнение, сдвиг, раскрытие, наезд. Ролик выглядит смонтированным. Сборка дольше примерно на минуту.'},
   en: {help:'Guide', credit:'', tagline:'MP3 / script → Video', upd1:'Version', upd2:'Download', upd3:'is available — unpack over the program folder.', hint1:'Choose what to generate the video with. You can pick several.', hint_err:'Pick at least one service.', next:'Next', back:'Back', step:'Step', s2:'Mode', s3:'Options', s4:'Access', s5:'Review', s6:'Creating', begin:'Start', rv_settings:'Settings', rv_services:'Services', to_settings:'To settings', err_script:'Paste the script text.', err_audio:'Choose a voice-over file or drop it into the window.', err_rw_empty:'the rewrite came back empty', rv_script:'Script, editable', rv_script_rw:'Rewritten script, editable', rv_words:'words', rv_none:'—', rv_yes:'yes', rv_no:'no', addkey:'another key', opt_q:'Need these options?', no_next:'No, next', check:'Check', same_key:'same key as for images', drop_hint:'drop an mp3 into the window or choose a file', models:'Text model', src_lbl:'Script', file_lbl:'Voice-over file', o_tts:'Make voice-over', o_rw:'Script rewrite', g_main:'Main', g_extra:'Extras', rw_text_src:'My text', rw_words:'Words in script', rw_lang:'Script language', rw_size:'Length and language', rw_llm:'Who rewrites', rw_then:'Voice-over of the new script', voice_rw:'Rewrite and voice-over', vo_q:'Should we make the <b>voice-over</b>?', vo_mine:'I have my own', vo_make:'Make it', voice_mp3:'Your voice-over', voice_tts:'Script voice-over',
        m_images:'Images only', m_mixed:'50 / 50', m_video:'Video only', regime:'Mode', speed:'Speed', quality:'Quality',
@@ -936,7 +947,7 @@ const I18N = {
        tip_quality:'Speed: Flower on fast-gen at 1 credit, light models elsewhere, no references. Quality: Nano Banana 2 / Pro / ChatGPT at 4 credits, consistent characters — the app draws a portrait of each hero and uses it as a reference. If a service fails three times, any other service with a key picks up the scene.',
        tip_rw:'Takes a script from a YouTube video (by link) or your text and rewrites it: removes subscribe calls, writes a hooking intro, targets a word count and language. Rewritten by ChatGPT, Claude, Gemini or fast-gen with your key. The new script is voiced right away.',
        tip_tts:'Voice the script text. Free and keyless — Microsoft Edge voices (average quality). Better and paid — ElevenLabs v3 via VoiceGen, Voicer or Lumean, their key is required. Without this option a ready mp3 is needed.',
-       tip_subs:'Voice-over text is burned into the video with exact timing: lines up to 42 characters, no flicker on pauses. An .srt file is saved next to the video.',
+       tip_subs:'Voice-over text is burned into the video with exact timing: lines up to 42 characters, no flicker on pauses. The .srt file is kept in the project files.',
        tip_motion:'Smooth transitions between scenes: fade, slide, reveal, zoom. The video looks edited. Assembly takes about a minute longer.'}
 };
 let L = 'ru';
@@ -1114,6 +1125,20 @@ function openFx(tgt) {
     toast(pt('Эффекты сохранены: ', 'Effects saved: ') + esc(fxSummary(FXS)), 4000);
   };
   fxRender(); $('fx_dlg').classList.add('show'); fxPreview(); pvSetRender();
+}
+// ===== шаг 03: короткое пояснение под каждой опцией =====
+function optDescs() {
+  const D = {rw: ['переписать чужой сценарий с YouTube или ваш текст своими словами', 'rewrite a YouTube script or your text'],
+    motion: ['переходы между сценами и движение камеры по кадрам', 'transitions and camera motion'],
+    subs: ['текст озвучки на видео — вид, шрифт и эффекты в «Вид ›»', 'voice-over text on the video'],
+    hd: ['картинки вдвое крупнее — после сжатия до Full HD заметно резче', 'twice larger images, sharper in Full HD'],
+    qa: ['нейросеть смотрит каждую картинку и перерисовывает брак', 'an AI checks every image and redraws rejects'],
+    speed: ['ещё две версии ролика: 0,98 и 1,02 скорости', 'two more copies at 0.98 and 1.02 speed']};
+  for (const [id, [r, e]] of Object.entries(D)) {
+    const t = document.querySelector(`#${id} .t`); if (!t) continue;
+    let d = t.querySelector('.dsc'); if (!d) { d = document.createElement('small'); d.className = 'dsc'; t.appendChild(d); }
+    d.textContent = pt(r, e);
+  }
 }
 // ===== шаблоны оформления =====
 let LOOKS = {names: [], current: ''};
@@ -2029,7 +2054,7 @@ function applyLang() {
   if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); lookRender(); styleHint(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
-  drawVf(); fillStyles();
+  drawVf(); fillStyles(); optDescs();
   $('hint1').textContent = t('hint1'); $('hint1').style.color = '';
   $('g_title').textContent = t('frames'); renderCredit();
   if (cur === 4) renderAccess();
