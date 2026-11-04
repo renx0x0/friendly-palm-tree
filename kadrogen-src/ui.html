@@ -470,7 +470,7 @@
   .topbar .logo { cursor:pointer; }
   .tleft { display:flex; align-items:center; }
   /* ===== кадры ролика ===== */
-  #sub_dlg { z-index:65 !important; }
+  #sub_dlg, #tr_dlg { z-index:65 !important; }
   #fr_dlg, #sub_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.6); }
   #fr_dlg.show, #sub_dlg.show { display:grid; }
   #fr_dlg .box, #sub_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(1180px, calc(100% - 40px)); max-height:88vh; display:flex; flex-direction:column; }
@@ -804,7 +804,7 @@
     <label id="rx_l6"></label><div class="f"><select id="rx_fx"></select><button class="ghost" id="rx_fxb"></button></div>
     <label id="rx_l3"></label><div class="f"><select id="rx_sub"></select><button class="ghost" id="rx_subb"></button></div>
     <label id="rx_l7"></label><select id="rx_mot"></select>
-    <label id="rx_l2"></label><select id="rx_tr"></select></div>
+    <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div></div>
   <div class="note" id="rx_n2" style="margin:10px 0 0"></div>
   <div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div>
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
@@ -2583,15 +2583,18 @@ async function trPreview() {
     if (trAgain) { trAgain = false; trPreview(); }
   }
 }
-async function openTrans() {
+let TR_TGT = null;  // окно переходов для одного ролика (новая озвучка): сохраняет туда, а не в настройки программы
+async function openTrans(tgt) {
+  TR_TGT = tgt && tgt.onSave ? tgt : null;
   TR = await pywebview.api.trans_get();
-  const s0 = TR.settings; TRF = {preset: s0.preset, set: s0.set.slice(), order: s0.order, duration: s0.duration, kb: s0.kb, video_set: (s0.video_set || []).slice()};
+  const s0 = (TR_TGT && TR_TGT.t) || TR.settings; TRF = {preset: s0.preset, set: s0.set.slice(), order: s0.order, duration: s0.duration, kb: s0.kb, video_set: (s0.video_set || []).slice()};
   $('tr_t').textContent = pt('Переходы и движение', 'Transitions and motion');
   $('tr_busy').textContent = pt('рисую… ~10–20 с', 'rendering… ~10–20 s');
   $('tr_note').textContent = pt('Предпросмотр — три кадра вашего последнего ролика, собранные так же, как в ролике.', 'Preview: three frames of your last video, assembled the same way.');
   $('tr_cancel').textContent = pt('Отмена', 'Cancel'); $('tr_save').textContent = pt('Сохранить', 'Save');
   $('tr_cancel').onclick = () => { $('tr_dlg').classList.remove('show'); $('tr_video').removeAttribute('src'); };
   $('tr_save').onclick = async () => {
+    if (TR_TGT) { TR_TGT.onSave(JSON.parse(JSON.stringify(TRF))); $('tr_dlg').classList.remove('show'); $('tr_video').removeAttribute('src'); return; }
     await pywebview.api.trans_save(Object.assign({}, TRF));
     const on = TRF.set.length > 0;
     if ($('use_motion').checked !== on) { $('use_motion').checked = on; mark(); pywebview.api.save_config({motion: on}); }
@@ -2855,7 +2858,7 @@ lbEditLabels();
 // ===== новая озвучка для готового ролика =====
 let RX = null;
 function openRemix(r) {
-  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null};
+  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null, trans: null};
   $('rx_t').textContent = pt(`Новая озвучка: ${r.title}`, `New voice-over: ${r.title}`);
   $('rx_n').innerHTML = pt('Тот же визуал — картинки и оживлённые клипы этого ролика, ничего не генерируется и кредиты не тратятся. '
     + 'Сцены сами разложатся по новой озвучке. Получится отдельный ролик, исходный не меняется.', 'Same visuals, no generation. Scenes are re-timed to the new voice-over.');
@@ -2868,8 +2871,13 @@ function openRemix(r) {
   $('rx_l3').textContent = pt('Субтитры', 'Subtitles'); $('rx_subb').textContent = pt('Вид ›', 'Style ›');
   $('rx_l7').textContent = pt('Движение', 'Motion');
   $('rx_l2').textContent = pt('Переходы', 'Transitions');
-  $('rx_tr').innerHTML = [['', 'как сейчас (или как в шаблоне)', 'as now (or template)'], ['classic', 'Классические', 'As now'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum']]
-    .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
+  const trOpts = () => { $('rx_tr').innerHTML = [['', 'как сейчас (или как в шаблоне)', 'as now (or template)'], ['classic', 'Классические', 'Classic'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum']]
+    .concat(RX.trans ? [['own', `свои: ${RX.trans.set.length ? 'переходов ' + RX.trans.set.length : 'встык'}, движение ${({classic: 'обычное', soft: 'мягкое', full: 'сильное', none: 'нет'})[RX.trans.kb] || RX.trans.kb}`, 'own']] : [])
+    .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join(''); if (RX.trans) $('rx_tr').value = 'own'; };
+  trOpts();
+  $('rx_trb').textContent = pt('Вид ›', 'Style ›');
+  $('rx_trb').onclick = () => openTrans({t: RX.trans, onSave: t => { RX.trans = t; trOpts(); $('rx_mot').value = 'on'; }});
+  $('rx_tr').onchange = () => { if ($('rx_tr').value !== 'own') { RX.trans = null; trOpts(); } };
   $('rx_sub').value = $('use_subs').checked ? 'on' : 'off';
   const rxRender = () => {
     const tpl = RX.look ? pt(`из шаблона «${RX.look}»`, `from template`) : pt('как сейчас', 'as now');
@@ -2904,7 +2912,7 @@ function openRemix(r) {
   $('rx_go').onclick = async () => {
     if (!RX.file) { toast(pt('Выберите файл новой озвучки', 'Pick the new voice-over file'), 4000); return; }
     const o = {subtitles: $('rx_sub').value === 'on', motion: $('rx_mot').value === 'on', name: $('rx_name').value.trim()};
-    if ($('rx_tr').value) o.transitions = $('rx_tr').value;
+    if (RX.trans && $('rx_tr').value === 'own') o.transitions = RX.trans; else if ($('rx_tr').value) o.transitions = $('rx_tr').value;
     if (RX.look) o.look_name = RX.look;
     if (RX.fxNone) o.fx = 'none'; else if (RX.fx) o.fx = RX.fx;
     if (RX.sub) { o.sub_style = RX.sub; if (RX.subSrc) o.sub_source = RX.subSrc; }

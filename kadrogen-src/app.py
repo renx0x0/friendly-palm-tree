@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p45"
+VERSION = "1.7.1-p46"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2769,7 +2769,13 @@ class Api:
             look["sub_source"] = o["sub_source"]
         if "subtitles" in o:
             subtitles = bool(o["subtitles"])
-        if o.get("transitions") in pipeline.TRANS_PRESETS:
+        if isinstance(o.get("transitions"), dict):  # свои переходы и движение из окна «Вид ›»
+            st = pipeline.trans_settings({"transitions": dict(o["transitions"])})
+            t = {"preset": "custom", "set": st["set"], "order": st["order"], "duration": st["duration"], "kb": st["kb"]}
+            if st.get("video_set"):
+                t["video_set"] = st["video_set"]
+            look["transitions"] = t
+        elif o.get("transitions") in pipeline.TRANS_PRESETS:
             look["transitions"] = {"preset": o["transitions"]}
         if "motion" in o:
             motion = bool(o["motion"])
