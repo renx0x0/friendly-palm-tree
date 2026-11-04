@@ -731,7 +731,8 @@
   #screen6 .proc.parts-mini #parts_panel { display:flex; padding:10px 16px; max-height:42vh; } #screen6 .proc.parts-mini #parts_panel h3, #screen6 .proc.parts-mini #parts_panel .phint { display:none; }
   #screen6 .proc.parts-mini #parts_panel .pp { margin:0; }
   #screen6 .frames { grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
-  #fr_tabs { display:flex; gap:6px; margin:-4px 0 10px; } #fr_tabs button { padding:5px 12px; font-size:11px; letter-spacing:.12em; } #fr_tabs button.on { color:var(--acc2); border-color:var(--acc2); }
+  #fr_tabs { display:flex; gap:6px; margin:-4px 0 10px; } #fr_tabs button { padding:5px 12px; font-size:11px; letter-spacing:.12em; } #fr_tabs button.on { color:var(--acc2); border-color:var(--acc2); background:var(--line2); }
+  #fr_tabs button.ic { padding:5px 9px; clip-path:none; border-radius:6px; } #fr_tabs svg { width:18px; height:18px; display:block; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
   .pstats { display:flex; flex-direction:column; gap:7px; margin-top:12px; font-size:12.5px; }
   .psr { display:grid; grid-template-columns:auto 1fr auto; grid-template-areas:"l v e" "b b b"; gap:3px 8px; align-items:center; }
   .psr .l { grid-area:l; color:var(--ink); letter-spacing:.06em; } .psr .v { grid-area:v; color:var(--ink2); font-variant-numeric:tabular-nums; }
@@ -1777,7 +1778,7 @@ function frFollow(d) {  // лента сама едет к новому кадр
 }
 function frFilter() {
   document.querySelectorAll('#frames .frame').forEach(d => {
-    const show = FRTAB === 'all' || (FRTAB === 'vid' && d.classList.contains('isvid')) || (FRTAB === 'img' && !!d.querySelector('img') && !d.classList.contains('isvid'));
+    const show = FRTAB === 'all' || (FRTAB === 'vid' && d.classList.contains('isvid')) || (FRTAB === 'img' && !!d.querySelector('img') && !d.classList.contains('isvid')) || (FRTAB === 'wait' && !d.querySelector('img'));
     d.style.display = show ? '' : 'none';
   });
   document.querySelectorAll('#fr_tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === FRTAB));
@@ -1785,7 +1786,12 @@ function frFilter() {
 function frTabs() {
   const h = $('g_title'); if (!h || $('fr_tabs')) return;
   const tb = document.createElement('div'); tb.id = 'fr_tabs';
-  tb.innerHTML = [['all', 'Все', 'All'], ['img', 'Картинки', 'Images'], ['vid', 'Видео', 'Video']].map(([k, r, e]) => `<button type="button" class="ghost" data-t="${k}">${pt(r, e)}</button>`).join('');
+  const IC = {all: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+    img: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
+    vid: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
+    wait: '<path d="M7 3h10M7 21h10M8 3v4l4 5 4-5V3M8 21v-4l4-5 4 5v4"/>'};
+  tb.innerHTML = [['all', 'Все кадры', 'All'], ['img', 'Картинки', 'Images'], ['vid', 'Видео (оживлённые)', 'Video'], ['wait', 'Ещё делаются', 'In progress']]
+    .map(([k, r, e]) => `<button type="button" class="ghost ic" data-t="${k}" title="${pt(r, e)}"><svg viewBox="0 0 24 24">${IC[k]}</svg></button>`).join('');
   tb.querySelectorAll('button').forEach(b => b.onclick = () => { FRTAB = b.dataset.t; frFilter(); });
   h.after(tb);
   $('frames').addEventListener('scroll', () => { if (!$('frames')._auto) FRUSER = Date.now(); }, {passive: true});
