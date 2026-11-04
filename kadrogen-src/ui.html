@@ -526,6 +526,8 @@
   #lb .lbtop { display:flex; align-items:center; gap:10px; padding:14px 20px; color:#e8edf3; font-size:13px; }
   #lb .lbtop b { font:600 14px/1 "Exo 2", sans-serif; letter-spacing:.2em; } #lb .lbtop .sp { flex:1; }
   #lb .lbtop button { padding:8px 14px; font-size:11px; letter-spacing:.16em; }
+  #lb .lbseg { display:inline-flex; margin-left:6px; } #lb .lbseg button { clip-path:none; background:transparent; color:#aab4c0; border:1px solid #3a4452; padding:6px 14px; }
+  #lb .lbseg button + button { border-left:none; } #lb .lbseg button.on { color:#fff; background:var(--acc2); border-color:var(--acc2); }
   #lb .lbmid { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; position:relative; padding:0 70px; }
   #lb .lbmid img, #lb .lbmid video { max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 20px 60px rgba(0,0,0,.6); background:#000; }
   #lb .nav2 { position:absolute; top:50%; transform:translateY(-50%); width:52px; height:52px; padding:0; font-size:26px; line-height:50px; background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.2); cursor:pointer; }
@@ -789,7 +791,7 @@
   <div class="row"><button class="ghost" id="sd_off"></button><span class="note" id="sd_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="sd_cancel"></button><button class="primary" id="sd_save"></button></div></div></div>
 <div id="tts_dlg"><div class="box"><h3 id="tts_t"></h3><div class="note2" id="tts_n"></div><div class="alist-in" id="tts_body"></div>
   <div class="row"><button class="primary" id="tts_ok" onclick="closeTts()"></button></div></div></div>
-<div id="lb"><div class="lbtop"><b id="lb_n"></b><span id="lb_t"></span><span class="sp"></span>
+<div id="lb"><div class="lbtop"><b id="lb_n"></b><span class="lbseg" id="lb_seg"><button type="button" id="lb_si"></button><button type="button" id="lb_sv"></button></span><span id="lb_t"></span><span class="sp"></span>
   <button class="ghost" id="lb_edit"></button><button class="ghost" id="lb_own"></button><button class="ghost" id="lb_sw"></button><button class="ghost" id="lb_ext"></button><button class="primary" id="lb_x" onclick="closeLB()"></button></div>
   <div class="lbmid"><button class="nav2 l" id="lb_prev">&#8249;</button><div id="lb_media" style="display:contents"></div><button class="nav2 r" id="lb_next">&#8250;</button></div>
   <div class="lbcap" id="lb_cap"></div>
@@ -1482,7 +1484,7 @@ function recentRow(r, extra) {
     : `<span class="rs${r.status === 'done' ? ' ok' : (r.status === 'error' ? ' bad' : '')}">${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''}${r.status === 'done' ? ' · ✓' : ''}</span>`;
   const btn = r.status === 'assembling' ? framesBtn(r)
     : r.status === 'running' ? framesBtn(r) + `<button class="ghost" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
-    : framesBtn(r) + `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`
+    : framesBtn(r) + (r.status === 'done' && r.has_video ? '' : `<button class="ghost" onclick="continueJob('${esc(r.id).replace(/'/g, '&#39;')}')">${pt('Продолжить', 'Continue')}</button>`)  // готовый ролик заново не собираем — пересборка в «…»
       + (r.has_video ? `<button class="ghost more" title="${pt('Смотреть готовый ролик', 'Play the video')}" onclick="recentPlay('${esc(r.id).replace(/'/g, '&#39;')}')">▶</button>`
         + `<button class="ghost more" title="${pt('Открыть папку с готовым роликом', 'Show in folder')}" onclick="recentReveal('${esc(r.id).replace(/'/g, '&#39;')}')">📁</button>` : '')
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
@@ -2502,7 +2504,12 @@ async function showLB() {
   $('lb_t').textContent = m.end ? `${fmtT(m.start)} – ${fmtT(m.end)}` : '';
   $('lb_cap').innerHTML = (m.text ? esc(m.text) : '') + (m.prompt ? `<div class="pr">${esc(m.prompt)}</div>` : '');
   const wantVideo = m.video && LB.kind !== 'image';
-  $('lb_sw').style.display = m.video && m.img ? '' : 'none';
+  $('lb_sw').style.display = 'none';  // переключатель — наверху: «Картинка | Видео»
+  $('lb_seg').style.display = m.video && m.img ? '' : 'none';
+  $('lb_si').textContent = pt('Картинка', 'Image'); $('lb_sv').textContent = pt('Видео ▶', 'Video ▶');
+  $('lb_si').classList.toggle('on', !wantVideo); $('lb_sv').classList.toggle('on', wantVideo);
+  $('lb_si').onclick = () => { if (wantVideo) { LB.kind = 'image'; showLB(); } };
+  $('lb_sv').onclick = () => { if (!wantVideo) { LB.kind = 'video'; showLB(); } };
   $('lb_sw').textContent = wantVideo ? pt('Показать картинку', 'Show image') : pt('Показать видео ▶', 'Show video ▶');
   $('lb_sw').onclick = () => { LB.kind = wantVideo ? 'image' : 'video'; showLB(); };
   $('lb_ext').onclick = () => pywebview.api.open_frame(LB.job, i, wantVideo ? 'video' : 'image');
@@ -2516,7 +2523,7 @@ async function showLB() {
   else $('lb_media').innerHTML = `<span class="lbmsg">${pt('Этот кадр ещё не нарисован.', 'This frame is not drawn yet.')}</span>`;
 }
 function fmtT(x) { x = Math.max(0, x || 0); const m = Math.floor(x / 60), s = Math.floor(x % 60); return `${m}:${String(s).padStart(2, '0')}`; }
-function stepLB(d) { const n = LB.i + d; if (n < 0 || (LB.total && n >= LB.total)) return; LB.i = n; LB.kind = 'auto'; showLB(); }
+function stepLB(d) { const n = LB.i + d; if (n < 0 || (LB.total && n >= LB.total)) return; LB.i = n; if (LB.kind !== 'image') LB.kind = 'auto'; showLB(); }  // выбрали «Картинка» — листаем картинки
 $('lb_prev').onclick = () => stepLB(-1); $('lb_next').onclick = () => stepLB(1);
 document.addEventListener('keydown', e => {
   if (!$('lb').classList.contains('show') || (e.target.closest && e.target.closest('textarea, input'))) return;
