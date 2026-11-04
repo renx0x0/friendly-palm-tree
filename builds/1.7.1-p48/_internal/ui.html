@@ -722,7 +722,9 @@
   /* экран создания (p45): во всю ширину, слева — живые цифры и журнал, справа — сетка кадров */
   body.s6 .wrap { max-width:min(96vw, 2600px); }
   .rkids { display:none; margin:-4px 0 6px 22px; } .rkids.open { display:block; } .rjob.kid { opacity:.92; } .rjob.kid .rt { font-size:13px; }
-  .rkt { color:var(--acc2); font-size:12px; cursor:pointer; white-space:nowrap; margin-left:8px; } .rkt::after { content:" ▸"; } .rkt.open::after { content:" ▾"; }
+  .rkt { color:var(--acc2); font-size:11.5px; cursor:pointer; white-space:nowrap; }
+  .rjob .rtw { flex:1 1 auto; min-width:180px; display:flex; flex-direction:column; gap:2px; overflow:hidden; } .rjob .rtw .rt { flex:none; }
+  .rjob > button, .rjob > .rs, .rjob > .rp { flex-shrink:0; } .rkt::after { content:" ▸"; } .rkt.open::after { content:" ▾"; }
   body.s6 #screen6 .topbar { padding-right:240px; }
   #screen6 .proc > .panel:first-child > * { flex-shrink:0; } #screen6 .proc > .panel:first-child > .plog { flex:1 1 auto; }
   #screen6 .qhead { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:0 0 10px; }
@@ -1484,7 +1486,7 @@ function recentRow(r, extra) {
       + (r.has_video ? `<button class="ghost more" title="${pt('Смотреть готовый ролик', 'Play the video')}" onclick="recentPlay('${esc(r.id).replace(/'/g, '&#39;')}')">▶</button>`
         + `<button class="ghost more" title="${pt('Открыть папку с готовым роликом', 'Show in folder')}" onclick="recentReveal('${esc(r.id).replace(/'/g, '&#39;')}')">📁</button>` : '')
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
-  return `<div class="rjob${r.parent ? ' kid' : ''}"><span class="rt" title="${esc(r.title)}">${r.parent ? '↳ ' : ''}${esc(r.title)}</span>${extra || ''}${r.profile && !r.parent ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
+  return `<div class="rjob${r.parent ? ' kid' : ''}"><span class="rtw"><span class="rt" title="${esc(r.title)}">${r.parent ? '↳ ' : ''}${esc(r.title)}</span>${extra || ''}</span>${r.profile && !r.parent ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
 async function recentReveal(id) { const r = await pywebview.api.reveal_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function recentPlay(id) { const r = await pywebview.api.play_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
