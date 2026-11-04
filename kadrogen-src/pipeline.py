@@ -2065,12 +2065,28 @@ class Prerender:
         clip = os.path.join(self.clips_dir, f"{s['index']:04d}.mp4")
         self.futs.append(self.pool.submit(render_scene_clip, img, s["index"], s["duration"] + self.extra, clip))
 
-    def wait(self):
-        for f in self.futs:
-            try:
-                f.result()
-            except Exception as e:  # клип дорисует сборка
-                log(f"предварительный рендер: {str(e)[:120]}")
+    def wait(self, progress=None):
+        """Дождаться клипов сцен. Картинки уже готовы, а клипы (движение камеры + эффекты) ещё кодируются —
+        показываем, сколько осталось, иначе кажется, что программа зависла на «Картинках»."""
+        n = len(self.futs)
+        left = [f for f in self.futs if not f.done()]
+        if left and progress:
+            log(f"картинки готовы, дожидаюсь клипов сцен: осталось {len(left)} из {n}")
+        last = 0.0
+        for k, f in enumerate(self.futs):
+            while True:
+                try:
+                    f.result(timeout=1)
+                    break
+                except cf.TimeoutError:
+                    check_cancel()
+                    if progress and time.time() - last > 2:
+                        done = sum(1 for x in self.futs if x.done())
+                        progress("render", done, n, f"клипы сцен (движение{' и эффекты' if fx_on(FX) else ''}): {done} из {n}")
+                        last = time.time()
+                except Exception as e:  # клип дорисует сборка
+                    log(f"предварительный рендер: {str(e)[:120]}")
+                    break
         self.pool.shutdown(wait=True)
 
 
@@ -2554,7 +2570,7 @@ def redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_f
         log(f"перерисовываю перед сборкой {len(again)} кадров: {', '.join(str(s['index'] + 1) for s in again)}")
         pre = Prerender(scenes, img_dir, job_dir, mode, motion, video_first)
         generate_all_images(ctx, scenes, style, job_dir, progress, refs, on_image=pre.submit, only=again)
-        pre.wait()
+        pre.wait(progress)
         if any(s["index"] in anim for s in again):
             for s in again:
                 videos.pop(s["index"], None)
@@ -2635,17 +2651,42 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
     if path is None:
         still = out_path + ".still.png"
         im.resize((W, H), Image.LANCZOS).save(still)
-        run_ffmpeg(["-loop", "1", "-framerate", str(FPS), "-i", still, "-t", f"{duration:.3f}", "-r", str(FPS),
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp])
+        fx_in, fx_fc = fx_filter(i)
+        enc = ["-t", f"{duration:.3f}", "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
+        try:  # эффекты — в том же проходе: вдвое быстрее, чем перекодировать клип второй раз
+            run_ffmpeg(["-loop", "1", "-framerate", str(FPS), "-i", still] + ((fx_in or []) + ["-filter_complex", fx_fc, "-map", "[v]"] if fx_fc else []) + enc)
+        except Exception as e:
+            if not fx_fc:
+                raise
+            log(f"эффекты одним проходом не вышли ({str(e)[:120]}) — накладываю отдельно")
+            run_ffmpeg(["-loop", "1", "-framerate", str(FPS), "-i", still] + enc)
+            apply_fx(tmp, i)
         os.remove(still)
-        apply_fx(tmp, i)
         os.replace(tmp, out_path)
         return out_path
     frames = max(2, int(round(duration * FPS)))
     BW, BH = W * 2, H * 2
     im = im.resize((BW, BH), Image.LANCZOS)
+    fx_in, fx_fc = fx_filter(i)
+    try:  # эффекты — в том же проходе: вдвое быстрее, чем перекодировать клип второй раз
+        _kb_encode(im, path, frames, duration, tmp, i, (fx_in, fx_fc) if fx_fc else None)
+    except RuntimeError as e:
+        if not fx_fc:
+            raise
+        log(f"эффекты одним проходом не вышли ({str(e)[:120]}) — накладываю отдельно")
+        _kb_encode(im, path, frames, duration, tmp, i, None)
+        apply_fx(tmp, i)
+    os.replace(tmp, out_path)
+    return out_path
+
+
+def _kb_encode(im, path, frames, duration, tmp, i, fx):
+    """Кадры движения камеры → ffmpeg. fx=(входы, filter_complex) — эффекты в том же проходе."""
+    from PIL import Image
+    BW, BH = im.size
+    extra = (list(fx[0] or []) + ["-filter_complex", fx[1], "-map", "[v]"]) if fx else []
     cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
-           "-r", str(FPS), "-i", "-", "-t", f"{duration:.3f}",
+           "-r", str(FPS), "-i", "-", *extra, "-t", f"{duration:.3f}",
            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
     try:
@@ -2661,12 +2702,12 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
         err = proc.stderr.read().decode(errors="replace")
         if proc.wait() != 0:
             raise RuntimeError(f"ffmpeg не смог закодировать клип {i}: {err[:400]}")
+    except (BrokenPipeError, OSError) as e:
+        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+        raise RuntimeError(f"ffmpeg не смог закодировать клип {i}: {err[:400] or e}")
     finally:
         if proc.poll() is None:
             proc.kill()
-    apply_fx(tmp, i)
-    os.replace(tmp, out_path)
-    return out_path
 
 
 VIDEO_ZOOM = 1.04      # увеличение оживлённых клипов: водяной знак Veo (внизу справа) уходит за край кадра
@@ -4505,7 +4546,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
                 overlap.abort()
             raise
         videos = overlap.result() if overlap else {}
-        pre.wait()
+        pre.wait(progress)
         videos = redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_first, videos)
     # что не получилось, известно до монтажа: картинки-копии соседних кадров и неоживлённые сцены
     img_state = read_json(os.path.join(job_dir, "images.json"), {}) or {}
