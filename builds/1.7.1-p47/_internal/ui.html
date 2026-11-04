@@ -1449,8 +1449,8 @@ async function refreshStore() {
   try {
     const s = await pywebview.api.storage_info();
     const fmt = x => x >= 1024 ? (x / 1024).toFixed(1) + ' ' + t('gb') : Math.round(x) + ' ' + t('mb');
-    $('store').innerHTML = t('store_line').replace('{o}', fmt(s.output_mb)).replace('{j}', fmt(s.jobs_mb))
-      + ` <span class="lk" onclick="pywebview.api.open_output()">${t('store_open')}</span> · <span class="lk" onclick="clearJobs()">${t('store_clear')}</span>`;
+    $('store').innerHTML = pt('Заготовки проектов: ', 'Project work files: ') + fmt(s.jobs_mb)  // видео открывается кнопкой 📁 у ролика в «Недавних»
+      + ` <span class="lk" onclick="pywebview.api.open_jobs()">${pt('открыть папку заготовок', 'open work files folder')}</span> · <span class="lk" onclick="clearJobs()">${t('store_clear')}</span>`;
   } catch (e) {}
 }
 // ===== «Недавние ролики»: продолжить с того же места одной кнопкой =====
@@ -1777,7 +1777,7 @@ function frFollow(d) {  // лента сама едет к новому кадр
 }
 function frFilter() {
   document.querySelectorAll('#frames .frame').forEach(d => {
-    const show = FRTAB === 'all' || (FRTAB === 'vid' && d.classList.contains('isvid')) || (FRTAB === 'wait' && !d.querySelector('img'));
+    const show = FRTAB === 'all' || (FRTAB === 'vid' && d.classList.contains('isvid')) || (FRTAB === 'img' && !!d.querySelector('img') && !d.classList.contains('isvid'));
     d.style.display = show ? '' : 'none';
   });
   document.querySelectorAll('#fr_tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === FRTAB));
@@ -1785,7 +1785,7 @@ function frFilter() {
 function frTabs() {
   const h = $('g_title'); if (!h || $('fr_tabs')) return;
   const tb = document.createElement('div'); tb.id = 'fr_tabs';
-  tb.innerHTML = [['all', 'Все', 'All'], ['vid', 'Оживлённые', 'Animated'], ['wait', 'Ещё нет', 'Pending']].map(([k, r, e]) => `<button type="button" class="ghost" data-t="${k}">${pt(r, e)}</button>`).join('');
+  tb.innerHTML = [['all', 'Все', 'All'], ['img', 'Картинки', 'Images'], ['vid', 'Видео', 'Video']].map(([k, r, e]) => `<button type="button" class="ghost" data-t="${k}">${pt(r, e)}</button>`).join('');
   tb.querySelectorAll('button').forEach(b => b.onclick = () => { FRTAB = b.dataset.t; frFilter(); });
   h.after(tb);
   $('frames').addEventListener('scroll', () => { if (!$('frames')._auto) FRUSER = Date.now(); }, {passive: true});

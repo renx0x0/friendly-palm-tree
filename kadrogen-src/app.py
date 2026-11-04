@@ -2563,6 +2563,12 @@ class Api:
             return {"ok": True}
         return {"ok": False, "error": "Готового видео у этого ролика нет — возможно, его переместили или ещё не собрали."}
 
+    def open_jobs(self):
+        d = os.path.join(data_dir(), "jobs")
+        os.makedirs(d, exist_ok=True)
+        os.startfile(d)
+        return True
+
     def open_output(self):
         out = load_cfg().get("output_dir") or os.path.join(data_dir(), "output")
         try:
