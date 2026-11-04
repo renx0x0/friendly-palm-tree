@@ -688,11 +688,11 @@
   .opts { gap:8px !important; }
   #screen2 .tiles { flex:0 0 auto; } #screen2 .tile { aspect-ratio:auto; height:96px; max-height:none; flex-direction:row; gap:16px; }
   #screen2 .tile svg { width:40px !important; height:40px !important; } #screen2 .tile .t { font-size:16px !important; }
-  #vq_row select { width:auto !important; min-width:260px; flex:0 0 auto; padding:6px 10px; font-size:12px; } #vq_row .lbl br { display:none; }
+
   .vfrow { margin-top:6px; }
   /* большой экран: кнопки внизу, середина по центру и крупнее (p42) */
   #screen2 > .nav, #screen3 > .nav { margin-top:auto; }
-  #screen2 .tiles { margin-top:clamp(8px, 4vh, 48px); } #screen2 .tile { height:clamp(92px, 15vh, 170px); flex-direction:column; gap:12px; }
+  #screen2 .tiles { margin-top:auto; } #screen2 .tile { height:clamp(92px, 15vh, 170px); flex-direction:column; gap:12px; }
   #screen2 .tile svg { width:clamp(36px, 5vh, 60px) !important; height:clamp(36px, 5vh, 60px) !important; } #screen2 .tile .t { font-size:clamp(15px, 2vh, 21px) !important; }
   #screen2 .sgrid { margin-top:clamp(6px, 3vh, 36px); } #screen2 #vq_row { margin-top:clamp(8px, 3vh, 34px); }
   .opts { display:grid !important; grid-template-columns:1fr 1fr; max-width:min(1080px, 100%); gap:12px 14px !important; align-content:center; }
@@ -701,6 +701,24 @@
   .opt.sec { padding:16px 20px !important; min-height:clamp(70px, 10vh, 112px); align-items:center; } .opt.sec .t { font-size:16px !important; }
   .opt.sec svg { width:34px !important; height:34px !important; }
   .opts .optq { margin-bottom:10px; }
+  /* шаг 03 — оформление: шаблон, моушн, субтитры, эффекты, качество (p43) */
+  .opts > .optx { grid-column:auto; }
+  .lookbar { display:flex; align-items:center; gap:10px; padding:10px 20px; background:var(--bg2); border:1.5px solid var(--line); }
+  .lookbar .lbl { font:500 14px/1.2 "Exo 2", sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--ink); margin-right:6px; }
+  .lookbar select { flex:1; max-width:420px; padding:7px 10px; font-size:13px; } .lookbar button { padding:7px 12px; font-size:11px; letter-spacing:.12em; }
+  .optx { display:flex; align-items:center; gap:18px; padding:16px 20px; min-height:clamp(70px, 10vh, 112px); background:var(--bg2); border:1.5px solid var(--line); box-sizing:border-box; }
+  .optx svg { width:34px; height:34px; stroke:var(--ink); fill:none; stroke-width:1.3; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .optx .t { flex:1; min-width:0; font:500 16px/1.2 "Exo 2", sans-serif; letter-spacing:.14em; text-transform:uppercase; display:flex; flex-direction:column; gap:5px; }
+  .optx .dsc { font:400 12.5px/1.35 "Exo 2", sans-serif; letter-spacing:.02em; text-transform:none; color:var(--ink2); }
+  .optx .fxsum { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .optx button { padding:7px 12px; font-size:11px; letter-spacing:.16em; } .optx select { width:auto; max-width:230px; padding:7px 10px; font-size:12px; }
+  #screen2 .tiles.c3 { margin-top:auto; }
+  /* 2K и больше без масштабирования Windows: всё окно крупнее, а не узкая колонка посередине */
+  @media (min-width:1900px) { .wrap { zoom:1.25; height:calc(100vh / 1.25); } }
+  @media (min-width:1900px) { .opt.sec, .optx { min-height:72px !important; padding-top:12px !important; padding-bottom:12px !important; } .opts { gap:10px 12px !important; } }
+  @media (min-width:2300px) { .wrap { zoom:1.45; height:calc(100vh / 1.45); } }
+  @media (min-width:3200px) { .wrap { zoom:1.9; height:calc(100vh / 1.9); } }
+  @media (min-width:20000px) { .opts { max-width:1400px; } .opt .t, .optx .t { font-size:19px !important; } .opt .t .dsc, .optx .dsc { font-size:14.5px; } .optx svg, .opt.sec svg { width:42px !important; height:42px !important; } }
 </style>
 </head>
 <body>
@@ -823,9 +841,6 @@
     <div class="crow hidden" id="custom_row"><textarea id="custom_style" spellcheck="false"></textarea></div>
     <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
       <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
-    <div class="vfrow" id="vq_row"><span class="lbl" id="vq_lbl"></span><select id="vquality" class="qst"><option value="standard"></option><option value="high"></option><option value="max"></option></select><span class="vqh" id="vq_hint"></span></div>
-    <div class="vfrow" id="look_row"><span class="lbl" id="look_lbl"></span><select id="look_sel" onchange="lookPick(this.value)"></select><button type="button" class="ghost" id="look_save" onclick="lookSave()"></button><button type="button" class="ghost" id="look_del" onclick="lookDel()">×</button></div>
-    <div class="vfrow" id="fx_row"><span class="lbl" id="fx_lbl"></span><span class="vqh fxsum" id="fx_sum"></span><button type="button" class="ghost" id="fx_btn" onclick="openFx()"></button></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
@@ -838,9 +853,13 @@
       <div class="grp" data-i18n="g_main"></div>
       <label class="opt" id="rw" data-tipkey="tip_rw"><input type="checkbox" id="use_rw"><svg viewBox="0 0 64 64"><path d="M12 52V12h26l10 10v30z"/><path d="M38 12v10h10M20 30h22M20 38h22M20 46h14"/><path d="M44 44l10-10 4 4-10 10h-4z"/></svg><span class="t" data-i18n="o_rw"></span><span class="dot"></span></label>
       <label class="opt" id="mk_tts" data-tipkey="tip_tts" style="display:none"><input type="checkbox" id="use_tts"><svg viewBox="0 0 64 64"><rect x="24" y="8" width="16" height="30" rx="8"/><path d="M14 30c0 10 8 18 18 18s18-8 18-18M32 48v10M22 58h20"/></svg><span class="t" data-i18n="o_tts"></span><span class="dot"></span></label>
-      <div class="grp sec" data-i18n="g_extra"></div>
+      <div class="grp sec" id="g_look"></div>
+      <div class="lookbar" id="look_row"><span class="lbl" id="look_lbl"></span><select id="look_sel" onchange="lookPick(this.value)"></select><button type="button" class="ghost" id="look_save" onclick="lookSave()"></button><button type="button" class="ghost" id="look_del" onclick="lookDel()">×</button></div>
       <label class="opt sec" id="motion" data-tipkey="tip_motion"><input type="checkbox" id="use_motion"><svg viewBox="0 0 64 64"><path d="M8 40c8-20 16-20 24 0s16 20 24 0"/><path d="M8 24c8-12 16-12 24 0s16 12 24 0"/></svg><span class="t" data-i18n="o_motion"></span><button type="button" class="ghost subcfg" id="tr_cfg_btn"></button><span class="dot"></span></label>
       <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
+      <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button></div>
+      <div class="optx" id="vq_row"><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="36" rx="3"/><path d="M18 40V24l8 10 8-10v16M42 24v16"/></svg><span class="t"><span id="vq_lbl"></span><small class="dsc" id="vq_hint"></small></span><select id="vquality"><option value="standard"></option><option value="high"></option><option value="max"></option></select></div>
+      <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="hd" data-tipkey="tip_hd"><input type="checkbox" id="use_hd"><svg viewBox="0 0 64 64"><rect x="6" y="14" width="52" height="36" rx="3"/><path d="M16 24v16M16 32h10M26 24v16M36 24v16h7a8 8 0 0 0 0-16z"/></svg><span class="t" data-i18n="o_hd"></span><span class="dot"></span></label>
       <label class="opt sec" id="qa" data-tipkey="tip_qa"><input type="checkbox" id="use_qa"><svg viewBox="0 0 64 64"><path d="M6 32c8-12 16-18 26-18s18 6 26 18c-8 12-16 18-26 18S14 44 6 32z"/><circle cx="32" cy="32" r="8"/><path d="M44 50l6 6 10-12"/></svg><span class="t" data-i18n="o_qa"></span><span class="dot"></span></label>
       <label class="opt sec" id="speed" data-tipkey="tip_speed"><input type="checkbox" id="use_speed"><svg viewBox="0 0 64 64"><path d="M8 44a24 24 0 0 1 48 0"/><path d="M32 44l12-16"/><circle cx="32" cy="44" r="3"/><path d="M14 44h4M46 44h4M20 30l3 3M44 30l-3 3"/></svg><span class="t" data-i18n="o_speed"></span><span class="dot"></span></label>
@@ -1215,6 +1234,7 @@ async function pvFromLast() {
 }
 function syncRvFx() { const e = $('rv_fx_sum'); if (e) e.textContent = fxSummary(FXS); }
 function vqLabels() {
+  if ($('g_look')) $('g_look').textContent = pt('Оформление', 'Look');
   $('vq_lbl').textContent = pt('Качество готового видео', 'Output video quality');
   const o = $('vquality').options; o[0].textContent = pt('стандарт (как раньше)', 'standard'); o[1].textContent = pt('высокое — битрейт выше', 'high'); o[2].textContent = pt('максимум', 'maximum');
   $('vq_hint').textContent = {standard: pt('как раньше', 'as before'), high: pt('битрейт в ~1,5 раза выше, файл больше', '~1.5× bitrate'), max: pt('битрейт в ~2 раза выше, файл заметно больше', '~2× bitrate')}[$('vquality').value] || '';
