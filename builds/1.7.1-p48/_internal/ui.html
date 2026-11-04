@@ -812,7 +812,7 @@
     <label id="rx_l5"></label><select id="rx_look"></select>
     <label id="rx_l6"></label><div class="f"><select id="rx_fx"></select><button class="ghost" id="rx_fxb"></button></div>
     <label id="rx_l3"></label><div class="f"><select id="rx_sub"></select><button class="ghost" id="rx_subb"></button></div>
-    <label id="rx_l7"></label><select id="rx_mot"></select>
+    <select id="rx_mot" hidden></select>
     <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div></div>
   <div class="note" id="rx_n2" style="margin:10px 0 0"></div>
   <div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div>
@@ -2895,9 +2895,8 @@ function openRemix(r) {
   $('rx_look').innerHTML = `<option value="">${pt('не брать — как ниже', 'none')}</option>` + LOOKS.names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   $('rx_l6').textContent = pt('Эффекты', 'Effects'); $('rx_fxb').textContent = pt('Настроить ›', 'Set up ›');
   $('rx_l3').textContent = pt('Субтитры', 'Subtitles'); $('rx_subb').textContent = pt('Вид ›', 'Style ›');
-  $('rx_l7').textContent = pt('Движение', 'Motion');
   $('rx_l2').textContent = pt('Переходы', 'Transitions');
-  const trOpts = () => { $('rx_tr').innerHTML = [['', 'как сейчас (или как в шаблоне)', 'as now (or template)'], ['classic', 'Классические', 'Classic'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum']]
+  const trOpts = () => { $('rx_tr').innerHTML = [['', 'как сейчас (или как в шаблоне)', 'as now (or template)'], ['classic', 'Классические', 'Classic'], ['soft', 'Мягкие', 'Soft'], ['full', 'Максимум', 'Maximum'], ['none', 'без переходов (встык)', 'none (hard cuts)']]
     .concat(RX.trans ? [['own', `свои: ${RX.trans.set.length ? 'переходов ' + RX.trans.set.length : 'встык'}, движение ${({classic: 'обычное', soft: 'мягкое', full: 'сильное', none: 'нет'})[RX.trans.kb] || RX.trans.kb}`, 'own']] : [])
     .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join(''); if (RX.trans) $('rx_tr').value = 'own'; };
   trOpts();
@@ -2937,7 +2936,7 @@ function openRemix(r) {
   $('rx_cancel').onclick = () => $('rx_dlg').classList.remove('show');
   $('rx_go').onclick = async () => {
     if (!RX.file) { toast(pt('Выберите файл новой озвучки', 'Pick the new voice-over file'), 4000); return; }
-    const o = {subtitles: $('rx_sub').value === 'on', motion: $('rx_mot').value === 'on', name: $('rx_name').value.trim()};
+    const o = {subtitles: $('rx_sub').value === 'on', motion: $('rx_tr').value !== 'none', name: $('rx_name').value.trim()};
     if (RX.out) o.out_dir = RX.out;
     if (RX.trans && $('rx_tr').value === 'own') o.transitions = RX.trans; else if ($('rx_tr').value) o.transitions = $('rx_tr').value;
     if (RX.look) o.look_name = RX.look;
