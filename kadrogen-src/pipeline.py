@@ -2652,12 +2652,18 @@ def kenburns_path(i, duration, mode=None):
     return kinds[i % len(kinds)]
 
 
-EDGE_CROP = 0.035  # срезаем 3.5% по краям: там генераторы ставят маленький логотип-водяной знак
+EDGE_CROP = 0.0  # срез краёв картинок (логотип в углу у некоторых генераторов); по умолчанию не режем — config "edge_crop_pct"
 
 
-def _fit_16_9(im):
+def _edge_crop_for(img_path):
+    """Срез краёв картинки (логотип генератора в углу) — из настройки edge_crop_pct, по умолчанию 0: картинка целиком."""
+    return EDGE_CROP
+
+
+def _fit_16_9(im, edge=None):
     sw, sh = im.size
-    dx, dy = int(sw * EDGE_CROP), int(sh * EDGE_CROP)
+    edge = EDGE_CROP if edge is None else edge
+    dx, dy = int(sw * edge), int(sh * edge)
     im = im.crop((dx, dy, sw - dx, sh - dy))
     sw, sh = im.size
     if sw / sh > W / H:
@@ -2680,7 +2686,7 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
 
     path = kenburns_path(i, duration, kb)
     tmp = out_path + ".tmp.mp4"
-    im = _fit_16_9(Image.open(img_path).convert("RGB"))
+    im = _fit_16_9(Image.open(img_path).convert("RGB"), _edge_crop_for(img_path))
     if path is None:
         still = out_path + ".still.png"
         im.resize((W, H), Image.LANCZOS).save(still)
@@ -4259,12 +4265,14 @@ ASSEMBLY_DEFERRED = False               # последний make_video отда
 def look_snapshot():
     """Настройки, от которых зависит монтаж: переходы, движение картинок, обрезка клипов Veo."""
     return {"transitions": list(TRANSITIONS), "transition": TRANSITION, "order": TRANS_ORDER, "video_set": list(TRANS_VIDEO),
-            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY, "fx": FX}
+            "kb": KB_MODE, "zoom": VIDEO_ZOOM, "anchor": VIDEO_ANCHOR, "quality": VIDEO_QUALITY, "fx": FX, "edge": EDGE_CROP}
 
 
 def apply_look(lk):
     global TRANSITIONS, TRANSITION, TRANS_ORDER, TRANS_VIDEO, KB_MODE, VIDEO_ZOOM, VIDEO_ANCHOR, VIDEO_QUALITY
     lk = lk or {}
+    global EDGE_CROP
+    EDGE_CROP = float(lk.get("edge") or 0)
     VIDEO_QUALITY = lk.get("quality") if lk.get("quality") in VIDEO_QUALITIES else "high"
     global FX
     FX = fx_settings({"fx": lk.get("fx") if isinstance(lk.get("fx"), dict) else {}})
@@ -4413,6 +4421,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             if k in look:
                 cfg = dict(cfg, **{k: look[k]})
     VIDEO_PROMPT = " ".join(str(cfg.get("video_prompt") or "").split())
+    global EDGE_CROP
+    try:
+        EDGE_CROP = max(0.0, min(10.0, float(cfg.get("edge_crop_pct") or 0))) / 100
+    except (TypeError, ValueError):
+        EDGE_CROP = 0.0
     try:
         VIDEO_ZOOM = max(100.0, min(130.0, float(cfg.get("video_zoom_pct", 104)))) / 100
     except (TypeError, ValueError):
