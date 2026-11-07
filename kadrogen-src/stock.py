@@ -35,7 +35,9 @@ def settings(cfg):
         share = 0
     media = raw.get("media") if raw.get("media") in ("both", "video", "photo") else "both"
     src = [s for s in (raw.get("sources") or ["pexels", "pixabay"]) if s in SOURCES]
-    return {"share": share, "media": media, "sources": src, "archive": bool(raw.get("archive", "commons" in src))}
+    on = bool(raw.get("on", share > 0))  # галочка «Использовать стоки»: выключили — настройки помнятся, но не применяются
+    return {"on": on, "share": share, "media": media, "sources": src, "archive": bool(raw.get("archive", "commons" in src)),
+            "active": on and share > 0}
 
 
 def keys_of(cfg):
@@ -283,7 +285,7 @@ def save_video(cand, vid_path, img_path, ffmpeg, creationflags=0):
 def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffmpeg="ffmpeg", creationflags=0, check_cancel=None):
     """Подобрать стоки для части сцен. → {index: путь к видео со стока}. Фото со стока ложатся в images как обычные картинки."""
     st = settings(cfg)
-    if not st["share"]:
+    if not st["active"]:
         return {}
     keys = keys_of(cfg)
     srcs = usable_sources(st, keys)
@@ -376,7 +378,8 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
             continue
         used.add(f"{pick['src']}:{pick['id']}")
         mark_used(data_dir, pick, job)
-        rec[str(i)] = {"src": pick["src"], "id": pick["id"], "kind": pick["kind"], "q": q, "page": pick.get("page"), "author": pick.get("author")}
+        rec[str(i)] = {"src": pick["src"], "id": pick["id"], "kind": pick["kind"], "q": q, "page": pick.get("page"), "author": pick.get("author"),
+                       "historic": bool(historic)}
         img_state[str(i)] = {"ok": True, "model": f"stock:{pick['src']}:{pick['kind']}"}
         with open(rec_path, "w", encoding="utf-8") as f:
             json.dump(rec, f, ensure_ascii=False, indent=1)
@@ -398,3 +401,105 @@ def check_key(source, key):
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
+
+
+# ---------------------------------------------------------------- замена одного кадра из окна просмотра
+
+def _find(st, keys, q, historic, dur, skip, log=print):
+    srcs = usable_sources(st, keys)
+    order = [x for x in srcs if x != "commons"]
+    if "commons" in srcs:
+        order = ["commons"] + order if historic else order + ["commons"]
+    kinds = {"video": ["video", "photo"], "photo": ["photo"], "both": ["video", "photo"]}[st["media"]]
+    for src in order:
+        for kind in kinds:
+            try:
+                cands = search(src, keys, q, kind)
+            except Exception as e:
+                log(f"стоки: {SOURCE_NAMES[src]} — {str(e)[:120]}")
+                continue
+            cands = [c for c in cands if f"{c['src']}:{c['id']}" not in skip and c.get("url")]
+            if kind == "video":
+                cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
+            if cands:
+                return cands[0]
+    return None
+
+
+def record(job_dir):
+    try:
+        with open(os.path.join(job_dir, "stock.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_rec(job_dir, rec):
+    with open(os.path.join(job_dir, "stock.json"), "w", encoding="utf-8") as f:
+        json.dump(rec, f, ensure_ascii=False, indent=1)
+
+
+def _set_img_state(job_dir, i, val):
+    p = os.path.join(job_dir, "images.json")
+    try:
+        with open(p, encoding="utf-8") as f:
+            st = json.load(f)
+    except (OSError, ValueError):
+        st = {}
+    if val is None:
+        st.pop(str(i), None)
+    else:
+        st[str(i)] = val
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(st, f, ensure_ascii=False)
+
+
+def replace(cfg, job_dir, data_dir, scene, query=None, ffmpeg="ffmpeg", creationflags=0, log=print, clear=None):
+    """Другой кадр со стока для сцены: по тому же запросу (или своему), без уже взятых. clear(i) — убрать старые файлы сцены."""
+    st = settings(cfg)
+    keys = keys_of(cfg)
+    if not usable_sources(dict(st, archive=st["archive"]), keys):
+        return {"ok": False, "error": "Нет ключа ни Pexels, ни Pixabay и архив выключен — откройте «Стоки» на шаге 02."}
+    i = scene["index"]
+    rec = record(job_dir)
+    old = rec.get(str(i)) or {}
+    q = " ".join(str(query or old.get("q") or fallback_query(scene)).split())[:80]
+    if not q:
+        return {"ok": False, "error": "Пустой запрос."}
+    skip = set(load_used(data_dir)) | set(old.get("tried") or [])
+    if old.get("src"):
+        skip.add(f"{old['src']}:{old['id']}")
+    pick = _find(st, keys, q, bool(old.get("historic")), float(scene.get("duration") or 0), skip, log)
+    if not pick:
+        return {"ok": False, "error": f"По запросу «{q}» больше ничего не нашлось — попробуйте свой запрос."}
+    img_dir, vid_dir = os.path.join(job_dir, "images"), os.path.join(job_dir, "videos")
+    os.makedirs(img_dir, exist_ok=True)
+    os.makedirs(vid_dir, exist_ok=True)
+    img_path, vid_path = os.path.join(img_dir, f"{i:04d}.png"), os.path.join(vid_dir, f"{i:04d}.mp4")
+    if clear:
+        clear(i)
+    try:
+        if pick["kind"] == "video":
+            save_video(pick, vid_path, img_path, ffmpeg, creationflags)
+        else:
+            save_photo(pick, img_path)
+    except Exception as e:
+        return {"ok": False, "error": f"Не скачалось: {str(e)[:160]}"}
+    mark_used(data_dir, pick, os.path.basename(job_dir))
+    tried = list(old.get("tried") or []) + ([f"{old['src']}:{old['id']}"] if old.get("src") else [])
+    rec[str(i)] = {"src": pick["src"], "id": pick["id"], "kind": pick["kind"], "q": q, "page": pick.get("page"),
+                   "author": pick.get("author"), "historic": bool(old.get("historic")), "tried": tried[-30:]}
+    _save_rec(job_dir, rec)
+    _set_img_state(job_dir, i, {"ok": True, "model": f"stock:{pick['src']}:{pick['kind']}"})
+    return {"ok": True, "src": SOURCE_NAMES[pick["src"]], "kind": pick["kind"], "q": q}
+
+
+def to_generation(job_dir, i, clear=None):
+    """Убрать сток со сцены: при следующем запуске она будет сгенерирована (и стоки её больше не трогают)."""
+    rec = record(job_dir)
+    rec[str(i)] = {"skip": True}
+    _save_rec(job_dir, rec)
+    if clear:
+        clear(i)
+    _set_img_state(job_dir, i, None)
+    return {"ok": True}

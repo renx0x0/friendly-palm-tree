@@ -4597,7 +4597,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             ref_pool.shutdown(wait=True)
         apply_edits(scenes, job_dir)
         stock_vids = {}
-        if stock.settings(cfg)["share"]:  # часть сцен (или все) — со стоков: живое видео / фото / архив вместо генерации
+        if stock.settings(cfg)["active"]:  # часть сцен (или все) — со стоков: живое видео / фото / архив вместо генерации
             try:
                 stock_vids = stock.fill(cfg, scenes, job_dir, data_dir(), llm=llm, progress=progress, log=log, ffmpeg=ffmpeg_bin(),
                                         creationflags=NO_WINDOW, check_cancel=check_cancel)
