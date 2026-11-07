@@ -20,8 +20,12 @@ import time
 import requests
 
 UA = "KadroGen/1.7 (stock footage for the user's own videos)"
-SOURCES = ("pexels", "pixabay", "commons")
-SOURCE_NAMES = {"pexels": "Pexels", "pixabay": "Pixabay", "commons": "Wikimedia Commons (архив)"}
+SOURCES = ("pexels", "pixabay", "openverse", "commons", "archive_org")
+SOURCE_NAMES = {"pexels": "Pexels", "pixabay": "Pixabay", "openverse": "Openverse", "commons": "Wikimedia Commons (архив)",
+                "archive_org": "Internet Archive (хроника)"}
+ARCHIVES = ("archive_org", "commons")   # архив: для исторических сцен — первыми, для остальных — последними
+NO_KEY = ("openverse", "commons", "archive_org")
+ARCHIVE_SECONDS = 5.0                    # из старого фильма берём кусок не длиннее 5 с
 KEYS = {"pexels": "pexels_api_key", "pixabay": "pixabay_api_key"}
 _USED_LOCK = threading.Lock()
 
@@ -46,10 +50,18 @@ def keys_of(cfg):
 
 def usable_sources(st, keys):
     """Источники, которыми можно пользоваться: у Pexels и Pixabay нужен ключ, у Commons — нет."""
-    out = [s for s in st["sources"] if s == "commons" or keys.get(s)]
-    if st["archive"] and "commons" not in out:
-        out.append("commons")
+    out = [s for s in st["sources"] if s in NO_KEY or keys.get(s)]
+    if st["archive"]:
+        out += [a for a in ARCHIVES if a not in out]
+    else:
+        out = [s for s in out if s not in ARCHIVES]
     return out
+
+
+def source_order(srcs, historic):
+    rest = [x for x in srcs if x not in ARCHIVES]
+    arch = [x for x in ARCHIVES if x in srcs]
+    return arch + rest if historic else rest + arch
 
 
 def pick_scenes(scenes, share):
@@ -194,11 +206,77 @@ def search_commons(q, kind):
     return out
 
 
+def search_openverse(q, kind):
+    """Openverse (WordPress): свободные фото — только CC0 и общественное достояние, ключ не нужен."""
+    if kind != "photo":
+        return []
+    data = _get("https://api.openverse.org/v1/images/", {"q": q[:200], "license": "cc0,pdm", "aspect_ratio": "wide", "page_size": 20})
+    out = []
+    for r in data.get("results") or []:
+        w, h = r.get("width") or 0, r.get("height") or 0
+        if (w and w < 1000) or (w and h and w < h) or not r.get("url"):
+            continue
+        out.append({"src": "openverse", "id": str(r.get("id")), "kind": "photo", "url": r["url"], "w": w, "h": h,
+                    "page": r.get("foreign_landing_url"), "author": str(r.get("license") or "")})
+    return out
+
+
+def _secs(v):
+    """Длительность из метаданных archive.org: «623.4» или «10:23» / «1:02:03»."""
+    try:
+        if ":" in str(v):
+            t = 0.0
+            for part in str(v).split(":"):
+                t = t * 60 + float(part)
+            return t
+        return float(v or 0)
+    except ValueError:
+        return 0.0
+
+
+def search_archive_org(q, kind):
+    """Internet Archive: старые фильмы и кинохроника в общественном достоянии (Prelinger и др.).
+    Фильм длинный — берём из него кусок до ARCHIVE_SECONDS с (3 места на фильм), качаем только этот кусок."""
+    if kind != "video":
+        return []
+    from urllib.parse import quote
+    data = _get("https://archive.org/advancedsearch.php", {
+        "q": f"({q}) AND mediatype:movies AND (collection:prelinger OR licenseurl:*publicdomain*)",
+        "fl[]": ["identifier", "title"], "rows": 10, "output": "json"})
+    out = []
+    for d in ((data.get("response") or {}).get("docs") or [])[:5]:
+        ident = d.get("identifier")
+        if not ident:
+            continue
+        try:
+            md = _get(f"https://archive.org/metadata/{quote(ident)}")
+        except Exception:
+            continue
+        mp4 = [f for f in md.get("files") or [] if str(f.get("name", "")).lower().endswith(".mp4")]
+        if not mp4:
+            continue
+        f = max(mp4, key=lambda f: int(f.get("size") or 0))
+        w, h = int(float(f.get("width") or 0)), int(float(f.get("height") or 0))
+        if w and h and w < h:
+            continue
+        length = _secs(f.get("length")) or _secs((md.get("metadata") or {}).get("runtime"))
+        url = f"https://archive.org/download/{quote(ident)}/{quote(f['name'])}"
+        spots = [length * x for x in (0.2, 0.45, 0.7)] if length > 3 * ARCHIVE_SECONDS else [0.0]
+        for st in spots:
+            out.append({"src": "archive_org", "id": f"{ident}@{int(st)}", "kind": "video", "url": url, "seg": [round(st, 1), ARCHIVE_SECONDS],
+                        "dur": ARCHIVE_SECONDS, "w": w, "h": h, "page": f"https://archive.org/details/{ident}", "author": "public domain"})
+    return out
+
+
 def search(source, keys, q, kind):
     if source == "pexels":
         return search_pexels(keys["pexels"], q, kind)
     if source == "pixabay":
         return search_pixabay(keys["pixabay"], q, kind)
+    if source == "openverse":
+        return search_openverse(q, kind)
+    if source == "archive_org":
+        return search_archive_org(q, kind)
     return search_commons(q, kind)
 
 
@@ -258,6 +336,18 @@ def save_photo(cand, img_path):
 
 def save_video(cand, vid_path, img_path, ffmpeg, creationflags=0):
     """Клип в videos/NNNN.mp4 (не mp4 — перекодируем в h264) и его средний кадр в images/NNNN.png для окна."""
+    if cand.get("seg"):  # кусок из длинного фильма (архив): ffmpeg берёт только его, весь фильм не качаем
+        ss, t = cand["seg"]
+        tmp = vid_path + ".part.mp4"
+        r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", f"{float(ss):.2f}", "-t", f"{float(t):.2f}", "-user_agent", UA, "-i", cand["url"],
+                            "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+                            "-vf", "scale='min(1920,iw)':-2", tmp], capture_output=True, creationflags=creationflags, timeout=300)
+        if r.returncode != 0 or not os.path.exists(tmp) or os.path.getsize(tmp) < 2000:
+            raise RuntimeError("ffmpeg: " + r.stderr.decode(errors="replace")[:200])
+        os.replace(tmp, vid_path)
+        subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-ss", f"{float(t) / 2:.2f}", "-i", vid_path, "-frames:v", "1", img_path],
+                       capture_output=True, creationflags=creationflags)
+        return
     ext = os.path.splitext(cand["url"].split("?")[0])[1].lower() or ".mp4"
     raw = vid_path + ".dl" + ext
     _download(cand["url"], raw, timeout=300)
@@ -328,9 +418,7 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
         if not q:
             continue
         dur = float(s.get("duration") or 0)
-        order = [x for x in srcs if x != "commons"]
-        if "commons" in srcs:  # историческая сцена — сначала архив, остальные — архив последним
-            order = ["commons"] + order if historic else order + ["commons"]
+        order = source_order(srcs, historic)  # историческая сцена — сначала архив, остальные — архив последним
         kinds = {"video": ["video", "photo"], "photo": ["photo"], "both": ["video", "photo"]}[st["media"]]
         pick = None
         for src in order:
@@ -406,10 +494,7 @@ def check_key(source, key):
 # ---------------------------------------------------------------- замена одного кадра из окна просмотра
 
 def _find(st, keys, q, historic, dur, skip, log=print):
-    srcs = usable_sources(st, keys)
-    order = [x for x in srcs if x != "commons"]
-    if "commons" in srcs:
-        order = ["commons"] + order if historic else order + ["commons"]
+    order = source_order(usable_sources(st, keys), historic)
     kinds = {"video": ["video", "photo"], "photo": ["photo"], "both": ["video", "photo"]}[st["media"]]
     for src in order:
         for kind in kinds:

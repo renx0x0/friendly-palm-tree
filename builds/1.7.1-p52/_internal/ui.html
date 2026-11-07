@@ -818,6 +818,7 @@
     <label id="sk_l2"></label><select id="sk_media"></select>
     <label id="sk_l3"></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_pexels">Pexels</label><input type="text" id="sk_kpexels" spellcheck="false" autocomplete="off"><button class="ghost" id="sk_cpexels"></button><span class="lk" id="sk_gpexels"></span></div>
     <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_pixabay">Pixabay</label><input type="text" id="sk_kpixabay" spellcheck="false" autocomplete="off"><button class="ghost" id="sk_cpixabay"></button><span class="lk" id="sk_gpixabay"></span></div>
+    <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_openverse">Openverse</label><span class="note" id="sk_ot"></span></div>
     <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_archive"><span id="sk_at"></span></label></div>
   </div>
   <div class="note" id="sk_st" style="margin-top:10px"></div>
@@ -1222,7 +1223,7 @@ function optDescs() {
 let STK = {share: 0, media: 'both', sources: ['pexels', 'pixabay'], archive: false}, STKK = {pexels: false, pixabay: false};
 function stockSummary() {
   if (!STK.share) return pt('выключены — все сцены генерируются', 'off — all scenes are generated');
-  const src = (STK.sources || []).filter(s => s !== 'commons' && STKK[s]).map(s => ({pexels: 'Pexels', pixabay: 'Pixabay'})[s]);
+  const src = (STK.sources || []).filter(s => (s === 'openverse') || STKK[s]).map(s => ({pexels: 'Pexels', pixabay: 'Pixabay', openverse: 'Openverse'})[s]).filter(Boolean);
   if (STK.archive) src.push(pt('архив', 'archive'));
   const m = {both: pt('видео и фото', 'video & photo'), video: pt('видео', 'video'), photo: pt('фото', 'photo')}[STK.media];
   return (STK.share >= 100 ? pt('весь ролик со стоков', 'the whole video from stock') : pt(`${STK.share}% сцен со стоков`, `${STK.share}% of scenes from stock`))
@@ -1243,11 +1244,13 @@ function openStock() {
   $('sk_n').innerHTML = pt('Для выбранных сцен программа ищет живое видео или фото по смыслу их предложения: модель текстов пишет по каждой сцене короткий английский запрос. '
     + 'Не нашлось — сцена генерируется как обычно. Видео со стока идёт как оживлённый клип (без кредитов), фото — как картинка с движением камеры и эффектами. '
     + 'Один и тот же клип в ваших роликах не повторяется.<br>Pexels и Pixabay — бесплатно, в т.ч. для монетизированных роликов, без указания автора; нужен свой бесплатный ключ. '
-    + 'Архив — старые фото и хроника из Wikimedia Commons, только общественное достояние; ключ не нужен.', 'Stock video/photo instead of part of the generations.');
+    + 'Openverse и архив (Internet Archive, Wikimedia Commons) — только общественное достояние, ключ не нужен; из кинохроники берётся кусок не длиннее 5 с.', 'Stock video/photo instead of part of the generations.');
   $('sk_l1').textContent = pt('Сколько сцен', 'How many scenes'); $('sk_l2').textContent = pt('Что брать', 'What to take'); $('sk_l3').textContent = pt('Откуда', 'Sources');
   $('sk_media').innerHTML = [['both', 'видео, а если нет — фото', 'video, else photo'], ['video', 'только видео (нет — генерация)', 'video only'], ['photo', 'только фото', 'photo only']]
     .map(([v, r, e]) => `<option value="${v}">${pt(r, e)}</option>`).join('');
-  $('sk_at').textContent = pt('Архив (Wikimedia Commons): старые фото и хроника — для исторических сцен сначала он', 'Archive (Wikimedia Commons) for historic scenes');
+  $('sk_at').textContent = pt('Архив: Internet Archive (кинохроника, кусок до 5 с) и Wikimedia Commons (старые фото) — для исторических сцен сначала он', 'Archive: Internet Archive newsreels (up to 5 s) and Wikimedia Commons');
+  $('sk_ot').textContent = pt('свободные фото, только общественное достояние · ключ не нужен', 'free photos, public domain only · no key');
+  $('sk_openverse').checked = (STK.sources || []).includes('openverse');
   $('sk_share').value = STK.share; $('sk_sv').textContent = skShareText(STK.share); $('sk_media').value = STK.media;
   $('sk_share').oninput = () => { $('sk_sv').textContent = skShareText($('sk_share').value); };
   for (const s of ['pexels', 'pixabay']) {
@@ -1264,7 +1267,7 @@ function openStock() {
   $('sk_off').onclick = () => { $('sk_share').value = 0; $('sk_sv').textContent = skShareText(0); };
   $('sk_x').onclick = () => $('stock_dlg').classList.remove('show');
   $('sk_save').onclick = async () => {
-    const sources = ['pexels', 'pixabay'].filter(s => $('sk_' + s).checked);
+    const sources = ['pexels', 'pixabay', 'openverse'].filter(s => $('sk_' + s).checked);
     STK = {on: +$('sk_share').value > 0, share: +$('sk_share').value, media: $('sk_media').value, sources: sources.concat($('sk_archive').checked ? ['commons'] : []), archive: $('sk_archive').checked};
     const data = {stock: STK};
     for (const s of ['pexels', 'pixabay']) { const v = $('sk_k' + s).value.trim(); if (!v.includes('•')) { data[s] = v; STKK[s] = !!v; } }
