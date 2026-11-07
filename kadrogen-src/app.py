@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p49"
+VERSION = "1.7.1-p50"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -768,7 +768,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "fx", "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "fx", "stock", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -1168,6 +1168,7 @@ class Api:
             "output_dir": cfg.get("output_dir") or "", "default_output": os.path.join(data_dir(), "output"),
             "out_sub": bool(cfg.get("out_sub", True)),
             "fx": pipeline.fx_settings(cfg),
+            "stock": pipeline.stock.settings(cfg), "stock_keys": {k: bool(v) for k, v in pipeline.stock.keys_of(cfg).items()},
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -1186,7 +1187,8 @@ class Api:
         for field, key in (("fastgen", "fastgen_api_key"), ("nonstop", "veononstop_api_key"), ("yougen", "yougen_api_key"),
                            ("openai", "openai_api_key"), ("royal", "royaltechno_api_key"), ("slider", "secretslider_api_key"), ("google", "google_api_key"),
                            ("anthropic", "anthropic_api_key"), ("gemini", "gemini_api_key"), ("assemblyai", "assemblyai_api_key"), ("openrouter", "openrouter_api_key"),
-                           ("voicegen", "voicegen_api_key"), ("voicer", "voicer_api_key"), ("lumean", "lumean_api_key")):
+                           ("voicegen", "voicegen_api_key"), ("voicer", "voicer_api_key"), ("lumean", "lumean_api_key"),
+                           ("pexels", "pexels_api_key"), ("pixabay", "pixabay_api_key")):
             if field in data:
                 v = (data.get(field) or "").strip()
                 if v and "•" not in v:
@@ -1264,6 +1266,8 @@ class Api:
             cfg["tts_voice"] = (data.get("tts_voice") or "").strip()
         if "motion" in data:
             cfg["motion"] = bool(data["motion"])
+        if isinstance(data.get("stock"), dict):
+            cfg["stock"] = pipeline.stock.settings({"stock": data["stock"]})
         if isinstance(data.get("fx"), dict):
             cfg["fx"] = pipeline.fx_settings({"fx": data["fx"]})
         if data.get("video_quality") in ("standard", "high", "max"):
@@ -1927,6 +1931,15 @@ class Api:
             return pipeline.profiles.BOARD.part(int(n))
         except (TypeError, ValueError):
             return {"n": n, "prompts": [], "problems": [], "status": "wait", "live": ""}
+
+    def stock_check(self, source, key=None):
+        """Проверить ключ стока (Pexels / Pixabay): введённый в окне или сохранённый."""
+        key = str(key or "").strip()
+        if not key or "•" in key:
+            key = pipeline.stock.keys_of(load_cfg()).get(source, "")
+        if not key:
+            return {"ok": False, "error": "Ключ не введён."}
+        return pipeline.stock.check_key(source, key)
 
     def job_stats(self):
         """Цифры для панели прогресса: картинки, клипы сцен, оживление, брак — прямо по файлам проекта."""

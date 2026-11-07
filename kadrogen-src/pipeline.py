@@ -36,6 +36,7 @@ from llm_api import AnthropicClient, GeminiClient, AssemblyAI, LLM_SERVICES
 from tts_api import make_tts, TTSError
 import hashlib
 import profiles
+import stock
 
 # ---------- настройки ----------
 # fast-gen: режим "скорость" (Flower) и "качество" (Nano Banana Pro)
@@ -4595,6 +4596,15 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             refs = ref_fut.result()
             ref_pool.shutdown(wait=True)
         apply_edits(scenes, job_dir)
+        stock_vids = {}
+        if stock.settings(cfg)["share"]:  # часть сцен (или все) — со стоков: живое видео / фото / архив вместо генерации
+            try:
+                stock_vids = stock.fill(cfg, scenes, job_dir, data_dir(), llm=llm, progress=progress, log=log, ffmpeg=ffmpeg_bin(),
+                                        creationflags=NO_WINDOW, check_cancel=check_cancel)
+            except (Cancelled, SystemExit):
+                raise
+            except Exception as e:
+                log(f"стоки: не получилось ({str(e)[:160]}) — все сцены будут сгенерированы")
         anim_now = animated_scenes(scenes, mode, video_first) if (mode in ("video", "mixed") or video_first) else []
         anim_now = [sc for sc in anim_now if not os.path.exists(os.path.join(job_dir, "videos", f"{sc['index']:04d}.mp4"))]
         motion_prof = prof or look_prof
@@ -4605,6 +4615,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             write_motions(llm, anim_now, job_dir, progress, guide)
         drop_failed_images(scenes, job_dir)
         pre = Prerender(scenes, os.path.join(job_dir, "images"), job_dir, mode, motion, video_first)
+        pre.skip |= set(stock_vids)  # у сцен с видео со стока клип делается из самого видео
         overlap = VideoOverlap(ctx, scenes, job_dir, progress, mode, video_first) if (mode in ("video", "mixed") or video_first) else None
         try:
             img_dir = generate_all_images(ctx, scenes, style, job_dir, progress, refs, on_image=pre.submit)
@@ -4613,6 +4624,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
                 overlap.abort()
             raise
         videos = overlap.result() if overlap else {}
+        videos.update({i: p for i, p in stock_vids.items() if os.path.exists(p)})  # видео со стоков — как оживлённые клипы
         pre.wait(progress)
         videos = redo_pass(ctx, scenes, style, job_dir, progress, refs, mode, motion, video_first, videos)
     # что не получилось, известно до монтажа: картинки-копии соседних кадров и неоживлённые сцены

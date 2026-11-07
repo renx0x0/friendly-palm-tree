@@ -723,6 +723,14 @@
   @media (min-width:3200px) { .wrap { zoom:1.6; height:calc(100vh / 1.6); } }
   /* экран создания (p45): во всю ширину, слева — живые цифры и журнал, справа — сетка кадров */
   body.s6 .wrap { max-width:min(96vw, 2600px); }
+  #stock_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:center; background:rgba(0,0,0,.6); } #stock_dlg.show { display:grid; }
+  #stock_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:22px 26px; width:min(760px, calc(100% - 40px)); max-height:92vh; overflow-y:auto; }
+  #stock_dlg h3 { margin:0 0 6px; font:600 16px/1.3 "Exo 2", sans-serif; } #stock_dlg .note { color:var(--ink2); font-size:12.5px; line-height:1.5; }
+  .skg { display:grid; grid-template-columns:150px 1fr; gap:12px 14px; align-items:center; margin-top:14px; font-size:13px; color:var(--ink2); }
+  .skr { display:flex; align-items:center; gap:10px; flex-wrap:wrap; } .skr input[type=range] { flex:1; accent-color:var(--acc2); } .skr b { color:var(--ink); min-width:170px; }
+  .skr input[type=text] { flex:1; min-width:180px; padding:7px 10px; font-size:12.5px; } .skr .jdc { margin:0; min-width:96px; } .skr .lk { color:var(--acc2); cursor:pointer; font-size:12px; }
+  #stock_dlg select { padding:7px 10px; font-size:13px; } #stock_dlg button { padding:8px 13px; font-size:11px; letter-spacing:.14em; } #stock_dlg .row { display:flex; gap:10px; margin-top:16px; }
+  #stock_row { gap:12px; } #stock_row button { padding:6px 12px; font-size:11px; letter-spacing:.14em; } #stock_row .vqh { font-size:12px; color:var(--ink2); }
   .rkids { display:none; margin:-4px 0 6px 22px; } .rkids.open { display:block; } .rjob.kid { opacity:.92; } .rjob.kid .rt { font-size:13px; }
   .rkt { color:var(--acc2); font-size:11.5px; cursor:pointer; white-space:nowrap; }
   .rjob .rtw { flex:1 1 auto; min-width:180px; display:flex; flex-direction:column; gap:2px; overflow:hidden; } .rjob .rtw .rt { flex:none; }
@@ -801,6 +809,16 @@
     <div class="spres" id="tr_pres"></div><div id="tr_desc"></div></div>
   <div class="tform" id="tr_form"></div></div>
   <div class="row"><span class="note" id="tr_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="tr_cancel"></button><button class="primary" id="tr_save"></button></div></div></div>
+<div id="stock_dlg"><div class="box"><h3 id="sk_t"></h3><div class="note" id="sk_n"></div>
+  <div class="skg">
+    <label id="sk_l1"></label><div class="skr"><input type="range" id="sk_share" min="0" max="100" step="5"><b id="sk_sv"></b></div>
+    <label id="sk_l2"></label><select id="sk_media"></select>
+    <label id="sk_l3"></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_pexels">Pexels</label><input type="text" id="sk_kpexels" spellcheck="false" autocomplete="off"><button class="ghost" id="sk_cpexels"></button><span class="lk" id="sk_gpexels"></span></div>
+    <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_pixabay">Pixabay</label><input type="text" id="sk_kpixabay" spellcheck="false" autocomplete="off"><button class="ghost" id="sk_cpixabay"></button><span class="lk" id="sk_gpixabay"></span></div>
+    <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_archive"><span id="sk_at"></span></label></div>
+  </div>
+  <div class="note" id="sk_st" style="margin-top:10px"></div>
+  <div class="row"><button class="ghost" id="sk_off"></button><span style="flex:1"></span><button class="ghost" id="sk_x"></button><button class="primary" id="sk_save"></button></div></div></div>
 <div id="pf_dlg"><div class="box"><h3 id="pf_t"></h3>
   <div class="pbody"><div id="pf_list"></div>
     <div class="pmain"><input type="text" id="pf_name" spellcheck="false" autocomplete="off"><div class="pnote" id="pf_mlbl"></div>
@@ -872,6 +890,7 @@
     <div class="qrow srow" id="fgvid_row"><span class="lbl"><span data-i18n="fgvid_lbl"></span><span class="q" data-tipkey="tip_fgm">?</span></span><select id="fgvid_sel"></select><span class="arr">&#9660;</span></div>
     </div>
     <label class="jdc pmrow" id="pm_row"><input type="checkbox" id="use_pm"><span id="pm_t"></span></label>
+    <div class="vfrow" id="stock_row"><span class="lbl" id="stock_lbl"></span><span class="vqh" id="stock_sum"></span><button type="button" class="ghost" id="stock_btn" onclick="openStock()"></button></div>
     <div class="crow hidden" id="custom_row"><textarea id="custom_style" spellcheck="false"></textarea></div>
     <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
       <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
@@ -1196,6 +1215,58 @@ function optDescs() {
     d.textContent = pt(r, e);
   }
 }
+// ===== стоки: живое видео и фото (Pexels, Pixabay) и архив (Wikimedia Commons) вместо части генераций =====
+let STK = {share: 0, media: 'both', sources: ['pexels', 'pixabay'], archive: false}, STKK = {pexels: false, pixabay: false};
+function stockSummary() {
+  if (!STK.share) return pt('выключены — все сцены генерируются', 'off — all scenes are generated');
+  const src = (STK.sources || []).filter(s => s !== 'commons' && STKK[s]).map(s => ({pexels: 'Pexels', pixabay: 'Pixabay'})[s]);
+  if (STK.archive) src.push(pt('архив', 'archive'));
+  const m = {both: pt('видео и фото', 'video & photo'), video: pt('видео', 'video'), photo: pt('фото', 'photo')}[STK.media];
+  return (STK.share >= 100 ? pt('весь ролик со стоков', 'the whole video from stock') : pt(`${STK.share}% сцен со стоков`, `${STK.share}% of scenes from stock`))
+    + ` · ${m} · ${src.length ? src.join(', ') : pt('нет ключа — откройте «Настроить»', 'no key')}`;
+}
+function stockLabels() {
+  if (!$('stock_lbl')) return;
+  $('stock_lbl').textContent = pt('Стоки', 'Stock'); $('stock_btn').textContent = pt('Настроить ›', 'Set up ›'); $('stock_sum').textContent = stockSummary();
+}
+function skShareText(v) { return +v === 0 ? pt('0 — только генерация', '0 — generation only') : +v >= 100 ? pt('100% — весь ролик на стоках', '100% — all stock') : pt(`${v}% сцен — со стоков`, `${v}% of scenes`); }
+function openStock() {
+  $('sk_t').textContent = pt('Стоки', 'Stock footage');
+  $('sk_n').innerHTML = pt('Для выбранных сцен программа ищет живое видео или фото по смыслу их предложения: модель текстов пишет по каждой сцене короткий английский запрос. '
+    + 'Не нашлось — сцена генерируется как обычно. Видео со стока идёт как оживлённый клип (без кредитов), фото — как картинка с движением камеры и эффектами. '
+    + 'Один и тот же клип в ваших роликах не повторяется.<br>Pexels и Pixabay — бесплатно, в т.ч. для монетизированных роликов, без указания автора; нужен свой бесплатный ключ. '
+    + 'Архив — старые фото и хроника из Wikimedia Commons, только общественное достояние; ключ не нужен.', 'Stock video/photo instead of part of the generations.');
+  $('sk_l1').textContent = pt('Сколько сцен', 'How many scenes'); $('sk_l2').textContent = pt('Что брать', 'What to take'); $('sk_l3').textContent = pt('Откуда', 'Sources');
+  $('sk_media').innerHTML = [['both', 'видео, а если нет — фото', 'video, else photo'], ['video', 'только видео (нет — генерация)', 'video only'], ['photo', 'только фото', 'photo only']]
+    .map(([v, r, e]) => `<option value="${v}">${pt(r, e)}</option>`).join('');
+  $('sk_at').textContent = pt('Архив (Wikimedia Commons): старые фото и хроника — для исторических сцен сначала он', 'Archive (Wikimedia Commons) for historic scenes');
+  $('sk_share').value = STK.share; $('sk_sv').textContent = skShareText(STK.share); $('sk_media').value = STK.media;
+  $('sk_share').oninput = () => { $('sk_sv').textContent = skShareText($('sk_share').value); };
+  for (const s of ['pexels', 'pixabay']) {
+    $('sk_' + s).checked = (STK.sources || []).includes(s);
+    $('sk_k' + s).value = STKK[s] ? '••••••••' : ''; $('sk_k' + s).placeholder = pt('ключ API (бесплатный)', 'API key (free)');
+    $('sk_c' + s).textContent = pt('Проверить', 'Check');
+    $('sk_g' + s).textContent = pt('где взять ключ', 'get a key');
+    $('sk_g' + s).onclick = () => pywebview.api.open_url(s === 'pexels' ? 'https://www.pexels.com/api/' : 'https://pixabay.com/api/docs/');
+    $('sk_c' + s).onclick = async () => { $('sk_st').textContent = pt('проверяю…', 'checking…'); const r = await pywebview.api.stock_check(s, $('sk_k' + s).value);
+      $('sk_st').textContent = r.ok ? `${s === 'pexels' ? 'Pexels' : 'Pixabay'}: ${pt('ключ работает ✓', 'key works ✓')}` : `${s === 'pexels' ? 'Pexels' : 'Pixabay'}: ${r.error || ''}`; };
+  }
+  $('sk_archive').checked = !!STK.archive; $('sk_st').textContent = '';
+  $('sk_off').textContent = pt('Выключить стоки', 'Turn off'); $('sk_x').textContent = pt('Отмена', 'Cancel'); $('sk_save').textContent = pt('Сохранить', 'Save');
+  $('sk_off').onclick = () => { $('sk_share').value = 0; $('sk_sv').textContent = skShareText(0); };
+  $('sk_x').onclick = () => $('stock_dlg').classList.remove('show');
+  $('sk_save').onclick = async () => {
+    const sources = ['pexels', 'pixabay'].filter(s => $('sk_' + s).checked);
+    STK = {share: +$('sk_share').value, media: $('sk_media').value, sources: sources.concat($('sk_archive').checked ? ['commons'] : []), archive: $('sk_archive').checked};
+    const data = {stock: STK};
+    for (const s of ['pexels', 'pixabay']) { const v = $('sk_k' + s).value.trim(); if (!v.includes('•')) { data[s] = v; STKK[s] = !!v; } }
+    await pywebview.api.save_config(data);
+    $('stock_dlg').classList.remove('show'); stockLabels();
+    toast(pt('Стоки: ', 'Stock: ') + esc(stockSummary()), 5000);
+  };
+  $('stock_dlg').classList.add('show');
+}
+
 // ===== шаблоны оформления =====
 let LOOKS = {names: [], current: ''};
 async function lookLoad() { try { const r = await pywebview.api.looks_list(); LOOKS = {names: (r && r.names) || [], current: (r && r.current) || ''}; } catch (e) {} lookRender(); }
@@ -1943,6 +2014,7 @@ async function loadConfig(keepScreen) {
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
   OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: c.out_sub !== false};
   FXS = c.fx || {}; if ($('fx_lbl')) fxLabels(); lookLoad();
+  if (c.stock) STK = c.stock; if (c.stock_keys) STKK = c.stock_keys; stockLabels();
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
@@ -2190,7 +2262,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
-  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); lookRender(); styleHint(); }
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); lookRender(); styleHint(); stockLabels(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles(); optDescs();
