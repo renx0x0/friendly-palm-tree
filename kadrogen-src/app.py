@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p58"
+VERSION = "1.7.1-p59"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2082,7 +2082,8 @@ class Api:
                     continue
                 thumb = make_thumb(os.path.join(img_dir, name))
                 if thumb:
-                    items.append({"i": i, "key": key, "img": thumb, "video": has_video})
+                    items.append({"i": i, "key": key, "img": thumb, "video": has_video,
+                                  "stock": bool((self._stock_rec(job_dir).get(str(i)) or {}).get("src"))})
         if not n:
             scenes = pipeline.read_json(os.path.join(job_dir, "scenes.json")) or []
             n = len(scenes)

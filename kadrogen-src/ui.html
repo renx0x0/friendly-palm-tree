@@ -350,7 +350,10 @@
   .frame .redo { position:absolute; right:6px; bottom:4px; width:26px; height:26px; padding:0; border:1px solid rgba(255,255,255,.6); background:rgba(0,0,0,.45); color:#fff; font:700 15px/24px "Exo 2", sans-serif; cursor:pointer; opacity:0; transition:.2s; }
   .frame:hover .redo { opacity:1; } .frame .redo:hover { background:var(--acc2); border-color:var(--acc2); }
   .frame.redo::after { content:"\21BB  " attr(data-n); position:absolute; inset:0; display:grid; place-items:center; font:500 14px/1 "Exo 2", sans-serif; color:var(--acc2); letter-spacing:.3em; }
-  .frame .live { position:absolute; right:8px; top:6px; font:700 10px/1 "Exo 2", sans-serif; letter-spacing:.24em; color:#fff; background:var(--acc2); padding:5px 7px; animation:pop .5s both; }
+  .frame .ck { position:absolute; right:7px; top:7px; width:22px; height:22px; border-radius:50%; border:2px solid #fff; background:rgba(0,0,0,.45); color:transparent; display:grid; place-items:center; font:700 12px/1 sans-serif; cursor:pointer; opacity:0; transition:.15s; z-index:3; }
+  .frame:hover .ck, #frames.picking .frame .ck, .frame.sel .ck { opacity:1; } .frame.sel .ck { background:var(--acc2); border-color:var(--acc2); color:#fff; } .frame.sel { outline:3px solid var(--acc2); outline-offset:-3px; }
+  .frame .sk { position:absolute; left:8px; top:30px; font:700 9px/1 "Exo 2", sans-serif; letter-spacing:.16em; color:#fff; background:#7a5cff; padding:4px 6px; }
+  .frame .live { position:absolute; left:8px; top:6px; font:700 10px/1 "Exo 2", sans-serif; letter-spacing:.24em; color:#fff; background:var(--acc2); padding:5px 7px; animation:pop .5s both; }
   @keyframes pop { from { opacity:0; transform:scale(.9) translateY(10px);} }
   .frame.flash::after { content:""; position:absolute; inset:0; background:#fff; animation:flash .7s ease-out forwards; }
   @keyframes flash { from { opacity:.95; } to { opacity:0; } }
@@ -753,6 +756,9 @@
   #screen6 .proc.parts-mini #parts_panel { display:flex; padding:10px 16px; max-height:42vh; } #screen6 .proc.parts-mini #parts_panel h3, #screen6 .proc.parts-mini #parts_panel .phint { display:none; }
   #screen6 .proc.parts-mini #parts_panel .pp { margin:0; }
   #screen6 .frames { grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
+  #fsel { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; padding:9px 12px; border:1px solid var(--acc2); background:var(--bg2); font-size:13px; position:sticky; top:0; z-index:5; }
+  #fsel .hint:empty { display:none; }
+  #fsel .lk { color:var(--acc2); cursor:pointer; font-size:12px; } #fsel .sp { flex:1; } #fsel button { padding:7px 12px; font-size:11px; letter-spacing:.12em; } #fsel .hint { width:100%; font-size:11.5px; color:var(--ink2); }
   #fr_tabs { display:flex; gap:6px; margin:-4px 0 10px; } #fr_tabs button { padding:5px 12px; font-size:11px; letter-spacing:.12em; } #fr_tabs button.on { color:var(--acc2); border-color:var(--acc2); background:var(--line2); }
   #fr_tabs button.ic { padding:5px 9px; clip-path:none; border-radius:6px; } #fr_tabs svg { width:18px; height:18px; display:block; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
   .pstats { display:flex; flex-direction:column; gap:7px; margin-top:12px; font-size:12.5px; }
@@ -1816,7 +1822,7 @@ async function pollOnce(gen) {
     setTimeout(() => {
       const d = $('fr' + it.i); if (!d) return;
       d.classList.remove('redo');
-      if (!d.querySelector('img')) { d.classList.remove('pending', 'active'); d.classList.add('flash'); d.innerHTML = `<span class="ph"></span><img src="${it.img}"><span class="n">${String(it.i + 1).padStart(2, '0')}</span><button class="redo" title="${esc(t('redo_btn'))}" onclick="redoScene(${it.i})">&#8635;</button>`; setTimeout(() => d.classList.remove('flash'), 800); }
+      if (!d.querySelector('img')) { d.classList.remove('pending', 'active'); d.classList.add('flash'); d.dataset.stock = it.stock ? '1' : '0'; d.innerHTML = `<span class="ph"></span><img src="${it.img}"><span class="n">${String(it.i + 1).padStart(2, '0')}</span>${it.stock ? '<span class="sk">' + pt('СТОК', 'STOCK') + '</span>' : ''}<span class="ck" onclick="fsToggle(${it.i}, event)">✓</span><button class="redo" title="${esc(t('redo_btn'))}" onclick="redoScene(${it.i})">&#8635;</button>`; setTimeout(() => d.classList.remove('flash'), 800); }
       if (it.video && !d.querySelector('.live')) { const b = document.createElement('span'); b.className = 'live'; b.textContent = 'LIVE'; d.appendChild(b); }
       d.classList.toggle('isvid', !!it.video); frFilter(); frFollow(d);
     }, k * 90);
@@ -1905,6 +1911,11 @@ function frTabs() {
     .map(([k, r, e]) => `<button type="button" class="ghost ic" data-t="${k}" title="${pt(r, e)}"><svg viewBox="0 0 24 24">${IC[k]}</svg></button>`).join('');
   tb.querySelectorAll('button').forEach(b => b.onclick = () => { FRTAB = b.dataset.t; frFilter(); });
   h.after(tb);
+  const bar = document.createElement('div'); bar.id = 'fsel'; bar.style.display = 'none';
+  bar.innerHTML = '<b id="fs_cnt"></b><span class="lk" id="fs_all" onclick="fsAll()"></span><span class="lk" id="fs_none" onclick="fsClear()"></span><span class="sp"></span>'
+    + '<button class="ghost" id="fs_to" onclick="fsAct(\'to_stock\')"></button><button class="ghost" id="fs_next" onclick="fsAct(\'stock_next\')"></button>'
+    + '<button class="ghost" id="fs_gen" onclick="fsAct(\'stock_gen\')"></button><button class="ghost" id="fs_redo" onclick="fsAct(\'redo\')"></button><div class="hint" id="fs_hint"></div>';
+  tb.after(bar);
   $('frames').addEventListener('scroll', () => { if (!$('frames')._auto) FRUSER = Date.now(); }, {passive: true});
   frFilter();
 }
@@ -2466,10 +2477,53 @@ async function moreFrames() {
 $('fr_grid').addEventListener('scroll', e => { const g = e.target; if (FR.shown < FR.total && g.scrollTop + g.clientHeight > g.scrollHeight - 200) moreFrames(); });
 // кадр на экране работы: клик по картинке — открыть её (или видео, если уже оживлён)
 $('frames').addEventListener('click', e => {
-  if (e.target.closest('.redo')) return;
+  if (e.target.closest('.redo') || e.target.closest('.ck')) return;
   const d = e.target.closest('.frame'); if (!d || !d.querySelector('img')) return;
-  openLB(null, parseInt(d.id.slice(2), 10), total, 'auto');
+  const i = parseInt(d.id.slice(2), 10);
+  if (FSEL.size) { fsToggle(i, e); return; }  // уже что-то выбрано — клик по кадру отмечает ещё один
+  openLB(null, i, total, 'auto');
 });
+// ===== экран создания: выбор нескольких кадров (галочка в углу) — перерисовать, другие стоки, заменить на сток =====
+const FSEL = new Set();
+function fsToggle(i, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  if (FSEL.has(i)) FSEL.delete(i); else FSEL.add(i);
+  const d = $('fr' + i); if (d) d.classList.toggle('sel', FSEL.has(i));
+  fsRender();
+}
+function fsClear() { FSEL.forEach(i => { const d = $('fr' + i); if (d) d.classList.remove('sel'); }); FSEL.clear(); fsRender(); }
+function fsAll() { document.querySelectorAll('#frames .frame').forEach(d => { if (d.style.display !== 'none' && d.querySelector('img')) { const i = parseInt(d.id.slice(2), 10); FSEL.add(i); d.classList.add('sel'); } }); fsRender(); }
+function fsRender() {
+  let bar = $('fsel'); if (!bar) return;
+  const n = FSEL.size; bar.style.display = n ? '' : 'none'; if (!n) return;
+  const isStock = i => { const d = $('fr' + i); return d && d.dataset.stock === '1'; };
+  const ns = [...FSEL].filter(isStock).length, np = n - ns, run = jobRunning;
+  $('fs_cnt').textContent = pt(`Выбрано: ${n}`, `Selected: ${n}`) + (ns ? pt(` (со стоков: ${ns})`, ` (stock: ${ns})`) : '');
+  $('fs_all').textContent = pt('все показанные', 'all shown'); $('fs_none').textContent = pt('снять', 'clear');
+  $('fs_redo').textContent = pt(`Перерисовать (${n})`, `Redraw (${n})`);
+  $('fs_to').textContent = pt(`Заменить на сток (${np})`, `Replace with stock (${np})`); $('fs_to').disabled = run || !np;
+  $('fs_next').textContent = pt(`Другие стоки (${ns})`, `Other stock (${ns})`); $('fs_next').disabled = run || !ns;
+  $('fs_gen').textContent = pt(`Сгенерировать вместо стоков (${ns})`, `Generate instead (${ns})`); $('fs_gen').disabled = run || !ns;
+  $('fs_hint').textContent = run ? pt('Пока ролик делается, доступно только «Перерисовать». Остальное — когда он закончится.', 'Only “Redraw” while the video is running.') : '';
+}
+async function fsAct(action) {
+  const idxs = [...FSEL], n = idxs.length, ns = idxs.filter(i => { const d = $('fr' + i); return d && d.dataset.stock === '1'; }).length;
+  if (!n) return;
+  if (action === 'redo') {
+    if (!confirm(pt(`Перерисовать ${n} кадр(ов)? Это снова потратит кредиты.` + (ns ? ` Стоковые (${ns}) будут сгенерированы вместо стока.` : ''), 'Redraw selected frames?'))) return;
+    if (jobRunning) { for (const i of idxs) await redoScene(i); fsClear(); return; }  // во время работы — очередь на перерисовку
+  } else if (!confirm({to_stock: pt(`Найти стоковые кадры для ${n - ns} сцен? Подошёл — заменится, не подошёл — останется ваша генерация.`, 'Replace with stock?'),
+                       stock_next: pt(`Взять другие кадры со стока для ${ns} сцен?`, 'Take other stock?'), stock_gen: pt(`Убрать сток с ${ns} сцен? Они будут сгенерированы при пересборке.`, 'Generate instead?')}[action])) return;
+  ['fs_redo', 'fs_to', 'fs_next', 'fs_gen'].forEach(b => $(b).disabled = true);
+  $('fs_cnt').textContent = pt('работаю…', 'working…');
+  const r = await pywebview.api.frames_action(null, idxs, action);
+  if (!r.ok) { toast(esc(r.error || ''), 7000); fsRender(); return; }
+  idxs.forEach(i => markRedo(i));  // плитки обновятся: новое из папки подтянется само
+  fsClear();
+  toast(pt(`Готово: ${r.done}`, `Done: ${r.done}`) + (r.kept ? pt(` · осталась генерация: ${r.kept}`, ` · kept: ${r.kept}`) : '') + (r.errors && r.errors.length ? ` · ${esc(r.errors.join('; '))}` : '')
+    + (FRJOB ? ` <span class="lk" onclick="continueJob('${esc(FRJOB).replace(/'/g, '&#39;')}')">${pt('Пересобрать ролик', 'Rebuild the video')}</span>` : ''), 15000);
+  poll();
+}
 
 // ===== вид субтитров =====
 let SUB = null, SUBF = null, subTimer = null, subSeq = 0;
