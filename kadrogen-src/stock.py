@@ -98,7 +98,9 @@ QUERY_SYSTEM = (
     "IMPORTANT: if the sentence is abstract or general, keep the main subject of the video topic in the query "
     "(topic 'hedgehog': 'hedgehog garden', not 'winter preparation'). "
     "Also set historic=true if the scene shows the past (before ~1970: old photos, newsreels, archive), else false. "
-    'Answer JSON: {"items": [{"i": <scene number>, "q": "<query>", "historic": true|false}]}'
+    "Also give q2: a different search query for the SAME main subject but another look (another angle, action or setting), "
+    "so that different clips are found for neighbouring scenes. "
+    'Answer JSON: {"items": [{"i": <scene number>, "q": "<query>", "q2": "<other query>", "historic": true|false}]}'
 )
 
 
@@ -119,12 +121,13 @@ def make_queries(llm, scenes, log=print, topic=""):
                     except (TypeError, ValueError):
                         continue
                     q = " ".join(str(it.get("q") or "").split())[:80]
+                    q2 = " ".join(str(it.get("q2") or "").split())[:80]
                     if q:
-                        got[i] = (q, bool(it.get("historic")))
+                        got[i] = (q, bool(it.get("historic")), q2)
             except Exception as e:
                 log(f"стоки: запросы от модели не получены ({str(e)[:120]}) — беру слова из промптов")
         for s in chunk:
-            out[s["index"]] = got.get(s["index"]) or (fallback_query(s), False)
+            out[s["index"]] = got.get(s["index"]) or (fallback_query(s), False, "")
     return out
 
 
@@ -140,15 +143,22 @@ def _get(url, params=None, headers=None, timeout=25):
     return r.json()
 
 
+def _more(fn, key, q, kind):
+    try:
+        return fn(key, q, kind, 2)
+    except Exception:
+        return []
+
+
 def _slug_desc(url):
     """Описание из ссылки Pexels: .../video/brown-hedgehog-in-the-grass-12345/ → «brown hedgehog in the grass»."""
     m = re.search(r"/(?:video|photo)/([^/]+?)-?\d*/?$", str(url or ""))
     return re.sub(r"[-_]+", " ", re.sub(r"-\d+$", "", m.group(1))).strip() if m else ""
 
 
-def search_pexels(key, q, kind):
+def search_pexels(key, q, kind, page=1):
     if kind == "video":
-        data = _get("https://api.pexels.com/videos/search", {"query": q, "orientation": "landscape", "per_page": 15, "size": "medium"},
+        data = _get("https://api.pexels.com/videos/search", {"query": q, "orientation": "landscape", "per_page": 40, "size": "medium", "page": page},
                     {"Authorization": key})
         out = []
         for v in data.get("videos") or []:
@@ -161,16 +171,16 @@ def search_pexels(key, q, kind):
                         "dur": float(v.get("duration") or 0), "page": v.get("url"), "author": (v.get("user") or {}).get("name", ""),
                         "desc": _slug_desc(v.get("url"))})
         return out
-    data = _get("https://api.pexels.com/v1/search", {"query": q, "orientation": "landscape", "per_page": 15}, {"Authorization": key})
+    data = _get("https://api.pexels.com/v1/search", {"query": q, "orientation": "landscape", "per_page": 40, "page": page}, {"Authorization": key})
     return [{"src": "pexels", "id": str(p.get("id")), "kind": "photo", "url": (p.get("src") or {}).get("large2x") or (p.get("src") or {}).get("original"),
              "w": p.get("width"), "h": p.get("height"), "page": p.get("url"), "author": p.get("photographer", ""),
              "desc": " ".join(x for x in (str(p.get("alt") or ""), _slug_desc(p.get("url"))) if x)}
             for p in data.get("photos") or [] if (p.get("width") or 0) >= (p.get("height") or 1)]
 
 
-def search_pixabay(key, q, kind):
+def search_pixabay(key, q, kind, page=1):
     if kind == "video":
-        data = _get("https://pixabay.com/api/videos/", {"key": key, "q": q[:100], "per_page": 20, "safesearch": "true"})
+        data = _get("https://pixabay.com/api/videos/", {"key": key, "q": q[:100], "per_page": 50, "page": page, "safesearch": "true"})
         out = []
         for v in data.get("hits") or []:
             vs = v.get("videos") or {}
@@ -180,7 +190,7 @@ def search_pixabay(key, q, kind):
             out.append({"src": "pixabay", "id": str(v.get("id")), "kind": "video", "url": f["url"], "w": f.get("width"), "h": f.get("height"),
                         "dur": float(v.get("duration") or 0), "page": v.get("pageURL"), "author": v.get("user", ""), "desc": str(v.get("tags") or "")})
         return out
-    data = _get("https://pixabay.com/api/", {"key": key, "q": q[:100], "image_type": "photo", "orientation": "horizontal", "per_page": 20,
+    data = _get("https://pixabay.com/api/", {"key": key, "q": q[:100], "image_type": "photo", "orientation": "horizontal", "per_page": 50, "page": page,
                                              "safesearch": "true"})
     return [{"src": "pixabay", "id": str(p.get("id")), "kind": "photo", "url": p.get("largeImageURL"), "w": p.get("imageWidth"),
              "h": p.get("imageHeight"), "page": p.get("pageURL"), "author": p.get("user", ""), "desc": str(p.get("tags") or "")}
@@ -282,10 +292,10 @@ def search_archive_org(q, kind):
 
 
 def search(source, keys, q, kind):
-    if source == "pexels":
-        return search_pexels(keys["pexels"], q, kind)
+    if source == "pexels":  # две страницы: на один запрос про конкретного зверя первых результатов мало
+        return search_pexels(keys["pexels"], q, kind) + _more(search_pexels, keys["pexels"], q, kind)
     if source == "pixabay":
-        return search_pixabay(keys["pixabay"], q, kind)
+        return search_pixabay(keys["pixabay"], q, kind) + _more(search_pixabay, keys["pixabay"], q, kind)
     if source == "openverse":
         return search_openverse(q, kind)
     if source == "archive_org":
@@ -433,7 +443,7 @@ def make_chooser(llm, topic="", log=print):
         cands = [c for c in cands if lexical_ok(query, c.get("desc"))]
         if llm is None or not cands:
             return cands
-        cands = cands[:8]
+        cands = cands[:10]
         listing = "\n".join(f"{k + 1}. {str(c.get('desc') or '(без описания)')[:140]}" for k, c in enumerate(cands))
         user = (f"Тема ролика: {topic[:300]}\nПредложение: {str(scene.get('text') or '')[:300]}\nПоисковый запрос: {query}\nКандидаты:\n{listing}")
         try:
@@ -462,14 +472,15 @@ def _rm(*paths):
 class _Run:
     """Общее состояние одного прогона (кэш поиска, занятые клипы, негодные источники) — для параллельной работы по сценам."""
 
-    def __init__(self, cfg, data_dir, log=print, ffmpeg="ffmpeg", creationflags=0, verify=None, choose=None):
+    def __init__(self, cfg, data_dir, log=print, ffmpeg="ffmpeg", creationflags=0, verify=None, choose=None, job=""):
         self.st = settings(cfg)
         self.keys = keys_of(cfg)
         self.srcs = usable_sources(self.st, self.keys)
         self.data_dir, self.log, self.ffmpeg, self.flags, self.verify, self.choose = data_dir, log, ffmpeg, creationflags, verify, choose
         self.lock = threading.Lock()
         self.cache, self.dead = {}, set()
-        self.used = set(load_used(data_dir))
+        # не повторяем клипы внутри одного ролика; в других роликах тот же клип брать можно (на узкую тему стоков иначе не хватает)
+        self.used = {k for k, v in load_used(data_dir).items() if isinstance(v, dict) and v.get("job") == job}
 
     def _search(self, src, q, kind):
         ck = (src, q, kind)
@@ -488,7 +499,11 @@ class _Run:
             self.cache[ck] = res
         return res
 
-    def candidates(self, q, historic, dur):
+    def candidates(self, q, historic, dur, alt=""):
+        for qq in [x for x in (q, alt) if x]:
+            yield from self._candidates(qq, historic, dur)
+
+    def _candidates(self, q, historic, dur):
         kinds = {"video": ["video"], "photo": ["photo"], "both": ["video", "photo"]}[self.st["media"]]
         for kind in kinds:  # сначала видео со всех источников, потом фото
             for src in source_order(self.srcs, historic):
@@ -499,13 +514,13 @@ class _Run:
                     cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
                 yield from cands
 
-    def fetch(self, scene, q, historic, tmp_dir, skip=(), tries=3):
+    def fetch(self, scene, q, historic, tmp_dir, skip=(), tries=3, alt=""):
         """→ (cand, tmp_video, tmp_image) или None. Файлы лежат во временной папке, пока кадр не проверен."""
         i = scene["index"]
         os.makedirs(tmp_dir, exist_ok=True)
         tv, ti = os.path.join(tmp_dir, f"{i:04d}.mp4"), os.path.join(tmp_dir, f"{i:04d}.png")
         n = 0
-        stream = self.candidates(q, historic, float(scene.get("duration") or 0))
+        stream = self.candidates(q, historic, float(scene.get("duration") or 0), alt)
         if self.st.get("select", True):
             pool = []
             for c in stream:
@@ -514,12 +529,12 @@ class _Run:
                     if key in self.used or key in skip:
                         continue
                 pool.append(c)
-                if len(pool) >= 12:
+                if len(pool) >= 16:
                     break
             if self.choose is not None:
-                stream = self.choose(scene, q, pool)
+                stream = self.choose(scene, (q + " " + alt).strip(), pool)
             else:
-                stream = [c for c in pool if lexical_ok(q, c.get("desc"))]
+                stream = [c for c in pool if lexical_ok((q + " " + alt).strip(), c.get("desc"))]
             if not stream:
                 self.log(f"стоки: сцена {i + 1} «{q}» — по описаниям ничего подходящего")
                 return None
@@ -580,7 +595,7 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
     """Подобрать стоки для части сцен. → {index: путь к видео со стока}. Фото со стока ложатся в images как обычные картинки.
     verify(scene, still) → (ok, why): нейросеть-зритель смотрит кадр; не подошёл — следующий кандидат, а если все не подошли — сцена генерируется."""
     topic = topic or " ".join(str(s.get("text") or "") for s in scenes[:12])[:400]
-    run = _Run(cfg, data_dir, log, ffmpeg, creationflags, verify, make_chooser(llm, topic, log))
+    run = _Run(cfg, data_dir, log, ffmpeg, creationflags, verify, make_chooser(llm, topic, log), os.path.basename(job_dir))
     st = run.st
     if not st["active"]:
         return {}
@@ -608,10 +623,10 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
         if check_cancel:
             check_cancel()
         i = s["index"]
-        q, historic = queries.get(i) or (fallback_query(s), False)
+        q, historic, alt = queries.get(i) or (fallback_query(s), False, "")
         if not q:
             return
-        r = run.fetch(s, q, historic, tmp_dir)
+        r = run.fetch(s, q, historic, tmp_dir, alt=alt)
         if r is None:
             log(f"стоки: сцена {i + 1} «{q}» — подходящего не нашлось, будет генерация")
         else:
@@ -685,7 +700,7 @@ def _set_img_state(job_dir, i, val):
 def replace(cfg, job_dir, data_dir, scene, query=None, ffmpeg="ffmpeg", creationflags=0, log=print, clear=None, verify=None, historic=None, llm=None, topic=""):
     """Заменить кадр сцены кадром со стока: по запросу сцены (или своему), без уже взятых. Сцена может быть и стоковой, и сгенерированной.
     Старые файлы сцены (clear) убираются только когда новый кадр найден, скачан и подошёл — иначе остаётся как было."""
-    run = _Run(cfg, data_dir, log, ffmpeg, creationflags, verify, make_chooser(llm, topic, log))
+    run = _Run(cfg, data_dir, log, ffmpeg, creationflags, verify, make_chooser(llm, topic, log), os.path.basename(job_dir))
     if not run.srcs:
         return {"ok": False, "error": "Нет ключа ни Pexels, ни Pixabay и не включены Openverse / архив — откройте «Стоки» на шаге 02."}
     i = scene["index"]

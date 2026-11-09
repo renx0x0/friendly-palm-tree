@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p61"
+VERSION = "1.7.1-p62"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2015,7 +2015,7 @@ class Api:
                 queries = pipeline.stock.make_queries(llm, [scenes[i] for i in target], pipeline.log, topic)
 
             def one(i):
-                q, hist = (queries.get(i) or (None, None)) if action == "to_stock" else (None, None)
+                q, hist = (queries.get(i) or (None, None, ""))[:2] if action == "to_stock" else (None, None)
                 return i, pipeline.stock.replace(cfg, d, data_dir(), scenes[i], q, ffmpeg=pipeline.ffmpeg_bin(), creationflags=pipeline.NO_WINDOW,
                                                  log=pipeline.log, clear=clear, verify=verify, historic=hist, llm=llm, topic=topic)
             with cf.ThreadPoolExecutor(max_workers=3) as ex:
