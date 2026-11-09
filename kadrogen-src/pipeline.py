@@ -4807,7 +4807,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         if stock.settings(cfg)["active"]:  # часть сцен (или все) — со стоков: живое видео / фото / архив вместо генерации
             try:
                 stock_vids = stock.fill(cfg, scenes, job_dir, data_dir(), llm=llm, progress=progress, log=log, ffmpeg=ffmpeg_bin(),
-                                        creationflags=NO_WINDOW, check_cancel=check_cancel, verify=stock_verify(cfg, log))
+                                        creationflags=NO_WINDOW, check_cancel=check_cancel, verify=stock_verify(cfg, log),
+                                        topic=" ".join(str(tr.get("text") or "").split())[:400])
             except (Cancelled, SystemExit):
                 raise
             except Exception as e:

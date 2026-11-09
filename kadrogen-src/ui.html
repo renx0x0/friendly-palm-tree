@@ -831,7 +831,8 @@
     <label id="sk_l2"></label><select id="sk_media"></select>
     <label id="sk_l3"></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_pexels">Pexels</label><input type="text" id="sk_kpexels" spellcheck="false" autocomplete="off"><button class="ghost" id="sk_cpexels"></button><span class="lk" id="sk_gpexels"></span></div>
     <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_pixabay">Pixabay</label><input type="text" id="sk_kpixabay" spellcheck="false" autocomplete="off"><button class="ghost" id="sk_cpixabay"></button><span class="lk" id="sk_gpixabay"></span></div>
-    <label id="sk_l4"></label><div class="skr"><label class="jdc" style="min-width:0"><input type="checkbox" id="sk_verify"><span id="sk_vt"></span></label></div>
+    <label id="sk_l4"></label><div class="skr"><label class="jdc" style="min-width:0"><input type="checkbox" id="sk_select"><span id="sk_stt"></span></label></div>
+    <label></label><div class="skr"><label class="jdc" style="min-width:0"><input type="checkbox" id="sk_verify"><span id="sk_vt"></span></label></div>
     <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_openverse">Openverse</label><span class="note" id="sk_ot"></span></div>
     <label></label><div class="skr"><label class="jdc"><input type="checkbox" id="sk_archive"><span id="sk_at"></span></label></div>
   </div>
@@ -1264,8 +1265,10 @@ function openStock() {
   $('sk_media').innerHTML = [['video', 'видео со стока, иначе сгенерировать картинку', 'stock video, else generate a picture'], ['both', 'видео, а если нет — фото со стока, иначе генерация', 'video, else stock photo, else generate'], ['photo', 'только стоковые фото, иначе генерация', 'stock photos only']]
     .map(([v, r, e]) => `<option value="${v}">${pt(r, e)}</option>`).join('');
   $('sk_at').textContent = pt('Архив: Internet Archive (кинохроника, кусок до 5 с) и Wikimedia Commons (старые фото) — для исторических сцен сначала он', 'Archive: Internet Archive newsreels (up to 5 s) and Wikimedia Commons');
-  $('sk_l4').textContent = pt('Проверка кадров', 'Frame check');
-  $('sk_vt').textContent = pt('нейросеть-зритель смотрит каждый найденный кадр: не по теме — берётся следующий, а если ничего не подошло — сцена генерируется', 'a vision model checks each frame');
+  $('sk_l4').textContent = pt('Отбор клипов', 'Clip selection');
+  $('sk_stt').textContent = pt('по описанию: модель текстов сверяет предложение с названиями и тегами найденных клипов и отбрасывает не по теме (ключ зрителя не нужен)', 'by description (text model)');
+  $('sk_select').checked = STK.select !== false;
+  $('sk_vt').textContent = pt('дополнительно: нейросеть-зритель смотрит сам кадр (нужен ключ Gemini / Claude / OpenAI)', 'additionally: a vision model looks at the frame');
   $('sk_verify').checked = STK.verify !== false;
   $('sk_ot').textContent = pt('свободные фото, только общественное достояние · ключ не нужен', 'free photos, public domain only · no key');
   $('sk_openverse').checked = (STK.sources || []).includes('openverse');
@@ -1287,7 +1290,7 @@ function openStock() {
   $('sk_x').onclick = () => $('stock_dlg').classList.remove('show');
   $('sk_save').onclick = async () => {
     const sources = ['pexels', 'pixabay', 'openverse'].filter(s => $('sk_' + s).checked);
-    STK = {verify: $('sk_verify').checked, on: +$('sk_share').value > 0, share: +$('sk_share').value, media: $('sk_media').value, sources: sources.concat($('sk_archive').checked ? ['commons'] : []), archive: $('sk_archive').checked};
+    STK = {select: $('sk_select').checked, verify: $('sk_verify').checked, on: +$('sk_share').value > 0, share: +$('sk_share').value, media: $('sk_media').value, sources: sources.concat($('sk_archive').checked ? ['commons'] : []), archive: $('sk_archive').checked};
     const data = {stock: STK};
     for (const s of ['pexels', 'pixabay']) { const v = $('sk_k' + s).value.trim(); if (!v.includes('•')) { data[s] = v; STKK[s] = !!v; } }
     await pywebview.api.save_config(data);

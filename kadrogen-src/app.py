@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p59"
+VERSION = "1.7.1-p60"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1942,6 +1942,10 @@ class Api:
             pipeline.remove_scene_clips(d, i)
         return clear
 
+    @staticmethod
+    def _topic(scenes):
+        return " ".join(str(s.get("text") or "") for s in scenes[:12])[:400]
+
     def stock_replace(self, job_id, i, query=None):
         """Просмотр кадра: «Другой со стока» / «Свой запрос…» для стоковой сцены."""
         d = self._frame_dir(job_id)
@@ -1955,7 +1959,8 @@ class Api:
             return {"ok": False, "error": "Нет такой сцены."}
         cfg = load_cfg()
         return pipeline.stock.replace(cfg, d, data_dir(), scenes[i], query, ffmpeg=pipeline.ffmpeg_bin(), creationflags=pipeline.NO_WINDOW,
-                                      log=pipeline.log, clear=self._stock_clear(d), verify=pipeline.stock_verify(cfg))
+                                      log=pipeline.log, clear=self._stock_clear(d), verify=pipeline.stock_verify(cfg),
+                                      llm=pipeline.stock_llm(cfg), topic=self._topic(scenes))
 
     def stock_to_generation(self, job_id, i):
         d = self._frame_dir(job_id)
@@ -2005,13 +2010,14 @@ class Api:
             cfg = load_cfg()
             verify = pipeline.stock_verify(cfg, pipeline.log)
             queries = {}
+            llm, topic = pipeline.stock_llm(cfg), self._topic(scenes)
             if action == "to_stock" and target:  # запросы по предложениям сцен — моделью текстов (нет ключа — из промптов)
-                queries = pipeline.stock.make_queries(pipeline.stock_llm(cfg), [scenes[i] for i in target], pipeline.log)
+                queries = pipeline.stock.make_queries(llm, [scenes[i] for i in target], pipeline.log, topic)
 
             def one(i):
                 q, hist = (queries.get(i) or (None, None)) if action == "to_stock" else (None, None)
                 return i, pipeline.stock.replace(cfg, d, data_dir(), scenes[i], q, ffmpeg=pipeline.ffmpeg_bin(), creationflags=pipeline.NO_WINDOW,
-                                                 log=pipeline.log, clear=clear, verify=verify, historic=hist)
+                                                 log=pipeline.log, clear=clear, verify=verify, historic=hist, llm=llm, topic=topic)
             with cf.ThreadPoolExecutor(max_workers=3) as ex:
                 for i, r in ex.map(one, target):
                     if r.get("ok"):
