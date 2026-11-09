@@ -796,11 +796,7 @@ def fit_scenes_to_audio(scenes, duration, job_dir):
     old_end = float(last.get("end") or 0)
     last["end"] = round(float(duration), 3)
     last["duration"] = round(last["end"] - float(last.get("start") or 0), 3)
-    for sub in clip_dirs(job_dir):
-        try:
-            os.remove(os.path.join(job_dir, sub, f"{last['index']:04d}.mp4"))
-        except OSError:
-            pass
+    remove_scene_clips(job_dir, last["index"])
     try:
         write_json(os.path.join(job_dir, "scenes.json"), scenes)
     except OSError:
@@ -2138,11 +2134,12 @@ def save_edit(job_dir, index, prompt):
 
 def redo_files(job_dir, index):
     """Удаляет картинку сцены и всё, что из неё сделано (клип с движением, оживление), чтобы нарисовать заново."""
-    for rel in [f"images/{index:04d}.png", f"videos/{index:04d}.mp4"] + [f"{d}/{index:04d}.mp4" for d in clip_dirs(job_dir)]:
+    for rel in [f"images/{index:04d}.png", f"videos/{index:04d}.mp4"]:
         try:
             os.remove(os.path.join(job_dir, rel))
         except OSError:
             pass
+    remove_scene_clips(job_dir, index)
     for name in ("images.json", "videos.json"):
         pth = os.path.join(job_dir, name)
         st = read_json(pth, {})
@@ -2749,9 +2746,9 @@ def _fit_16_9(im, edge=None):
 def render_scene_clip(img_path, i, duration, out_path, kb=None):
     if os.path.exists(out_path):
         try:
-            if os.path.getmtime(out_path) >= os.path.getmtime(img_path):
+            if os.path.getmtime(out_path) >= os.path.getmtime(img_path) and clip_length_ok(out_path, max(0.3, float(duration))):
                 return out_path
-            os.remove(out_path)  # картинку перерисовали позже клипа — клип устарел
+            os.remove(out_path)  # картинку перерисовали позже клипа или сцена стала другой длины — клип устарел
         except OSError:
             return out_path
     duration = max(0.3, float(duration))
@@ -2831,7 +2828,12 @@ def render_video_clip(src_mp4, duration, out_path):
     Если клип короче сцены — последний кадр держится до конца. Клип увеличивается на VIDEO_ZOOM и прижимается
     к краю VIDEO_ANCHOR — как «104 % и вверх» в CapCut; в том же проходе ffmpeg, лишней нагрузки нет."""
     if os.path.exists(out_path):
-        return out_path
+        if clip_length_ok(out_path, max(0.3, float(duration))):
+            return out_path
+        try:
+            os.remove(out_path)  # сцена стала другой длины — клип пересоберём
+        except OSError:
+            return out_path
     duration = max(0.3, float(duration))  # как и для картинок: отрицательная длительность → ffmpeg «duration out of range»
     tmp = out_path + ".tmp.mp4"
     z = max(1.0, min(1.3, float(VIDEO_ZOOM or 1)))
@@ -3344,6 +3346,26 @@ def clips_name(motion):
     if fx_on(FX):
         name += "_fx" + fx_sig(FX)
     return name
+
+
+def remove_scene_clips(job_dir, index):
+    """Убрать все готовые клипы сцены во всех папках клипов: NNNN.mp4, NNNN_v.mp4 (оживлённая), NNNN_x.mp4 / NNNN_v_x.mp4
+    (последняя сцена группы переходов). Раньше чистились только «NNNN.mp4», и старый клип другой длины попадал в новую сборку."""
+    names = {f"{index:04d}{a}{b}.mp4" for a in ("", "_v") for b in ("", "_x")}
+    for sub in clip_dirs(job_dir):
+        for n in names:
+            try:
+                os.remove(os.path.join(job_dir, sub, n))
+            except OSError:
+                pass
+
+
+def clip_length_ok(path, duration, tol=0.12):
+    """Клип, лежащий с прошлой сборки, годится, только если его длина совпадает с нужной (сцену могли удлинить / укоротить)."""
+    try:
+        return abs(audio_duration(path) - float(duration)) <= tol
+    except Exception:
+        return False
 
 
 def clip_dirs(job_dir):
@@ -4186,11 +4208,7 @@ def apply_new_scenes(job_dir, scenes):
             redo_files(job_dir, s["index"])
             redrawn += 1
         elif abs(float(o.get("duration") or 0) - s["duration"]) > 0.02:
-            for sub in clip_dirs(job_dir):
-                try:
-                    os.remove(os.path.join(job_dir, sub, f"{s['index']:04d}.mp4"))
-                except OSError:
-                    pass
+            remove_scene_clips(job_dir, s["index"])
     for i in [i for i in old if isinstance(i, int) and i >= len(scenes)]:  # кадров стало меньше — лишние убрать
         redo_files(job_dir, i)
     if redrawn:

@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p55"
+VERSION = "1.7.1-p56"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1934,11 +1934,12 @@ class Api:
 
     def _stock_clear(self, d):
         def clear(i):  # старые файлы сцены и клипы из неё — пересоберутся
-            for rel in [f"images/{i:04d}.png", f"videos/{i:04d}.mp4"] + [f"{c}/{i:04d}.mp4" for c in pipeline.clip_dirs(d)]:
+            for rel in [f"images/{i:04d}.png", f"videos/{i:04d}.mp4"]:
                 try:
                     os.remove(os.path.join(d, rel))
                 except OSError:
                     pass
+            pipeline.remove_scene_clips(d, i)
         return clear
 
     def stock_replace(self, job_id, i, query=None):
