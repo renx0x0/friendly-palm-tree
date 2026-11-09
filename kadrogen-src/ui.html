@@ -485,6 +485,11 @@
   .gfr .v { position:absolute; right:6px; top:5px; font:700 10px/1 "Exo 2", sans-serif; letter-spacing:.14em; color:#fff; background:var(--acc2); padding:4px 6px; }
   .gfr .im { position:absolute; right:6px; bottom:4px; font:600 10px/1 "Exo 2", sans-serif; color:#fff; background:rgba(0,0,0,.55); padding:4px 6px; display:none; }
   .gfr.hasv:hover .im { display:block; }
+  .gfr .sk { position:absolute; left:6px; top:5px; font:700 9.5px/1 "Exo 2", sans-serif; letter-spacing:.14em; color:#fff; background:#7a5cff; padding:4px 6px; }
+  .gfr .ck { position:absolute; right:6px; bottom:5px; width:20px; height:20px; border-radius:50%; border:2px solid #fff; background:rgba(0,0,0,.4); color:transparent; display:none; place-items:center; font:700 12px/1 sans-serif; }
+  #fr_dlg.picking .gfr .ck { display:grid; } #fr_dlg.picking .gfr .im { display:none !important; } .gfr.sel { outline:3px solid var(--acc2); outline-offset:-3px; } .gfr.sel .ck { background:var(--acc2); border-color:var(--acc2); color:#fff; }
+  .frsel { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px; padding:10px 12px; border:1px solid var(--acc2); background:var(--bg2); font-size:13px; }
+  .frsel .lk { color:var(--acc2); cursor:pointer; font-size:12px; } .frsel button { padding:7px 12px; font-size:11px; letter-spacing:.12em; }
   .gfr.empty { cursor:default; display:grid; place-items:center; color:var(--ink2); font-size:11px; letter-spacing:.2em; }
   #fr_dlg .row, #sub_dlg .row { display:flex; gap:10px; align-items:center; margin-top:14px; flex-wrap:wrap; }
   #fr_dlg button, #sub_dlg button { padding:9px 14px; font-size:11px; letter-spacing:.16em; }
@@ -793,7 +798,9 @@
   <button class="ghost" id="vo_cancel"></button><button class="ghost" id="vo_tts"></button><button class="primary" id="vo_file"></button>
 </div></div></div>
 <div id="fr_dlg"><div class="box"><h3 id="fr_t"></h3><div class="note" id="fr_info"></div><div id="fr_grid"></div>
-  <div class="row"><button class="ghost" id="fr_more"></button><button class="ghost" id="fr_imgs"></button><button class="ghost" id="fr_vids"></button><button class="ghost" id="fr_res"></button>
+  <div class="frsel" id="fr_selbar"><b id="fr_scount"></b><span class="lk" id="fr_sall"></span><span class="lk" id="fr_snone"></span><span style="flex:1"></span>
+    <button class="ghost" id="fr_aredo"></button><button class="ghost" id="fr_anext"></button><button class="ghost" id="fr_agen"></button></div>
+  <div class="row"><button class="ghost" id="fr_pick"></button><button class="ghost" id="fr_more"></button><button class="ghost" id="fr_imgs"></button><button class="ghost" id="fr_vids"></button><button class="ghost" id="fr_res"></button>
   <span style="flex:1"></span><button class="primary" id="fr_close" onclick="$('fr_dlg').classList.remove('show')"></button></div></div></div>
 <div id="sub_dlg"><div class="box"><h3 id="sd_t"></h3>
   <div class="sbody"><div><div id="sub_pv"><video id="sub_vid" autoplay loop muted playsinline></video><img id="sub_img" alt=""><span class="busy" id="sub_busy"></span></div><div id="sub_err"></div><div class="pvset"></div><div class="spres" id="sub_pres"></div></div>
@@ -2374,7 +2381,8 @@ function framesBtn(r) {
 async function showFrames(id) {
   const r = (RECENT || []).find(x => x.id === id) || {title: id};
   $('rec_dlg').classList.remove('show');
-  FR = {id, shown: 0, total: 0, busy: false};
+  FR = {id, shown: 0, total: 0, busy: false, pick: false, sel: new Set(), items: {}};
+  frPickUI();
   $('fr_t').textContent = r.title || id; $('fr_info').textContent = pt('загружаю…', 'loading…'); $('fr_grid').innerHTML = '';
   $('fr_more').textContent = pt('Показать ещё', 'Show more'); $('fr_imgs').textContent = pt('Папка картинок', 'Images folder');
   $('fr_vids').textContent = pt('Папка видео', 'Videos folder'); $('fr_res').textContent = pt('Готовый ролик ▶', 'Finished video ▶');
@@ -2386,6 +2394,38 @@ async function showFrames(id) {
   $('fr_dlg').classList.add('show');
   await moreFrames();
 }
+// ===== окно «Кадры»: выбор нескольких кадров — перерисовать / другие стоки / сгенерировать вместо стоков =====
+function frPickUI() {
+  $('fr_pick').textContent = FR.pick ? pt('Готово', 'Done') : pt('Выбрать несколько', 'Select');
+  $('fr_dlg').classList.toggle('picking', FR.pick); $('fr_selbar').style.display = FR.pick ? '' : 'none';
+  const n = FR.sel.size, ns = [...FR.sel].filter(i => (FR.items[i] || {}).stock).length;
+  $('fr_scount').textContent = pt(`Выбрано: ${n}`, `Selected: ${n}`) + (ns ? pt(` (со стоков: ${ns})`, ` (stock: ${ns})`) : '');
+  $('fr_sall').textContent = pt('выбрать все показанные', 'select all shown'); $('fr_snone').textContent = pt('снять', 'clear');
+  $('fr_aredo').textContent = pt(`Перерисовать (${n})`, `Redraw (${n})`); $('fr_aredo').disabled = !n;
+  $('fr_anext').textContent = pt(`Другие стоки (${ns})`, `Other stock (${ns})`); $('fr_anext').disabled = !ns;
+  $('fr_agen').textContent = pt(`Сгенерировать вместо стоков (${ns})`, `Generate instead (${ns})`); $('fr_agen').disabled = !ns;
+}
+function frToggle(i, d) { if (FR.sel.has(i)) FR.sel.delete(i); else FR.sel.add(i); d.classList.toggle('sel', FR.sel.has(i)); frPickUI(); }
+$('fr_pick').onclick = () => { FR.pick = !FR.pick; if (!FR.pick) { FR.sel.clear(); document.querySelectorAll('#fr_grid .gfr.sel').forEach(d => d.classList.remove('sel')); } frPickUI(); };
+$('fr_sall').onclick = () => { document.querySelectorAll('#fr_grid .gfr').forEach(d => { FR.sel.add(+d.dataset.i); d.classList.add('sel'); }); frPickUI(); };
+$('fr_snone').onclick = () => { FR.sel.clear(); document.querySelectorAll('#fr_grid .gfr.sel').forEach(d => d.classList.remove('sel')); frPickUI(); };
+async function frAct(action) {
+  const idxs = [...FR.sel], n = idxs.length, ns = idxs.filter(i => (FR.items[i] || {}).stock).length;
+  const q = {redo: pt(`Перерисовать ${n} кадр(ов)? Их картинки (и оживление) удалятся и будут нарисованы заново при пересборке — это снова потратит кредиты.`
+                     + (ns ? ` Стоковые (${ns}) будут сгенерированы вместо стока.` : ''), 'Redraw selected frames?'),
+             stock_next: pt(`Взять другие кадры со стока для ${ns} стоковых сцен?`, 'Take other stock for selected?'),
+             stock_gen: pt(`Убрать сток с ${ns} сцен? Они будут сгенерированы при пересборке.`, 'Generate instead of stock?')}[action];
+  if (!confirm(q)) return;
+  ['fr_aredo', 'fr_anext', 'fr_agen'].forEach(b => $(b).disabled = true);
+  $('fr_scount').textContent = action === 'stock_next' ? pt('ищу и скачиваю другие стоки…', 'searching…') : pt('готовлю…', 'working…');
+  const r = await pywebview.api.frames_action(FR.id, idxs, action);
+  if (!r.ok) { toast(esc(r.error || ''), 7000); frPickUI(); return; }
+  const id = FR.id;
+  toast(pt(`Готово: ${r.done}`, `Done: ${r.done}`) + (r.errors && r.errors.length ? ` · ${pt('не вышло', 'failed')}: ${esc(r.errors.join('; '))}` : '')
+    + ` <span class="lk" onclick="$('fr_dlg').classList.remove('show'); continueJob('${esc(id).replace(/'/g, '&#39;')}')">${pt('Пересобрать ролик', 'Rebuild the video')}</span>`, 15000);
+  showFrames(id);
+}
+$('fr_aredo').onclick = () => frAct('redo'); $('fr_anext').onclick = () => frAct('stock_next'); $('fr_agen').onclick = () => frAct('stock_gen');
 async function moreFrames() {
   if (FR.busy) return; FR.busy = true;
   try {
@@ -2399,11 +2439,15 @@ async function moreFrames() {
     g.items.forEach(it => {
       const d = document.createElement('div');
       const num = String(it.i + 1).padStart(2, '0');
-      d.className = 'gfr' + (it.img ? '' : ' empty') + (it.video ? ' hasv' : '');
+      d.className = 'gfr' + (it.img ? '' : ' empty') + (it.video ? ' hasv' : '') + (it.stock ? ' stk' : ''); d.dataset.i = it.i; FR.items[it.i] = it;
       d.title = [it.text, it.prompt].filter(Boolean).join('\n\n');
-      d.innerHTML = it.img ? `<img src="${it.img}" loading="lazy"><span class="n">${num}</span>${it.video ? '<span class="v">▶ ' + pt('ВИДЕО', 'VIDEO') + '</span><span class="im">' + pt('картинка', 'image') + '</span>' : ''}`
+      d.innerHTML = it.img ? `<img src="${it.img}" loading="lazy"><span class="n">${num}</span>${it.stock ? '<span class="sk">' + pt('СТОК', 'STOCK') + '</span>' : ''}<span class="ck">✓</span>${it.video ? '<span class="v">▶ ' + pt('ВИДЕО', 'VIDEO') + '</span><span class="im">' + pt('картинка', 'image') + '</span>' : ''}`
         : (it.video ? `<span>▶ ${num}</span>` : `<span>${num} · ${pt('нет', 'none')}</span>`);
-      if (it.img || it.video) d.onclick = e => openLB(FR.id, it.i, FR.total, e.target.classList.contains('im') ? 'image' : 'auto');
+      d.onclick = e => {
+        if (FR.pick) { frToggle(it.i, d); return; }  // режим выбора: клик отмечает кадр
+        if (it.img || it.video) openLB(FR.id, it.i, FR.total, e.target.classList.contains('im') ? 'image' : 'auto');
+      };
+      if (FR.sel.has(it.i)) d.classList.add('sel');
       grid.appendChild(d);
     });
     FR.shown += g.items.length;

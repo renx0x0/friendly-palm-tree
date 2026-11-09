@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p52"
+VERSION = "1.7.1-p53"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1964,6 +1964,49 @@ class Api:
             return {"ok": False, "error": "Ролик сейчас делается — сделайте это, когда он закончится."}
         return pipeline.stock.to_generation(d, int(i), clear=self._stock_clear(d))
 
+    def _stock_rec(self, d):
+        if getattr(self, "_srec_dir", None) != d or time.time() - getattr(self, "_srec_at", 0) > 2:
+            self._srec, self._srec_dir, self._srec_at = pipeline.stock.record(d), d, time.time()
+        return self._srec
+
+    def frames_action(self, job_id, idxs, action):
+        """Окно «Кадры», выбрано несколько: redo — перерисовать (стоковые — сгенерировать вместо стока);
+        stock_next — другие со стока (только стоковые); stock_gen — стоковые сгенерировать вместо стока."""
+        d = self._frame_dir(job_id)
+        if not d:
+            return {"ok": False, "error": "Папка ролика не найдена."}
+        if self._running_dir() and os.path.normcase(self._running_dir()) == os.path.normcase(d):
+            return {"ok": False, "error": "Ролик сейчас делается — дождитесь конца."}
+        scenes = pipeline.read_json(os.path.join(d, "scenes.json"), []) or []
+        rec = pipeline.stock.record(d)
+        clear = self._stock_clear(d)
+        done, skipped, errors = 0, 0, []
+        for i in sorted({int(x) for x in idxs or [] if 0 <= int(x) < len(scenes)}):
+            is_stock = bool((rec.get(str(i)) or {}).get("src"))
+            if action == "redo":
+                if is_stock:
+                    pipeline.stock.to_generation(d, i, clear=clear)
+                else:
+                    pipeline.redo_files(d, i)
+                done += 1
+            elif action == "stock_gen":
+                if is_stock:
+                    pipeline.stock.to_generation(d, i, clear=clear); done += 1
+                else:
+                    skipped += 1
+            elif action == "stock_next":
+                if not is_stock:
+                    skipped += 1
+                    continue
+                r = pipeline.stock.replace(load_cfg(), d, data_dir(), scenes[i], None, ffmpeg=pipeline.ffmpeg_bin(),
+                                           creationflags=pipeline.NO_WINDOW, log=pipeline.log, clear=clear)
+                if r.get("ok"):
+                    done += 1
+                else:
+                    errors.append(f"{i + 1}: {r.get('error')}")
+        self._srec_dir = None
+        return {"ok": True, "done": done, "skipped": skipped, "errors": errors[:5]}
+
     def stock_check(self, source, key=None):
         """Проверить ключ стока (Pexels / Pixabay): введённый в окне или сохранённый."""
         key = str(key or "").strip()
@@ -2432,7 +2475,7 @@ class Api:
         items = []
         for i in range(int(offset), min(total, int(offset) + int(limit))):
             sc = scenes[i] if i < len(scenes) and isinstance(scenes[i], dict) else {}
-            items.append({"i": i, "img": make_thumb(imgs[i], 360) if i in imgs else None, "video": i in vids,
+            items.append({"i": i, "img": make_thumb(imgs[i], 360) if i in imgs else None, "video": i in vids, "stock": bool((self._stock_rec(d).get(str(i)) or {}).get("src")),
                           "t": round(float(sc.get("start", 0) or 0), 1), "text": str(sc.get("text") or "")[:300],
                           "prompt": str(sc.get("raw_prompt") or sc.get("prompt") or "")[:400]})
         rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
