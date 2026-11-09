@@ -133,21 +133,36 @@ def make_queries(llm, scenes, log=print, topic=""):
 
 # ---------------------------------------------------------------- поиск
 
+_GAP = {"pixabay.com": 0.75, "api.pexels.com": 1.0}   # пауза между запросами к одному стоку: у Pixabay лимит ~100 в минуту
+_NEXT_OK = {}
+_THROTTLE = threading.Lock()
+
+
+def _throttle(url):
+    from urllib.parse import urlparse
+    host = urlparse(url).netloc
+    gap = _GAP.get(host, 0.4)
+    with _THROTTLE:
+        now = time.time()
+        at = max(now, _NEXT_OK.get(host, 0.0))
+        _NEXT_OK[host] = at + gap
+    if at > now:
+        time.sleep(at - now)
+
+
 def _get(url, params=None, headers=None, timeout=25):
     h = {"User-Agent": UA}
     h.update(headers or {})
-    r = requests.get(url, params=params, headers=h, timeout=timeout)
-    if r.status_code == 429:
-        raise RuntimeError("лимит запросов стока (429)")
-    r.raise_for_status()
-    return r.json()
-
-
-def _more(fn, key, q, kind):
-    try:
-        return fn(key, q, kind, 2)
-    except Exception:
-        return []
+    for attempt in range(4):
+        _throttle(url)
+        r = requests.get(url, params=params, headers=h, timeout=timeout)
+        if r.status_code == 429 and attempt < 3:  # лимит запросов: ждём окно и повторяем, а не считаем «ничего не найдено»
+            time.sleep(25 * (attempt + 1))
+            continue
+        if r.status_code == 429:
+            raise RuntimeError("лимит запросов стока (429)")
+        r.raise_for_status()
+        return r.json()
 
 
 def _slug_desc(url):
@@ -291,11 +306,16 @@ def search_archive_org(q, kind):
     return out
 
 
-def search(source, keys, q, kind):
-    if source == "pexels":  # две страницы: на один запрос про конкретного зверя первых результатов мало
-        return search_pexels(keys["pexels"], q, kind) + _more(search_pexels, keys["pexels"], q, kind)
+PAGED = ("pexels", "pixabay")   # у этих стоков есть вторая страница результатов
+
+
+def search(source, keys, q, kind, page=1):
+    if source == "pexels":
+        return search_pexels(keys["pexels"], q, kind, page)
     if source == "pixabay":
-        return search_pixabay(keys["pixabay"], q, kind) + _more(search_pixabay, keys["pixabay"], q, kind)
+        return search_pixabay(keys["pixabay"], q, kind, page)
+    if page > 1:
+        return []
     if source == "openverse":
         return search_openverse(q, kind)
     if source == "archive_org":
@@ -437,6 +457,32 @@ def lexical_ok(query, desc):
     return any(w[:5] in d for w in _words(query) if len(w) > 3)
 
 
+def _parse_fit(resp):
+    """Номера кандидатов (с нуля) из ответа модели; None — ответ не похож на ответ. Пустой список — модель явно сказала «ничего»."""
+    val = None
+    if isinstance(resp, dict):
+        for k in ("fit", "choose", "chosen", "selected", "answer", "result", "indices", "ids", "best"):
+            if k in resp:
+                val = resp[k]
+                break
+    elif isinstance(resp, list):
+        val = resp
+    if val is None:
+        return None
+    if isinstance(val, (int, float)):
+        val = [val]
+    if isinstance(val, str):
+        val = re.findall(r"\d+", val)
+    if not isinstance(val, list):
+        return None
+    out = []
+    for x in val:
+        m = re.search(r"-?\d+", str(x))
+        if m:
+            out.append(int(m.group()) - 1)
+    return out
+
+
 def make_chooser(llm, topic="", log=print):
     """choose(scene, query, cands) → кандидаты, годные по описанию, лучшие первыми. Нет модели — отсев по словам запроса."""
     def choose(scene, query, cands):
@@ -448,7 +494,10 @@ def make_chooser(llm, topic="", log=print):
         user = (f"Тема ролика: {topic[:300]}\nПредложение: {str(scene.get('text') or '')[:300]}\nПоисковый запрос: {query}\nКандидаты:\n{listing}")
         try:
             resp = llm.chat_json(CHOOSE_SYSTEM, user, max_tokens=120)
-            fit = [int(x) - 1 for x in (resp or {}).get("fit") or [] if str(x).strip().lstrip("-").isdigit()]
+            fit = _parse_fit(resp)
+            if fit is None:  # ответ не разобрали — это не «ничего не подходит»: берём прошедших отсев по словам
+                log(f"стоки: отбор по описанию ответил непонятно ({str(resp)[:80]}) — беру по порядку")
+                return cands
             return [cands[k] for k in fit if 0 <= k < len(cands)]
         except Exception as e:
             log(f"стоки: отбор по описанию не ответил ({str(e)[:100]}) — беру по порядку")
@@ -479,24 +528,28 @@ class _Run:
         self.data_dir, self.log, self.ffmpeg, self.flags, self.verify, self.choose = data_dir, log, ffmpeg, creationflags, verify, choose
         self.lock = threading.Lock()
         self.cache, self.dead = {}, set()
+        self.stats = {"search": 0, "fail": 0, "found": 0, "pool": 0, "fit": 0}
         # не повторяем клипы внутри одного ролика; в других роликах тот же клип брать можно (на узкую тему стоков иначе не хватает)
         self.used = {k for k, v in load_used(data_dir).items() if isinstance(v, dict) and v.get("job") == job}
 
-    def _search(self, src, q, kind):
-        ck = (src, q, kind)
+    def _search(self, src, q, kind, page=1):
+        ck = (src, q, kind, page)
         with self.lock:
             if ck in self.cache:
                 return self.cache[ck]
+            self.stats["search"] += 1
         try:
-            res = search(src, self.keys, q, kind)
+            res = search(src, self.keys, q, kind, page)
         except Exception as e:
-            self.log(f"стоки: {SOURCE_NAMES[src]} — {str(e)[:120]}")
-            if "401" in str(e) or "403" in str(e):
-                with self.lock:
+            self.log(f"стоки: {SOURCE_NAMES[src]} «{q}» — {str(e)[:120]}")
+            with self.lock:
+                self.stats["fail"] += 1
+                if "401" in str(e) or "403" in str(e):
                     self.dead.add(src)  # ключ не подходит — дальше этот сток не спрашиваем
-            res = []
+            return []  # сбой не запоминаем: следующая сцена с таким запросом спросит снова
         with self.lock:
             self.cache[ck] = res
+            self.stats["found"] += len(res)
         return res
 
     def candidates(self, q, historic, dur, alt=""):
@@ -509,10 +562,11 @@ class _Run:
             for src in source_order(self.srcs, historic):
                 if src in self.dead:
                     continue
-                cands = [c for c in self._search(src, q, kind) if c.get("url")]
-                if kind == "video":
-                    cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
-                yield from cands
+                for page in ((1, 2) if src in PAGED else (1,)):  # вторая страница — только если первой не хватило
+                    cands = [c for c in self._search(src, q, kind, page) if c.get("url")]
+                    if kind == "video":
+                        cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
+                    yield from cands
 
     def fetch(self, scene, q, historic, tmp_dir, skip=(), tries=3, alt=""):
         """→ (cand, tmp_video, tmp_image) или None. Файлы лежат во временной папке, пока кадр не проверен."""
@@ -531,12 +585,16 @@ class _Run:
                 pool.append(c)
                 if len(pool) >= 16:
                     break
+            with self.lock:
+                self.stats["pool"] += len(pool)
             if self.choose is not None:
                 stream = self.choose(scene, (q + " " + alt).strip(), pool)
             else:
                 stream = [c for c in pool if lexical_ok((q + " " + alt).strip(), c.get("desc"))]
+            with self.lock:
+                self.stats["fit"] += len(stream)
             if not stream:
-                self.log(f"стоки: сцена {i + 1} «{q}» — по описаниям ничего подходящего")
+                self.log(f"стоки: сцена {i + 1} «{q}» — по описаниям ничего подходящего (кандидатов было {len(pool)})")
                 return None
         for c in stream:
             key = f"{c['src']}:{c['id']}"
@@ -651,7 +709,9 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
         os.rmdir(tmp_dir)
     except OSError:
         pass
-    log(f"стоки: взято {counter['got']} из {len(todo)} сцен, остальные будут сгенерированы")
+    stt = run.stats
+    log(f"стоки: взято {counter['got']} из {len(todo)} сцен, остальные будут сгенерированы · поисков {stt['search']} (сбоев {stt['fail']}), "
+        f"найдено клипов {stt['found']}, в пуле {stt['pool']}, прошло отбор {stt['fit']}")
     return stock_vids
 
 
