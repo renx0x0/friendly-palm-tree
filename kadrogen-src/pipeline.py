@@ -3743,9 +3743,10 @@ class OpenAIVision:
         return self.c.see_json(system, user, image_path, model=self.model, max_tokens=max_tokens, base=self.base)
 
 
-def make_qa_client(cfg):
-    """Нейросеть-зритель для автоотбора по ключу пользователя. None — автоотбор выключен или нет ключа."""
-    if not cfg.get("qa_images"):
+def make_qa_client(cfg, force=False):
+    """Нейросеть-зритель для автоотбора по ключу пользователя. None — автоотбор выключен или нет ключа.
+    force — для проверки стоковых кадров: нужен только ключ зрителя, галочка «Автоотбор» не обязательна."""
+    if not cfg.get("qa_images") and not force:
         return None
     eng = cfg.get("qa_engine") or "gemini"
     if eng not in QA_ENGINES:
@@ -3760,6 +3761,33 @@ def make_qa_client(cfg):
     if eng == "anthropic":
         return AnthropicClient(key, model)
     return OpenAIVision(key, model, base)
+
+
+def vision_ready(cfg):
+    """Есть ли ключ нейросети-зрителя (Gemini / Claude / OpenAI) — для проверки кадров со стоков."""
+    eng = cfg.get("qa_engine") or "gemini"
+    return bool(cfg.get(f"{eng if eng in QA_ENGINES else 'gemini'}_api_key"))
+
+
+def stock_verify(cfg, log=None):
+    """verify(scene, still) → (ok, why) для стоков или None (проверка выключена / нет ключа зрителя)."""
+    if not stock.settings(cfg).get("verify", True):
+        return None
+    client = make_qa_client(cfg, force=True)
+    if client is None:
+        if log:
+            log("стоки: проверка кадров выключена — нет ключа нейросети-зрителя (Gemini / Claude / OpenAI в «Автоотборе»), беру кадры как есть")
+        return None
+    return lambda scene, still: stock.verify_still(client, scene, still)
+
+
+def stock_llm(cfg):
+    """Модель текстов для поисковых запросов стоков (для кнопок в окне «Кадры»); нет ключа — None (запросы из промптов)."""
+    try:
+        engine, text_api, llm_name, llm_api = make_text_engine(cfg)
+        return LLM(llm_name, llm_api, cfg.get("openai_model") if llm_name == "openai" else cfg.get("llm_model"))
+    except (SystemExit, Exception):
+        return None
 
 
 def make_context(cfg, providers):
@@ -4600,7 +4628,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         if stock.settings(cfg)["active"]:  # часть сцен (или все) — со стоков: живое видео / фото / архив вместо генерации
             try:
                 stock_vids = stock.fill(cfg, scenes, job_dir, data_dir(), llm=llm, progress=progress, log=log, ffmpeg=ffmpeg_bin(),
-                                        creationflags=NO_WINDOW, check_cancel=check_cancel)
+                                        creationflags=NO_WINDOW, check_cancel=check_cancel, verify=stock_verify(cfg, log))
             except (Cancelled, SystemExit):
                 raise
             except Exception as e:

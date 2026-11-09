@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p53"
+VERSION = "1.7.1-p54"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1168,7 +1168,7 @@ class Api:
             "output_dir": cfg.get("output_dir") or "", "default_output": os.path.join(data_dir(), "output"),
             "out_sub": bool(cfg.get("out_sub", True)),
             "fx": pipeline.fx_settings(cfg),
-            "stock": pipeline.stock.settings(cfg), "stock_keys": {k: bool(v) for k, v in pipeline.stock.keys_of(cfg).items()},
+            "stock": pipeline.stock.settings(cfg), "stock_vision": pipeline.vision_ready(cfg), "stock_keys": {k: bool(v) for k, v in pipeline.stock.keys_of(cfg).items()},
             "speed_copies": bool(cfg.get("speed_copies", False)),
             "qa_images": bool(cfg.get("qa_images", False)), "qa_engine": cfg.get("qa_engine", "gemini"),
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
@@ -1952,9 +1952,9 @@ class Api:
         i = int(i)
         if not (0 <= i < len(scenes)):
             return {"ok": False, "error": "Нет такой сцены."}
-        r = pipeline.stock.replace(load_cfg(), d, data_dir(), scenes[i], query, ffmpeg=pipeline.ffmpeg_bin(),
-                                   creationflags=pipeline.NO_WINDOW, log=pipeline.log, clear=self._stock_clear(d))
-        return r
+        cfg = load_cfg()
+        return pipeline.stock.replace(cfg, d, data_dir(), scenes[i], query, ffmpeg=pipeline.ffmpeg_bin(), creationflags=pipeline.NO_WINDOW,
+                                      log=pipeline.log, clear=self._stock_clear(d), verify=pipeline.stock_verify(cfg))
 
     def stock_to_generation(self, job_id, i):
         d = self._frame_dir(job_id)
@@ -1971,7 +1971,9 @@ class Api:
 
     def frames_action(self, job_id, idxs, action):
         """Окно «Кадры», выбрано несколько: redo — перерисовать (стоковые — сгенерировать вместо стока);
-        stock_next — другие со стока (только стоковые); stock_gen — стоковые сгенерировать вместо стока."""
+        stock_next — другие со стока (только стоковые); stock_gen — стоковые сгенерировать вместо стока;
+        to_stock — сгенерированные заменить кадрами со стока (подошло — заменяем, нет — генерация остаётся)."""
+        import concurrent.futures as cf
         d = self._frame_dir(job_id)
         if not d:
             return {"ok": False, "error": "Папка ролика не найдена."}
@@ -1980,32 +1982,43 @@ class Api:
         scenes = pipeline.read_json(os.path.join(d, "scenes.json"), []) or []
         rec = pipeline.stock.record(d)
         clear = self._stock_clear(d)
+        idxs = sorted({int(x) for x in idxs or [] if 0 <= int(x) < len(scenes)})
+        stock_idx = [i for i in idxs if (rec.get(str(i)) or {}).get("src")]
+        plain_idx = [i for i in idxs if i not in stock_idx]
         done, skipped, errors = 0, 0, []
-        for i in sorted({int(x) for x in idxs or [] if 0 <= int(x) < len(scenes)}):
-            is_stock = bool((rec.get(str(i)) or {}).get("src"))
-            if action == "redo":
-                if is_stock:
+        if action == "redo":
+            for i in idxs:
+                if i in stock_idx:
                     pipeline.stock.to_generation(d, i, clear=clear)
                 else:
                     pipeline.redo_files(d, i)
                 done += 1
-            elif action == "stock_gen":
-                if is_stock:
-                    pipeline.stock.to_generation(d, i, clear=clear); done += 1
-                else:
-                    skipped += 1
-            elif action == "stock_next":
-                if not is_stock:
-                    skipped += 1
-                    continue
-                r = pipeline.stock.replace(load_cfg(), d, data_dir(), scenes[i], None, ffmpeg=pipeline.ffmpeg_bin(),
-                                           creationflags=pipeline.NO_WINDOW, log=pipeline.log, clear=clear)
-                if r.get("ok"):
-                    done += 1
-                else:
-                    errors.append(f"{i + 1}: {r.get('error')}")
+        elif action == "stock_gen":
+            for i in stock_idx:
+                pipeline.stock.to_generation(d, i, clear=clear)
+                done += 1
+            skipped = len(plain_idx)
+        elif action in ("stock_next", "to_stock"):
+            target = stock_idx if action == "stock_next" else plain_idx
+            skipped = len(idxs) - len(target)
+            cfg = load_cfg()
+            verify = pipeline.stock_verify(cfg, pipeline.log)
+            queries = {}
+            if action == "to_stock" and target:  # запросы по предложениям сцен — моделью текстов (нет ключа — из промптов)
+                queries = pipeline.stock.make_queries(pipeline.stock_llm(cfg), [scenes[i] for i in target], pipeline.log)
+
+            def one(i):
+                q, hist = (queries.get(i) or (None, None)) if action == "to_stock" else (None, None)
+                return i, pipeline.stock.replace(cfg, d, data_dir(), scenes[i], q, ffmpeg=pipeline.ffmpeg_bin(), creationflags=pipeline.NO_WINDOW,
+                                                 log=pipeline.log, clear=clear, verify=verify, historic=hist)
+            with cf.ThreadPoolExecutor(max_workers=3) as ex:
+                for i, r in ex.map(one, target):
+                    if r.get("ok"):
+                        done += 1
+                    else:
+                        errors.append(f"{i + 1}: {r.get('error')}")
         self._srec_dir = None
-        return {"ok": True, "done": done, "skipped": skipped, "errors": errors[:5]}
+        return {"ok": True, "done": done, "skipped": skipped, "kept": len(errors) if action == "to_stock" else 0, "errors": errors[:5]}
 
     def stock_check(self, source, key=None):
         """Проверить ключ стока (Pexels / Pixabay): введённый в окне или сохранённый."""

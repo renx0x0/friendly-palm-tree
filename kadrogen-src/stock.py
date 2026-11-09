@@ -41,7 +41,7 @@ def settings(cfg):
     src = [s for s in (raw.get("sources") or ["pexels", "pixabay"]) if s in SOURCES]
     on = bool(raw.get("on", share > 0))  # галочка «Использовать стоки»: выключили — настройки помнятся, но не применяются
     return {"on": on, "share": share, "media": media, "sources": src, "archive": bool(raw.get("archive", "commons" in src)),
-            "active": on and share > 0}
+            "verify": bool(raw.get("verify", True)), "active": on and share > 0}
 
 
 def keys_of(cfg):
@@ -370,27 +370,152 @@ def save_video(cand, vid_path, img_path, ffmpeg, creationflags=0):
                 pass
 
 
+# ---------------------------------------------------------------- проверка кадра нейросетью-зрителем
+
+VERIFY_SYSTEM = (
+    "Ты подбираешь стоковый кадр для видеоролика. Тебе дано предложение закадрового текста, описание желаемого кадра и сам кадр. "
+    "Реши, годится ли кадр как иллюстрация к этому предложению. ПОДХОДИТ (ok=true), если по смыслу та же тема: те же предметы, место, "
+    "действие или эпоха; точного совпадения мелких деталей не нужно. НЕ ПОДХОДИТ (ok=false), если: на кадре другая тема, другой предмет или место; "
+    "виден крупный текст, логотип или водяной знак; современная съёмка там, где речь явно об истории (и наоборот); кадр случайный или абстрактный. "
+    'Ответ строго JSON: {"ok": true|false, "why": "по-русски, до 10 слов"}')
+
+
+def verify_still(client, scene, still_path):
+    """→ (ok, почему). Любая ошибка проверки — кадр годится (проверка не должна валить ролик)."""
+    try:
+        user = (f"Закадровый текст: {str(scene.get('text') or '')[:300]}\n"
+                f"Описание желаемого кадра: {str(scene.get('raw_prompt') or scene.get('prompt') or '')[:300]}\nОцени кадр.")
+        j = client.see_json(VERIFY_SYSTEM, user, still_path)
+        return bool(j.get("ok", True)), str(j.get("why") or "")[:80]
+    except Exception:
+        return True, ""
+
+
+# ---------------------------------------------------------------- подбор: кандидаты → скачать → проверить
+
+_REC_LOCK = threading.Lock()
+
+
+def _rm(*paths):
+    for p in paths:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+class _Run:
+    """Общее состояние одного прогона (кэш поиска, занятые клипы, негодные источники) — для параллельной работы по сценам."""
+
+    def __init__(self, cfg, data_dir, log=print, ffmpeg="ffmpeg", creationflags=0, verify=None):
+        self.st = settings(cfg)
+        self.keys = keys_of(cfg)
+        self.srcs = usable_sources(self.st, self.keys)
+        self.data_dir, self.log, self.ffmpeg, self.flags, self.verify = data_dir, log, ffmpeg, creationflags, verify
+        self.lock = threading.Lock()
+        self.cache, self.dead = {}, set()
+        self.used = set(load_used(data_dir))
+
+    def _search(self, src, q, kind):
+        ck = (src, q, kind)
+        with self.lock:
+            if ck in self.cache:
+                return self.cache[ck]
+        try:
+            res = search(src, self.keys, q, kind)
+        except Exception as e:
+            self.log(f"стоки: {SOURCE_NAMES[src]} — {str(e)[:120]}")
+            if "401" in str(e) or "403" in str(e):
+                with self.lock:
+                    self.dead.add(src)  # ключ не подходит — дальше этот сток не спрашиваем
+            res = []
+        with self.lock:
+            self.cache[ck] = res
+        return res
+
+    def candidates(self, q, historic, dur):
+        kinds = {"video": ["video"], "photo": ["photo"], "both": ["video", "photo"]}[self.st["media"]]
+        for kind in kinds:  # сначала видео со всех источников, потом фото
+            for src in source_order(self.srcs, historic):
+                if src in self.dead:
+                    continue
+                cands = [c for c in self._search(src, q, kind) if c.get("url")]
+                if kind == "video":
+                    cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
+                yield from cands
+
+    def fetch(self, scene, q, historic, tmp_dir, skip=(), tries=3):
+        """→ (cand, tmp_video, tmp_image) или None. Файлы лежат во временной папке, пока кадр не проверен."""
+        i = scene["index"]
+        os.makedirs(tmp_dir, exist_ok=True)
+        tv, ti = os.path.join(tmp_dir, f"{i:04d}.mp4"), os.path.join(tmp_dir, f"{i:04d}.png")
+        n = 0
+        for c in self.candidates(q, historic, float(scene.get("duration") or 0)):
+            key = f"{c['src']}:{c['id']}"
+            with self.lock:
+                if key in self.used or key in skip:
+                    continue
+                self.used.add(key)  # занят сразу: параллельные сцены не возьмут тот же клип
+            n += 1
+            try:
+                if c["kind"] == "video":
+                    save_video(c, tv, ti, self.ffmpeg, self.flags)
+                else:
+                    save_photo(c, ti)
+            except Exception as e:
+                self.log(f"стоки: сцена {i + 1} — не скачалось ({str(e)[:100]})")
+                _rm(tv, ti)
+                if n >= tries:
+                    break
+                continue
+            if self.verify is not None and os.path.exists(ti):
+                ok, why = self.verify(scene, ti)
+                if not ok:
+                    self.log(f"стоки: сцена {i + 1} «{q}» — кадр не подходит ({why or 'не по теме'}), беру следующий")
+                    _rm(tv, ti)
+                    if n >= tries:
+                        break
+                    continue
+            return c, tv, ti
+        return None
+
+
+def _install(job_dir, i, cand, tv, ti):
+    img_dir, vid_dir = os.path.join(job_dir, "images"), os.path.join(job_dir, "videos")
+    os.makedirs(img_dir, exist_ok=True)
+    os.replace(ti, os.path.join(img_dir, f"{i:04d}.png"))
+    if cand["kind"] == "video":
+        os.makedirs(vid_dir, exist_ok=True)
+        os.replace(tv, os.path.join(vid_dir, f"{i:04d}.mp4"))
+    else:
+        _rm(tv)
+
+
+def _commit(job_dir, data_dir, i, cand, q, historic, tried=()):
+    mark_used(data_dir, cand, os.path.basename(job_dir))
+    with _REC_LOCK:
+        rec = record(job_dir)
+        rec[str(i)] = {"src": cand["src"], "id": cand["id"], "kind": cand["kind"], "q": q, "page": cand.get("page"),
+                       "author": cand.get("author"), "historic": bool(historic), "tried": list(tried)[-30:]}
+        _save_rec(job_dir, rec)
+        _set_img_state(job_dir, i, {"ok": True, "model": f"stock:{cand['src']}:{cand['kind']}"})
+
+
 # ---------------------------------------------------------------- главное
 
-def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffmpeg="ffmpeg", creationflags=0, check_cancel=None):
-    """Подобрать стоки для части сцен. → {index: путь к видео со стока}. Фото со стока ложатся в images как обычные картинки."""
-    st = settings(cfg)
+def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffmpeg="ffmpeg", creationflags=0, check_cancel=None, verify=None):
+    """Подобрать стоки для части сцен. → {index: путь к видео со стока}. Фото со стока ложатся в images как обычные картинки.
+    verify(scene, still) → (ok, why): нейросеть-зритель смотрит кадр; не подошёл — следующий кандидат, а если все не подошли — сцена генерируется."""
+    run = _Run(cfg, data_dir, log, ffmpeg, creationflags, verify)
+    st = run.st
     if not st["active"]:
         return {}
-    keys = keys_of(cfg)
-    srcs = usable_sources(st, keys)
-    if not srcs:
-        log("стоки: нет ключа ни Pexels, ни Pixabay и архив выключен — сцены будут сгенерированы")
+    if not run.srcs:
+        log("стоки: нет ключа ни Pexels, ни Pixabay и не включены Openverse / архив — сцены будут сгенерированы")
         return {}
     img_dir, vid_dir = os.path.join(job_dir, "images"), os.path.join(job_dir, "videos")
     os.makedirs(img_dir, exist_ok=True)
-    os.makedirs(vid_dir, exist_ok=True)
-    rec_path = os.path.join(job_dir, "stock.json")
-    try:
-        with open(rec_path, encoding="utf-8") as f:
-            rec = json.load(f)
-    except (OSError, ValueError):
-        rec = {}
+    rec = record(job_dir)
     stock_vids = {int(i): os.path.join(vid_dir, f"{int(i):04d}.mp4") for i, r in rec.items()
                   if r.get("kind") == "video" and os.path.exists(os.path.join(vid_dir, f"{int(i):04d}.mp4"))}
     want = set(pick_scenes(scenes, st["share"]))
@@ -399,83 +524,45 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
     if not todo:
         return stock_vids
     say = (lambda d, n, m: progress("images", d, n, m)) if progress else (lambda *a: None)
-    say(0, len(todo), f"стоки: подбираю запросы для {len(todo)} сцен ({', '.join(SOURCE_NAMES[s] for s in srcs)})")
+    say(0, len(todo), f"стоки: подбираю запросы для {len(todo)} сцен ({', '.join(SOURCE_NAMES[s] for s in run.srcs)})"
+        + (", кадры проверяет нейросеть-зритель" if verify else ""))
     queries = make_queries(llm, todo, log)
-    used = set(load_used(data_dir))
-    job = os.path.basename(job_dir)
-    img_state_path = os.path.join(job_dir, "images.json")
-    try:
-        with open(img_state_path, encoding="utf-8") as f:
-            img_state = json.load(f)
-    except (OSError, ValueError):
-        img_state = {}
-    cache, got, dead = {}, 0, set()
-    for k, s in enumerate(todo):
+    tmp_dir = os.path.join(job_dir, "_stk")
+    counter = {"done": 0, "got": 0}
+
+    def work(s):
         if check_cancel:
             check_cancel()
         i = s["index"]
         q, historic = queries.get(i) or (fallback_query(s), False)
         if not q:
-            continue
-        dur = float(s.get("duration") or 0)
-        order = source_order(srcs, historic)  # историческая сцена — сначала архив, остальные — архив последним
-        kinds = {"video": ["video", "photo"], "photo": ["photo"], "both": ["video", "photo"]}[st["media"]]
-        pick = None
-        for src in order:
-            if src in dead:
-                continue
-            for kind in kinds:
-                ck = (src, q, kind)
-                try:
-                    if ck not in cache:
-                        cache[ck] = search(src, keys, q, kind)
-                except Exception as e:
-                    log(f"стоки: {SOURCE_NAMES[src]} — {str(e)[:120]}")
-                    if "401" in str(e) or "403" in str(e):
-                        dead.add(src)  # ключ не подходит — дальше этот сток не спрашиваем
-                    cache[ck] = []
-                cands = [c for c in cache[ck] if f"{c['src']}:{c['id']}" not in used and c.get("url")]
-                if kind == "video":
-                    longer = [c for c in cands if (c.get("dur") or 0) >= dur]
-                    cands = longer or cands
-                if cands:
-                    pick = cands[0]
-                    break
-            if pick:
-                break
-        if not pick:
-            log(f"стоки: сцена {i + 1} «{q}» — ничего не нашлось, будет генерация")
-            continue
-        img_path = os.path.join(img_dir, f"{i:04d}.png")
-        vid_path = os.path.join(vid_dir, f"{i:04d}.mp4")
-        try:
-            if pick["kind"] == "video":
-                save_video(pick, vid_path, img_path, ffmpeg, creationflags)
-                stock_vids[i] = vid_path
-            else:
-                save_photo(pick, img_path)
-        except Exception as e:
-            log(f"стоки: сцена {i + 1} — не скачалось ({str(e)[:120]}), будет генерация")
-            for p in (vid_path, img_path):
-                if pick["kind"] == "video" and os.path.exists(p):
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
-            stock_vids.pop(i, None)
-            continue
-        used.add(f"{pick['src']}:{pick['id']}")
-        mark_used(data_dir, pick, job)
-        rec[str(i)] = {"src": pick["src"], "id": pick["id"], "kind": pick["kind"], "q": q, "page": pick.get("page"), "author": pick.get("author"),
-                       "historic": bool(historic)}
-        img_state[str(i)] = {"ok": True, "model": f"stock:{pick['src']}:{pick['kind']}"}
-        with open(rec_path, "w", encoding="utf-8") as f:
-            json.dump(rec, f, ensure_ascii=False, indent=1)
-        with open(img_state_path, "w", encoding="utf-8") as f:
-            json.dump(img_state, f, ensure_ascii=False)
-        got += 1
-        say(k + 1, len(todo), f"стоки: сцена {i + 1} — {SOURCE_NAMES[pick['src']]}, {'видео' if pick['kind'] == 'video' else 'фото'} «{q}»")
-    log(f"стоки: взято {got} из {len(todo)} сцен, остальные будут сгенерированы")
+            return
+        r = run.fetch(s, q, historic, tmp_dir)
+        if r is None:
+            log(f"стоки: сцена {i + 1} «{q}» — подходящего не нашлось, будет генерация")
+        else:
+            cand, tv, ti = r
+            _install(job_dir, i, cand, tv, ti)
+            _commit(job_dir, data_dir, i, cand, q, historic)
+            with run.lock:
+                counter["got"] += 1
+                if cand["kind"] == "video":
+                    stock_vids[i] = os.path.join(vid_dir, f"{i:04d}.mp4")
+        with run.lock:
+            counter["done"] += 1
+            d = counter["done"]
+        if r is not None:
+            say(d, len(todo), f"стоки: сцена {i + 1} — {SOURCE_NAMES[r[0]['src']]}, {'видео' if r[0]['kind'] == 'video' else 'фото'} «{q}»")
+
+    import concurrent.futures as cf
+    with cf.ThreadPoolExecutor(max_workers=4) as ex:
+        for f in [ex.submit(work, s) for s in todo]:
+            f.result()
+    try:
+        os.rmdir(tmp_dir)
+    except OSError:
+        pass
+    log(f"стоки: взято {counter['got']} из {len(todo)} сцен, остальные будут сгенерированы")
     return stock_vids
 
 
@@ -492,24 +579,6 @@ def check_key(source, key):
 
 
 # ---------------------------------------------------------------- замена одного кадра из окна просмотра
-
-def _find(st, keys, q, historic, dur, skip, log=print):
-    order = source_order(usable_sources(st, keys), historic)
-    kinds = {"video": ["video", "photo"], "photo": ["photo"], "both": ["video", "photo"]}[st["media"]]
-    for src in order:
-        for kind in kinds:
-            try:
-                cands = search(src, keys, q, kind)
-            except Exception as e:
-                log(f"стоки: {SOURCE_NAMES[src]} — {str(e)[:120]}")
-                continue
-            cands = [c for c in cands if f"{c['src']}:{c['id']}" not in skip and c.get("url")]
-            if kind == "video":
-                cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
-            if cands:
-                return cands[0]
-    return None
-
 
 def record(job_dir):
     try:
@@ -539,44 +608,35 @@ def _set_img_state(job_dir, i, val):
         json.dump(st, f, ensure_ascii=False)
 
 
-def replace(cfg, job_dir, data_dir, scene, query=None, ffmpeg="ffmpeg", creationflags=0, log=print, clear=None):
-    """Другой кадр со стока для сцены: по тому же запросу (или своему), без уже взятых. clear(i) — убрать старые файлы сцены."""
-    st = settings(cfg)
-    keys = keys_of(cfg)
-    if not usable_sources(dict(st, archive=st["archive"]), keys):
-        return {"ok": False, "error": "Нет ключа ни Pexels, ни Pixabay и архив выключен — откройте «Стоки» на шаге 02."}
+def replace(cfg, job_dir, data_dir, scene, query=None, ffmpeg="ffmpeg", creationflags=0, log=print, clear=None, verify=None, historic=None):
+    """Заменить кадр сцены кадром со стока: по запросу сцены (или своему), без уже взятых. Сцена может быть и стоковой, и сгенерированной.
+    Старые файлы сцены (clear) убираются только когда новый кадр найден, скачан и подошёл — иначе остаётся как было."""
+    run = _Run(cfg, data_dir, log, ffmpeg, creationflags, verify)
+    if not run.srcs:
+        return {"ok": False, "error": "Нет ключа ни Pexels, ни Pixabay и не включены Openverse / архив — откройте «Стоки» на шаге 02."}
     i = scene["index"]
-    rec = record(job_dir)
-    old = rec.get(str(i)) or {}
+    old = record(job_dir).get(str(i)) or {}
     q = " ".join(str(query or old.get("q") or fallback_query(scene)).split())[:80]
     if not q:
         return {"ok": False, "error": "Пустой запрос."}
-    skip = set(load_used(data_dir)) | set(old.get("tried") or [])
+    hist = bool(old.get("historic")) if historic is None else bool(historic)
+    skip = set(old.get("tried") or [])
     if old.get("src"):
         skip.add(f"{old['src']}:{old['id']}")
-    pick = _find(st, keys, q, bool(old.get("historic")), float(scene.get("duration") or 0), skip, log)
-    if not pick:
-        return {"ok": False, "error": f"По запросу «{q}» больше ничего не нашлось — попробуйте свой запрос."}
-    img_dir, vid_dir = os.path.join(job_dir, "images"), os.path.join(job_dir, "videos")
-    os.makedirs(img_dir, exist_ok=True)
-    os.makedirs(vid_dir, exist_ok=True)
-    img_path, vid_path = os.path.join(img_dir, f"{i:04d}.png"), os.path.join(vid_dir, f"{i:04d}.mp4")
+    r = run.fetch(scene, q, hist, os.path.join(job_dir, "_stk"), skip)
+    if r is None:
+        return {"ok": False, "error": f"По запросу «{q}» ничего подходящего не нашлось — кадр оставлен как есть. Попробуйте свой запрос."}
+    cand, tv, ti = r
     if clear:
         clear(i)
-    try:
-        if pick["kind"] == "video":
-            save_video(pick, vid_path, img_path, ffmpeg, creationflags)
-        else:
-            save_photo(pick, img_path)
-    except Exception as e:
-        return {"ok": False, "error": f"Не скачалось: {str(e)[:160]}"}
-    mark_used(data_dir, pick, os.path.basename(job_dir))
+    _install(job_dir, i, cand, tv, ti)
     tried = list(old.get("tried") or []) + ([f"{old['src']}:{old['id']}"] if old.get("src") else [])
-    rec[str(i)] = {"src": pick["src"], "id": pick["id"], "kind": pick["kind"], "q": q, "page": pick.get("page"),
-                   "author": pick.get("author"), "historic": bool(old.get("historic")), "tried": tried[-30:]}
-    _save_rec(job_dir, rec)
-    _set_img_state(job_dir, i, {"ok": True, "model": f"stock:{pick['src']}:{pick['kind']}"})
-    return {"ok": True, "src": SOURCE_NAMES[pick["src"]], "kind": pick["kind"], "q": q}
+    _commit(job_dir, data_dir, i, cand, q, hist, tried)
+    try:
+        os.rmdir(os.path.join(job_dir, "_stk"))
+    except OSError:
+        pass
+    return {"ok": True, "src": SOURCE_NAMES[cand["src"]], "kind": cand["kind"], "q": q}
 
 
 def to_generation(job_dir, i, clear=None):
