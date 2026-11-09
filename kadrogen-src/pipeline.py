@@ -441,12 +441,61 @@ def run_ffmpeg_progress(args, total_sec, on_pct):
         raise RuntimeError("ffmpeg: " + (err[0] if err else b"").decode(errors="replace")[:400])
 
 
+_LOSSY_AUDIO = (".mp3", ".mpga", ".aac", ".ogg", ".opus", ".wma", ".amr")
+_DUR_CACHE = {}
+
+
+def _decoded_duration(path):
+    """Реальная длина озвучки — по полному декодированию. ffprobe у mp3 без служебного заголовка (VBR из ботов и т.п.)
+    оценивает длину по размеру файла и ошибается на несколько секунд, а у часового файла — на минуты:
+    ролик, собранный по такой оценке, обрывается на полуслове."""
+    try:
+        st = os.stat(path)
+        key = (os.path.abspath(path), st.st_size, int(st.st_mtime))
+    except OSError:
+        return 0.0
+    if key in _DUR_CACHE:
+        return _DUR_CACHE[key]
+    cache_file = os.path.join(data_dir(), "audio_dur.json")
+    disk = read_json(cache_file, {}) or {}
+    ck = f"{key[0]}|{key[1]}|{key[2]}"
+    if ck in disk:
+        _DUR_CACHE[key] = float(disk[ck])
+        return _DUR_CACHE[key]
+    try:
+        r = subprocess.run([ffmpeg_bin(), "-nostats", "-i", path, "-vn", "-f", "null", "-"], capture_output=True, creationflags=NO_WINDOW, timeout=1800)
+        times = re.findall(rb"time=(\d+):(\d+):(\d+(?:\.\d+)?)", r.stderr)
+        dur = 0.0
+        if times:
+            h, m, sec = times[-1]
+            dur = int(h) * 3600 + int(m) * 60 + float(sec)
+    except Exception:
+        dur = 0.0
+    if dur > 0:
+        _DUR_CACHE[key] = dur
+        if len(disk) > 300:
+            disk = {}
+        disk[ck] = round(dur, 3)
+        try:
+            write_json(cache_file, disk)
+        except OSError:
+            pass
+    return dur
+
+
 def audio_duration(path):
     out = subprocess.run(
         [ffmpeg_bin("ffprobe"), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
         capture_output=True, text=True, check=True, creationflags=NO_WINDOW,
     ).stdout.strip()
-    return float(out)
+    est = float(out)
+    if str(path).lower().endswith(_LOSSY_AUDIO):  # озвучка в сжатом формате: проверяем реальной длиной
+        real = _decoded_duration(path)
+        if real > 0:
+            if abs(real - est) > 0.5:
+                log(f"длина озвучки: ffprobe показал {est:.1f} с, по факту {real:.1f} с — беру фактическую")
+            return real
+    return est
 
 
 def load_config():
@@ -736,6 +785,29 @@ def _transcribe_raw(engine, api, audio_path, job_dir, progress, duration=None):
 
 
 # ============ шаг 2: разбиение на сцены ============
+
+def fit_scenes_to_audio(scenes, duration, job_dir):
+    """Последняя сцена кончается раньше озвучки — ролик обрезало бы. Тянем её до конца озвучки, её клип пересоберётся."""
+    if not scenes or not duration:
+        return scenes
+    last = scenes[-1]
+    if duration - float(last.get("end") or 0) <= 0.15:
+        return scenes
+    old_end = float(last.get("end") or 0)
+    last["end"] = round(float(duration), 3)
+    last["duration"] = round(last["end"] - float(last.get("start") or 0), 3)
+    for sub in clip_dirs(job_dir):
+        try:
+            os.remove(os.path.join(job_dir, sub, f"{last['index']:04d}.mp4"))
+        except OSError:
+            pass
+    try:
+        write_json(os.path.join(job_dir, "scenes.json"), scenes)
+    except OSError:
+        pass
+    log(f"последняя сцена кончалась на {old_end:.1f} с, озвучка идёт до {duration:.1f} с — сцена продлена до конца озвучки")
+    return scenes
+
 
 def split_scenes(words, total_duration):
     phrases, cur = [], []
@@ -4245,6 +4317,13 @@ def prepare(audio_path=None, progress_cb=None, provider=None, mode="images", use
     duration = audio_duration(audio_path)
     engine, text_api, _, _ = make_text_engine(cfg)
     tr = transcribe(engine, text_api, audio_path, job_dir, progress, duration)
+    try:  # озвучка идёт минимум до конца последнего распознанного слова: страховка от заниженной длины файла
+        last_word = float((tr.get("words") or [{}])[-1].get("end") or 0)
+        if last_word > duration + 0.2:
+            log(f"длина озвучки по файлу {duration:.1f} с, а последнее слово кончается на {last_word:.1f} с — беру {last_word:.1f} с")
+            duration = last_word
+    except (TypeError, ValueError, IndexError, AttributeError):
+        pass
     scenes_path = os.path.join(job_dir, "scenes.json")
     if prompts_file:  # кадров = промптов в файле
         scenes = [{"index": i} for i in range(sum(len(b["prompts"]) for b in read_prompts_file(prompts_file)))]
@@ -4344,6 +4423,14 @@ def finish_video(spec, progress):
         progress("subtitles", 1, 1, "субтитры наложены, .srt — в «файлах ролика» проекта")
     else:
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=motion)
+    try:  # контроль: ролик не должен быть короче озвучки
+        got, want = audio_duration(out_mp4), audio_duration(audio_path)
+        if want - got > 0.5:
+            log(f"ВНИМАНИЕ: ролик {got:.1f} с, озвучка {want:.1f} с — конец озвучки обрезан на {want - got:.1f} с. Пришлите «Отчёт» (кнопка на экране создания)")
+        else:
+            log(f"проверка длины: ролик {got:.1f} с, озвучка {want:.1f} с — совпадают")
+    except Exception:
+        pass
     if spec.get("speed_copies"):
         try:
             make_speed_copies(out_mp4, progress)
@@ -4569,6 +4656,13 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
                             + (f" · модель картинок: {fg_img}" if fg_img else "") + (f" · модель видео: {fg_vid}" if fg_vid else ""))
 
     tr = transcribe(engine, text_api, audio_path, job_dir, progress, duration)
+    try:  # озвучка идёт минимум до конца последнего распознанного слова: страховка от заниженной длины файла
+        last_word = float((tr.get("words") or [{}])[-1].get("end") or 0)
+        if last_word > duration + 0.2:
+            log(f"длина озвучки по файлу {duration:.1f} с, а последнее слово кончается на {last_word:.1f} с — беру {last_word:.1f} с")
+            duration = last_word
+    except (TypeError, ValueError, IndexError, AttributeError):
+        pass
     refs, ref_pool = {}, None
     if remix_from:
         scenes = remix_scenes(remix_from, tr, duration, job_dir, progress)
@@ -4591,6 +4685,7 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             write_json(scenes_path, scenes)
         progress("scenes", len(scenes), len(scenes), f"сцен: {len(scenes)}")
         style = build_style(llm, tr["text"], job_dir, progress, style_key, style_hint)
+    scenes = fit_scenes_to_audio(scenes, duration, job_dir)  # сцены, сделанные по неточной длине озвучки, дотягиваем до её конца
     if remix_from:  # всё нарисовано и оживлено — только сборка
         img_dir = os.path.join(job_dir, "images")
         missing = [s["index"] + 1 for s in scenes if not os.path.exists(os.path.join(img_dir, f"{s['index']:04d}.png"))]
