@@ -4411,6 +4411,56 @@ def apply_look(lk):
     VIDEO_ANCHOR = lk.get("anchor") or "top"
 
 
+def _video_stream_len(path):
+    out = subprocess.run([ffmpeg_bin("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "csv=p=0", path],
+                         capture_output=True, text=True, creationflags=NO_WINDOW).stdout.strip()
+    try:
+        return float(out)
+    except ValueError:
+        return audio_duration(path)
+
+
+def ensure_full_length(mp4, audio_path, scenes=None):
+    """Ролик не должен быть короче озвучки, что бы ни пошло не так при сборке: если короче больше чем на 0.3 с —
+    дотягиваем видео плавным наездом на последний кадр (поток видео копируется, перекодирования нет) и заново ставим озвучку."""
+    try:
+        got, want = _video_stream_len(mp4), audio_duration(audio_path)
+    except Exception as e:
+        log(f"проверка длины не вышла: {str(e)[:100]}")
+        return False
+    tot = sum(float(s.get("duration") or 0) for s in (scenes or []))
+    log(f"длины: сумма сцен {tot:.1f} с · видео {got:.1f} с · озвучка {want:.1f} с")
+    need = want - got
+    if need <= 0.3:
+        return False
+    log(f"видео короче озвучки на {need:.1f} с — дотягиваю последний кадр до конца озвучки")
+    base = mp4 + ".fix"
+    vonly, last, tail, lst, outp = base + ".v.mp4", base + ".png", base + ".tail.mp4", base + ".txt", base + ".out.mp4"
+    try:
+        run_ffmpeg(["-i", mp4, "-an", "-c:v", "copy", vonly])
+        run_ffmpeg(["-sseof", "-0.25", "-i", vonly, "-update", "1", "-q:v", "2", last])
+        render_tail_zoom(last, need + 0.1, tail)
+        with open(lst, "w", encoding="utf-8") as f:
+            for c in (vonly, tail):
+                f.write("file '" + c.replace("\\", "/").replace("'", "'\\''") + "'\n")
+        run_ffmpeg(["-f", "concat", "-safe", "0", "-i", lst, "-i", audio_path, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
+                    "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", outp])
+        os.replace(outp, mp4)
+        log(f"длина после дотяжки: {_video_stream_len(mp4):.1f} с")
+        return True
+    except Cancelled:
+        raise
+    except Exception as e:
+        log(f"не удалось дотянуть видео до конца озвучки ({str(e)[:160]})")
+        return False
+    finally:
+        for f in (vonly, last, tail, lst, outp):
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+
+
 def finish_video(spec, progress):
     """Монтаж готового задания: клипы, переходы, звук, субтитры, копии скорости, уборка. spec — из make_video."""
     apply_look(spec.get("look"))
@@ -4420,6 +4470,7 @@ def finish_video(spec, progress):
     if spec.get("subtitles"):
         raw_mp4 = os.path.join(job_dir, "nosubs.mp4")
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, raw_mp4, progress, motion=motion)
+        ensure_full_length(raw_mp4, audio_path, scenes)
         check_cancel()
         progress("subtitles", 0, 1, "накладываю субтитры")
         sub_words = spec.get("sub_words") or []
@@ -4441,6 +4492,7 @@ def finish_video(spec, progress):
         progress("subtitles", 1, 1, "субтитры наложены, .srt — в «файлах ролика» проекта")
     else:
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=motion)
+        ensure_full_length(out_mp4, audio_path, scenes)
     try:  # контроль: ролик не должен быть короче озвучки
         got, want = audio_duration(out_mp4), audio_duration(audio_path)
         if want - got > 0.5:
