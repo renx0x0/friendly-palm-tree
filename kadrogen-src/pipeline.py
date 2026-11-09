@@ -2146,6 +2146,11 @@ def redo_files(job_dir, index):
         if str(index) in st:
             st.pop(str(index), None)
             write_json(pth, st)
+    try:  # стоковая сцена перерисована: теперь это генерация — метка «СТОК» снимается, сток эту сцену больше не берёт
+        if (stock.record(job_dir).get(str(index)) or {}).get("src"):
+            stock.to_generation(job_dir, index)
+    except Exception:
+        pass
 
 
 class Prerender:
