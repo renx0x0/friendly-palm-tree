@@ -3360,10 +3360,14 @@ def remove_scene_clips(job_dir, index):
                 pass
 
 
-def clip_length_ok(path, duration, tol=0.12):
-    """Клип, лежащий с прошлой сборки, годится, только если его длина совпадает с нужной (сцену могли удлинить / укоротить)."""
+def clip_length_ok(path, duration, tol=None):
+    """Клип, лежащий с прошлой сборки, годится, только если его длина совпадает с нужной (сцену могли удлинить / укоротить).
+    Нужная длина кратна кадру (сборка без переходов) — сверяем с точностью до кадра, иначе с запасом в 0.12 с."""
     try:
-        return abs(audio_duration(path) - float(duration)) <= tol
+        d = float(duration)
+        if tol is None:
+            tol = 0.021 if abs(d * FPS - round(d * FPS)) < 1e-6 else 0.12
+        return abs(audio_duration(path) - d) <= tol
     except Exception:
         return False
 
@@ -3384,11 +3388,21 @@ def assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progre
     extra = TRANSITION if motion else 0.0  # в моушн-режиме клипы длиннее на время перехода
 
     grouped = motion and n > XFADE_GROUP
+    fq = {}
+    if not (motion and n > 1):
+        # склейка без переходов: клипы идут друг за другом, и округление длины каждого до кадра копилось (на 200 клипах — больше секунды).
+        # Считаем длины от общего времени: клип i кончается на ближайшем к его настоящему концу кадре — ошибка не растёт.
+        t, prev = 0.0, 0
+        for s in scenes:
+            t += float(s["duration"])
+            cur = max(prev + 1, int(round(t * FPS)))
+            fq[s["index"]] = (cur - prev) / FPS
+            prev = cur
 
     def one(s):
         check_cancel()
         i = s["index"]
-        dur = s["duration"] + extra  # каждый клип длиннее на переход: следующий начинается на T раньше и заканчивается вовремя
+        dur = fq.get(i, s["duration"] + extra)  # каждый клип длиннее на переход: следующий начинается на T раньше и заканчивается вовремя
         tail = grouped and ((i + 1) % XFADE_GROUP == 0 or i == n - 1)  # последний клип группы: ещё +T, его съест переход второго уровня
         if tail:
             dur += TRANSITION
