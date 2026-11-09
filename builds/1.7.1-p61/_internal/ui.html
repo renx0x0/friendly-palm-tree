@@ -805,7 +805,7 @@
 </div></div></div>
 <div id="fr_dlg"><div class="box"><h3 id="fr_t"></h3><div class="note" id="fr_info"></div><div id="fr_grid"></div>
   <div class="frsel" id="fr_selbar"><b id="fr_scount"></b><span class="lk" id="fr_sall"></span><span class="lk" id="fr_snone"></span><span style="flex:1"></span>
-    <button class="ghost" id="fr_ato"></button><button class="ghost" id="fr_aredo"></button><button class="ghost" id="fr_anext"></button><button class="ghost" id="fr_agen"></button></div>
+    <button class="ghost" id="fr_ato"></button><button class="ghost" id="fr_aredo"></button><button class="ghost" id="fr_anext"></button></div>
   <div class="row"><button class="ghost" id="fr_pick"></button><button class="ghost" id="fr_more"></button><button class="ghost" id="fr_imgs"></button><button class="ghost" id="fr_vids"></button><button class="ghost" id="fr_res"></button>
   <span style="flex:1"></span><button class="primary" id="fr_close" onclick="$('fr_dlg').classList.remove('show')"></button></div></div></div>
 <div id="sub_dlg"><div class="box"><h3 id="sd_t"></h3>
@@ -1917,7 +1917,7 @@ function frTabs() {
   const bar = document.createElement('div'); bar.id = 'fsel'; bar.style.display = 'none';
   bar.innerHTML = '<b id="fs_cnt"></b><span class="lk" id="fs_all" onclick="fsAll()"></span><span class="lk" id="fs_none" onclick="fsClear()"></span><span class="sp"></span>'
     + '<button class="ghost" id="fs_to" onclick="fsAct(\'to_stock\')"></button><button class="ghost" id="fs_next" onclick="fsAct(\'stock_next\')"></button>'
-    + '<button class="ghost" id="fs_gen" onclick="fsAct(\'stock_gen\')"></button><button class="ghost" id="fs_redo" onclick="fsAct(\'redo\')"></button><div class="hint" id="fs_hint"></div>';
+    + '<button class="ghost" id="fs_redo" onclick="fsAct(\'redo\')"></button><div class="hint" id="fs_hint"></div>';
   tb.after(bar);
   $('frames').addEventListener('scroll', () => { if (!$('frames')._auto) FRUSER = Date.now(); }, {passive: true});
   frFilter();
@@ -2422,9 +2422,9 @@ function frPickUI() {
   $('fr_ato').textContent = pt(`Заменить на сток (${np})`, `Replace with stock (${np})`); $('fr_ato').disabled = !np;
   $('fr_scount').textContent = pt(`Выбрано: ${n}`, `Selected: ${n}`) + (ns ? pt(` (со стоков: ${ns})`, ` (stock: ${ns})`) : '');
   $('fr_sall').textContent = pt('выбрать все показанные', 'select all shown'); $('fr_snone').textContent = pt('снять', 'clear');
-  $('fr_aredo').textContent = pt(`Перерисовать (${n})`, `Redraw (${n})`); $('fr_aredo').disabled = !n;
+  $('fr_aredo').textContent = pt(`Сгенерировать заново (${n})`, `Generate again (${n})`); $('fr_aredo').disabled = !n;
+  $('fr_aredo').title = pt('Выбранные кадры рисуются заново по своим промптам: стоковые — вместо стока, обычные — перерисовываются (тратит кредиты)', 'Selected frames are generated again from their prompts');
   $('fr_anext').textContent = pt(`Другие стоки (${ns})`, `Other stock (${ns})`); $('fr_anext').disabled = !ns;
-  $('fr_agen').textContent = pt(`Сгенерировать вместо стоков (${ns})`, `Generate instead (${ns})`); $('fr_agen').disabled = !ns;
 }
 function frToggle(i, d) { if (FR.sel.has(i)) FR.sel.delete(i); else FR.sel.add(i); d.classList.toggle('sel', FR.sel.has(i)); frPickUI(); }
 $('fr_pick').onclick = () => { FR.pick = !FR.pick; if (!FR.pick) { FR.sel.clear(); document.querySelectorAll('#fr_grid .gfr.sel').forEach(d => d.classList.remove('sel')); } frPickUI(); };
@@ -2432,13 +2432,13 @@ $('fr_sall').onclick = () => { document.querySelectorAll('#fr_grid .gfr').forEac
 $('fr_snone').onclick = () => { FR.sel.clear(); document.querySelectorAll('#fr_grid .gfr.sel').forEach(d => d.classList.remove('sel')); frPickUI(); };
 async function frAct(action) {
   const idxs = [...FR.sel], n = idxs.length, ns = idxs.filter(i => (FR.items[i] || {}).stock).length;
-  const q = {redo: pt(`Перерисовать ${n} кадр(ов)? Их картинки (и оживление) удалятся и будут нарисованы заново при пересборке — это снова потратит кредиты.`
+  const q = {redo: pt(`Сгенерировать заново ${n} кадр(ов) по их промптам? Картинки (и оживление) удалятся и будут нарисованы заново при пересборке — это потратит кредиты.`
                      + (ns ? ` Стоковые (${ns}) будут сгенерированы вместо стока.` : ''), 'Redraw selected frames?'),
              stock_next: pt(`Взять другие кадры со стока для ${ns} стоковых сцен?`, 'Take other stock for selected?'),
              stock_gen: pt(`Убрать сток с ${ns} сцен? Они будут сгенерированы при пересборке.`, 'Generate instead of stock?'),
              to_stock: pt(`Найти стоковые кадры для ${n - ns} сгенерированных сцен? Подошёл — кадр заменится, не подошёл или не нашёлся — останется ваша генерация.`, 'Replace generated frames with stock where a good one is found?')}[action];
   if (!confirm(q)) return;
-  ['fr_ato', 'fr_aredo', 'fr_anext', 'fr_agen'].forEach(b => $(b).disabled = true);
+  ['fr_ato', 'fr_aredo', 'fr_anext'].forEach(b => $(b).disabled = true);
   $('fr_scount').textContent = (action === 'stock_next' || action === 'to_stock') ? pt('ищу, скачиваю и проверяю кадры — это может занять несколько минут…', 'searching…') : pt('готовлю…', 'working…');
   const r = await pywebview.api.frames_action(FR.id, idxs, action);
   if (!r.ok) { toast(esc(r.error || ''), 7000); frPickUI(); return; }
@@ -2447,7 +2447,7 @@ async function frAct(action) {
     + ` <span class="lk" onclick="$('fr_dlg').classList.remove('show'); continueJob('${esc(id).replace(/'/g, '&#39;')}')">${pt('Пересобрать ролик', 'Rebuild the video')}</span>`, 15000);
   showFrames(id);
 }
-$('fr_ato').onclick = () => frAct('to_stock'); $('fr_aredo').onclick = () => frAct('redo'); $('fr_anext').onclick = () => frAct('stock_next'); $('fr_agen').onclick = () => frAct('stock_gen');
+$('fr_ato').onclick = () => frAct('to_stock'); $('fr_aredo').onclick = () => frAct('redo'); $('fr_anext').onclick = () => frAct('stock_next');
 async function moreFrames() {
   if (FR.busy) return; FR.busy = true;
   try {
@@ -2503,21 +2503,21 @@ function fsRender() {
   const ns = [...FSEL].filter(isStock).length, np = n - ns, run = jobRunning;
   $('fs_cnt').textContent = pt(`Выбрано: ${n}`, `Selected: ${n}`) + (ns ? pt(` (со стоков: ${ns})`, ` (stock: ${ns})`) : '');
   $('fs_all').textContent = pt('все показанные', 'all shown'); $('fs_none').textContent = pt('снять', 'clear');
-  $('fs_redo').textContent = pt(`Перерисовать (${n})`, `Redraw (${n})`);
+  $('fs_redo').textContent = pt(`Сгенерировать заново (${n})`, `Generate again (${n})`);
+  $('fs_redo').title = pt('Выбранные кадры рисуются заново по своим промптам: стоковые — вместо стока, обычные — перерисовываются (тратит кредиты)', 'Selected frames are generated again');
   $('fs_to').textContent = pt(`Заменить на сток (${np})`, `Replace with stock (${np})`); $('fs_to').disabled = run || !np;
   $('fs_next').textContent = pt(`Другие стоки (${ns})`, `Other stock (${ns})`); $('fs_next').disabled = run || !ns;
-  $('fs_gen').textContent = pt(`Сгенерировать вместо стоков (${ns})`, `Generate instead (${ns})`); $('fs_gen').disabled = run || !ns;
-  $('fs_hint').textContent = run ? pt('Пока ролик делается, доступно только «Перерисовать». Остальное — когда он закончится.', 'Only “Redraw” while the video is running.') : '';
+  $('fs_hint').textContent = run ? pt('Пока ролик делается, доступно только «Сгенерировать заново». Остальное — когда он закончится.', 'Only “Generate again” while the video is running.') : '';
 }
 async function fsAct(action) {
   const idxs = [...FSEL], n = idxs.length, ns = idxs.filter(i => { const d = $('fr' + i); return d && d.dataset.stock === '1'; }).length;
   if (!n) return;
   if (action === 'redo') {
-    if (!confirm(pt(`Перерисовать ${n} кадр(ов)? Это снова потратит кредиты.` + (ns ? ` Стоковые (${ns}) будут сгенерированы вместо стока.` : ''), 'Redraw selected frames?'))) return;
+    if (!confirm(pt(`Сгенерировать заново ${n} кадр(ов) по их промптам? Это потратит кредиты.` + (ns ? ` Стоковые (${ns}) будут сгенерированы вместо стока, остальные перерисованы.` : ''), 'Generate selected frames again?'))) return;
     if (jobRunning) { for (const i of idxs) await redoScene(i); fsClear(); return; }  // во время работы — очередь на перерисовку
   } else if (!confirm({to_stock: pt(`Найти стоковые кадры для ${n - ns} сцен? Подошёл — заменится, не подошёл — останется ваша генерация.`, 'Replace with stock?'),
                        stock_next: pt(`Взять другие кадры со стока для ${ns} сцен?`, 'Take other stock?'), stock_gen: pt(`Убрать сток с ${ns} сцен? Они будут сгенерированы при пересборке.`, 'Generate instead?')}[action])) return;
-  ['fs_redo', 'fs_to', 'fs_next', 'fs_gen'].forEach(b => $(b).disabled = true);
+  ['fs_redo', 'fs_to', 'fs_next'].forEach(b => $(b).disabled = true);
   $('fs_cnt').textContent = pt('работаю…', 'working…');
   const r = await pywebview.api.frames_action(null, idxs, action);
   if (!r.ok) { toast(esc(r.error || ''), 7000); fsRender(); return; }
