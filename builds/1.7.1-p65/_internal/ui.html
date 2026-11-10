@@ -1158,6 +1158,7 @@ const FX_INFO = [
   ['ovl2', 'Свой оверлей 2', 'Custom overlay 2', 'ещё один свой mp4 с шумами', true],
   ['ovl3', 'Свой оверлей 3', 'Custom overlay 3', 'ещё один свой mp4 с шумами', true]];
 const FX_MODES = [['multiply', 'тёмные шумы на белом', 'dark on white'], ['screen', 'светлые шумы на чёрном', 'light on black'], ['overlay', 'на сером фоне', 'on grey'], ['chroma', 'на зелёном (хромакей)', 'green screen']];
+let FX_LIB = [];
 let FXS = {}, FXW = {}, fxTimer = null, fxBusy = false, fxAgain = false;
 function fxDefault() { const o = {}; FX_INFO.forEach(([k]) => o[k] = {on: false, pw: k.startsWith('ovl') ? 100 : 50, sp: 50, tone: 'sepia', fl: 20, file: '', mode: 'multiply', clean: false, name: '', dur: 8}); return o; }
 const FX_OLD = {1: 25, 2: 50, 3: 80};
@@ -1186,7 +1187,8 @@ function fxRender() {
       + `<div class="fxc"><div class="fxl"><span>${pt('Сила', 'Strength')}</span>${fxSlider(k, 'pw', v.pw, pt('слабо', 'low'), pt('сильно', 'high'))}</div>`
       + (anim ? `<div class="fxl"><span>${pt('Скорость', 'Speed')}</span>${fxSlider(k, 'sp', v.sp, pt('медл.', 'slow'), pt('быстро', 'fast'))}</div>` : '')
       + (k === 'vintage' ? `<div class="fxl"><span>${pt('Мерцание', 'Flicker')}</span>${fxSlider(k, 'fl', v.fl, pt('нет', 'off'), pt('сильно', 'high'))}</div>` : '')
-      + (k.startsWith('ovl') ? `<div class="fxl"><span>${pt('Файл', 'File')}</span><button class="ghost" data-ovf="${k}">${v.file ? esc(v.name || 'mp4') : pt('Выбрать mp4…', 'Choose mp4…')}</button></div>`
+      + (k.startsWith('ovl') ? `<div class="fxl"><span>${pt('Готовые', 'Built-in')}</span><select data-ovb="${k}"><option value="">${pt('— выбрать из готовых шумов —', '— built-in overlays —')}</option>${FX_LIB.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select></div>`
+        + `<div class="fxl"><span>${pt('Свой файл', 'File')}</span><button class="ghost" data-ovf="${k}">${v.file ? esc(v.name || 'mp4') : pt('Выбрать mp4…', 'Choose mp4…')}</button></div>`
         + `<div class="fxl"><span>${pt('Фон файла', 'Background')}</span><select data-ovm="${k}">${FX_MODES.map(([m, r2, e2]) => `<option value="${m}"${v.mode === m ? ' selected' : ''}>${pt(r2, e2)}</option>`).join('')}</select></div>`
         + `<div class="fxl"><span></span><label><input type="checkbox" data-ovc="${k}"${v.clean ? ' checked' : ''}> ${pt('выровнять фон файла (если кадр слегка темнеет или светлеет)', 'flatten file background')}</label></div>` : '')
       + (k === 'film' ? `<div class="fxl"><span>${pt('Цвет', 'Colour')}</span><select data-tone="1"><option value="sepia"${v.tone === 'sepia' ? ' selected' : ''}>${pt('сепия', 'sepia')}</option><option value="faded"${v.tone === 'faded' ? ' selected' : ''}>${pt('выцветшая', 'faded')}</option><option value="bw"${v.tone === 'bw' ? ' selected' : ''}>${pt('ч/б', 'b/w')}</option></select></div>` : '')
@@ -1200,6 +1202,13 @@ function fxRender() {
   $('fx_list').querySelectorAll('[data-tone]').forEach(sl => sl.onchange = () => { FXW.film.tone = sl.value; fxPreviewSoon(); });
   $('fx_list').querySelectorAll('[data-ovm]').forEach(sl => sl.onchange = () => { FXW[sl.dataset.ovm].mode = sl.value; fxPreviewSoon(); });
   $('fx_list').querySelectorAll('[data-ovc]').forEach(c => c.onchange = () => { FXW[c.dataset.ovc].clean = c.checked; fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('[data-ovb]').forEach(sl => sl.onchange = async () => {
+    if (!sl.value) return;
+    const k = sl.dataset.ovb, r = await pywebview.api.fx_overlay_builtin(sl.value);
+    if (!r.ok) { toast(r.error || pt('Не удалось открыть шум', 'Could not open'), 5000); return; }
+    Object.assign(FXW[k], {file: r.file, mode: r.mode, name: r.name, dur: r.dur, clean: !!r.clean, on: true});
+    fxRender(); fxPreviewSoon();
+  });
   $('fx_list').querySelectorAll('[data-ovf]').forEach(b => b.onclick = async () => {
     const k = b.dataset.ovf, r = await pywebview.api.fx_overlay_pick();
     if (r.cancel) return;
@@ -1222,7 +1231,8 @@ async function fxPreview() {
   }
 }
 let FX_TGT = null;  // окно «Эффекты» для одного ролика (новая озвучка): сохраняет туда, а не в настройки программы
-function openFx(tgt) {
+async function openFx(tgt) {
+  if (!FX_LIB.length) { try { FX_LIB = await pywebview.api.fx_overlay_list() || []; } catch (e) {} }
   FX_TGT = tgt && tgt.onSave ? tgt : null;
   FXW = fxNorm(FX_TGT ? FX_TGT.fx : FXS);
   $('fxd_t').textContent = pt('Эффекты', 'Effects'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');

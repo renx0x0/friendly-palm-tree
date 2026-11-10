@@ -14,7 +14,7 @@
 
 1. Закрыть KadroGen.
 2. Скопировать содержимое `builds/<версия>/` поверх папки программы (где `KadroGen.exe`, `_internal`, `ffmpeg`):
-   - `KadroGen.exe` и `fastgen_models.json` — в папку программы;
+   - `KadroGen.exe`, `fastgen_models.json` и папка `overlays/` (готовые шумы) — в папку программы;
    - `_internal/ui.html` — в `_internal` (интерфейс программа берёт оттуда);
    - `profiles/` — в папку программы, только если менялись профили (свои правки `master_prompt.txt` не затирать).
 

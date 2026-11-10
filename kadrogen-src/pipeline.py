@@ -3253,6 +3253,35 @@ def overlay_detect(path):
             pass
 
 
+OVL_BUILTIN = [  # (файл в папке overlays, название, режим, выровнять фон)
+    ("white_noise.mp4", "Белый шум: волоски и точки", "screen", True),
+    ("black_noise.mp4", "Тёмный шум: соринки и ворсинки", "multiply", True),
+    ("noise2.mp4", "Шум: редкие светлые точки", "screen", False),
+    ("dust_fall.mp4", "Падающая пыль (яркая)", "screen", False),
+    ("dust_fall_soft.mp4", "Падающая пыль (слабая)", "screen", False),
+    ("stars.mp4", "Звёзды и искры", "screen", False)]
+
+
+def overlay_builtin_dir():
+    for d in (os.path.join(getattr(sys, "_MEIPASS", app_dir()), "overlays"), os.path.join(app_dir(), "overlays")):
+        if os.path.isdir(d):
+            return d
+    return os.path.join(app_dir(), "overlays")
+
+
+def overlay_builtin_list():
+    d = overlay_builtin_dir()
+    return [{"id": f, "name": n, "mode": m, "clean": c} for f, n, m, c in OVL_BUILTIN if os.path.isfile(os.path.join(d, f))]
+
+
+def overlay_builtin(fid):
+    for f, n, m, c in OVL_BUILTIN:
+        if f == fid:
+            path, dur, _mode, _n = overlay_prepare(os.path.join(overlay_builtin_dir(), f))
+            return path, dur, m, n, c
+    raise RuntimeError("Такого готового шума нет.")
+
+
 def overlay_prepare(src):
     """Ваш mp4 / mov с шумами → папка data/overlays: 1920×1080, 25 к/с, без звука, до 60 с. → (путь, длина, режим, имя)."""
     if not os.path.isfile(src):
