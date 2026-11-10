@@ -799,6 +799,31 @@
   @media (min-width:2300px) { .wrap { height:calc(100vh / 1.2); } #side { zoom:1.2; } }
   @media (min-width:3200px) { .wrap { height:calc(100vh / 1.6); } #side { zoom:1.6; } }
   .screen { width:100%; max-width:1480px; margin-left:auto; margin-right:auto; }
+  /* экран создания: кадры в середине, справа ход работы и журнал */
+  #screen6 { max-width:none; }
+  #screen6 .proc, #screen6 .proc.with-parts, #screen6 .proc.parts-mini { grid-template-columns:minmax(0, 1fr) 380px; grid-template-rows:auto minmax(0, 1fr); gap:14px 16px; }
+  #screen6 .proc > .panel:first-child { grid-column:2; grid-row:1 / span 2; padding:18px 18px 16px; }
+  #screen6 #parts_panel { grid-column:1; grid-row:1; } #screen6 .proc > .panel:last-child { grid-column:1; grid-row:2; padding:14px 16px; }
+  #screen6 .proc:not(.with-parts):not(.parts-mini) > .panel:last-child { grid-row:1 / span 2; }
+  #screen6 .ring { width:auto; height:auto; margin:0 0 10px; } #screen6 .ring svg { display:none; }
+  #screen6 .ring .pct { position:static; display:block; text-align:left; font-size:34px !important; font-weight:700; line-height:1.1; }
+  #screen6 .ring .pct > div { display:flex; align-items:baseline; gap:10px; } #screen6 .ring .pct small { margin:0; font-size:13px !important; font-weight:400; color:var(--ink2); }
+  .stages li { padding:5px 0 5px 26px; font-size:13.5px !important; font-weight:400; }
+  .stages li::before { transform:none; border-radius:50%; width:12px; height:12px; left:2px; top:9px; border-width:1.5px; }
+  .stages li.done::before { background:var(--ok); border-color:var(--ok); } .stages li.cur { color:var(--ink); font-weight:600; }
+  .stages li.cur::before { background:transparent; border:2.5px solid var(--acc); box-shadow:none; animation:none; } .stages li.cur::after { display:none; }
+  #screen6 #g_title { float:left; margin:5px 14px 0 0; font-size:14px !important; font-weight:600; color:var(--ink); }
+  #fr_tabs { gap:2px; margin:0 0 10px; } #fr_tabs button.ic { display:flex; align-items:center; gap:6px; padding:5px 9px; border:0; border-radius:7px; background:transparent; color:var(--ink2); font-size:12px !important; }
+  #fr_tabs button.ic:hover { background:var(--bg3); color:var(--ink); } #fr_tabs button.ic.on { background:var(--bg3); color:var(--ink); font-weight:600; border:0; } #fr_tabs svg { width:16px; height:16px; }
+  #screen6 .frames { grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; clear:both; }
+  #screen6 .ring .pct { text-align:left; } #screen6 .ring .pct > div { justify-content:flex-start; } #screen6 .ring .pct small { text-transform:lowercase !important; }
+  #fsel { border:0; background:var(--bg3); border-radius:var(--r); padding:5px 8px 5px 12px; gap:6px; font-size:12.5px; flex-wrap:nowrap; }
+  #fsel b { font-weight:600; } #fsel .lk { color:var(--ink2); } #fsel .lk:hover { color:var(--ink); }
+  #fsel button { display:flex; align-items:center; gap:5px; padding:6px 8px; border:0; background:transparent; color:var(--ink); font-size:12px !important; border-radius:7px; }
+  #fsel button:hover { background:var(--bg2); } #fsel button svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  #fsel .hint { width:auto; order:9; margin-left:8px; }
+  .psum { margin-top:12px; padding:10px 12px; border-radius:var(--r); background:var(--bg3); color:var(--ink2); font-size:12.5px; line-height:1.5; } .psum:empty { display:none; }
+  #screen6 .plog pre#log { border-radius:var(--r); font-size:12px; }
   /* главная: ролики карточками */
   #hm_grid { flex:1; min-height:0; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:16px; align-content:start; padding:2px 6px 2px 2px; }
   .hcard { border:1px solid var(--line); border-radius:12px; background:var(--bg2); overflow:hidden; display:flex; flex-direction:column; }
@@ -1094,9 +1119,10 @@
         <div class="bar"><i id="stage_bar"></i></div>
         <div class="time" id="p_time"></div><div id="p_err"></div>
         <div class="pstats" id="p_stats"></div>
+        <div class="psum" id="p_sum"></div>
         <div class="wait" id="p_wait"><div class="wr"><svg viewBox="0 0 24 24"><path d="M6 2h12M6 22h12M7 2v4l5 6 5-6V2M7 22v-4l5-6 5 6v4"/></svg><span class="wt" id="w_title"></span><span class="cd" id="w_cd"></span></div><small id="w_sub"></small></div>
         <div class="pbtns"><button id="btn_cancel" class="danger" onclick="cancelJob()" data-i18n="stop"></button><button id="btn_retry" class="ghost" onclick="retryJob()" style="display:none"></button><button id="btn_again" class="ghost" onclick="go(4)" disabled data-i18n="again"></button><button id="btn_report" class="ghost" onclick="sendReport()" data-i18n="report"></button></div>
-        <div class="plog"><div class="plh"><b data-i18n="log"></b><label class="jdc"><input type="checkbox" id="log_err" onchange="renderLog()"><span id="log_err_l"></span></label></div><pre id="log"></pre></div>
+        <div class="plog"><div class="plh"><b data-i18n="log"></b><label class="jdc"><input type="checkbox" id="log_err" checked onchange="renderLog()"><span id="log_err_l"></span></label></div><pre id="log"></pre></div>
       </div>
       <div class="panel" id="parts_panel"><h3 id="parts_title"></h3><div class="phint" id="parts_hint"></div><div id="parts"></div></div>
       <div class="panel"><h3 id="g_title"></h3><div class="frames" id="frames"></div>
@@ -1814,6 +1840,17 @@ function recentRow(r, extra) {
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
   return `<div class="rjob${r.parent ? ' kid' : ''}"><span class="rtw"><span class="rt" title="${esc(r.title)}">${r.parent ? '↳ ' : ''}${esc(r.title)}</span>${extra || ''}</span>${r.profile && !r.parent ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
+function runSum() {
+  if (!$('p_sum')) return;
+  const a = [], n = document.querySelectorAll('#frames .frame').length;
+  if (n) a.push(`${n} ${pt('кадров', 'frames')}`);
+  a.push({images: pt('только картинки', 'images only'), mixed: pt('50 на 50', '50/50'), video: pt('только видео', 'video only')}[mode()] || '');
+  if ($('use_subs') && $('use_subs').checked) a.push(pt('субтитры', 'subtitles'));
+  if ($('use_motion') && $('use_motion').checked) a.push(pt('движение и переходы', 'motion'));
+  const fx = fxSummary(FXS); if (fx !== pt('нет', 'none')) a.push(fx);
+  const h = (HEROES || []).filter(x => x.on && x.img).length; if (h) a.push(pt('герои: ', 'heroes: ') + h);
+  $('p_sum').textContent = a.filter(Boolean).join(' · ');
+}
 function homeCard(r) {
   const id = esc(r.id).replace(/'/g, '&#39;'), pct = r.scenes ? Math.min(100, Math.round(r.images / r.scenes * 100)) : 0, kids = (r.children || []).length;
   const done = r.status === 'done' && r.has_video;
@@ -1995,7 +2032,7 @@ async function redoScene(i) {
   markRedo(i);
   toast(t(r.queued ? 'redo_queued' : 'redo_deleted').replace('{n}', i + 1), r.queued ? 5000 : 9000);
 }
-function buildFrames(n) { total = n; known = new Set(); const f = $('frames'); f.innerHTML = ''; for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'frame pending'; d.id = 'fr' + i; d.dataset.n = String(i + 1).padStart(2, '0'); d.innerHTML = '<span class="ph"></span>'; f.appendChild(d); } }
+function buildFrames(n) { total = n; known = new Set(); const f = $('frames'); f.innerHTML = ''; for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'frame pending'; d.id = 'fr' + i; d.dataset.n = String(i + 1).padStart(2, '0'); d.innerHTML = '<span class="ph"></span>'; f.appendChild(d); } try { runSum(); } catch (e) {} }
 async function start(o) {
   const r = await pywebview.api.start(o || opts());
   if (!r.ok) { $('s_prep2').textContent = r.error; return; }
@@ -2141,10 +2178,14 @@ function frFollow(d) {  // лента сама едет к новому кадр
   if (d.offsetTop > f.scrollTop + f.clientHeight - 40) f.scrollTop = d.offsetTop - f.clientHeight / 2;
 }
 function frFilter() {
+  const cnt = {all: 0, img: 0, vid: 0, stk: 0, wait: 0};
   document.querySelectorAll('#frames .frame').forEach(d => {
-    const show = FRTAB === 'all' || (FRTAB === 'vid' && d.classList.contains('isvid')) || (FRTAB === 'img' && !!d.querySelector('img') && !d.classList.contains('isvid')) || (FRTAB === 'wait' && !d.querySelector('img'));
+    const has = !!d.querySelector('img'), vid = d.classList.contains('isvid'), stk = d.dataset.stock === '1';
+    cnt.all++; if (vid) cnt.vid++; if (has && !vid) cnt.img++; if (stk) cnt.stk++; if (!has) cnt.wait++;
+    const show = FRTAB === 'all' || (FRTAB === 'vid' && vid) || (FRTAB === 'img' && has && !vid) || (FRTAB === 'stk' && stk) || (FRTAB === 'wait' && !has);
     d.style.display = show ? '' : 'none';
   });
+  document.querySelectorAll('#fr_tabs button').forEach(b => { const c = b.querySelector('.c'); if (c) c.textContent = cnt[b.dataset.t] || (b.dataset.t === 'all' ? '0' : ''); b.style.display = b.dataset.t === 'stk' && !cnt.stk ? 'none' : ''; });
   document.querySelectorAll('#fr_tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === FRTAB));
 }
 function frTabs() {
@@ -2153,9 +2194,10 @@ function frTabs() {
   const IC = {all: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
     img: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
     vid: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
-    wait: '<path d="M7 3h10M7 21h10M8 3v4l4 5 4-5V3M8 21v-4l4-5 4 5v4"/>'};
-  tb.innerHTML = [['all', 'Все кадры', 'All'], ['img', 'Картинки', 'Images'], ['vid', 'Видео (оживлённые)', 'Video'], ['wait', 'Ещё делаются', 'In progress']]
-    .map(([k, r, e]) => `<button type="button" class="ghost ic" data-t="${k}" title="${pt(r, e)}"><svg viewBox="0 0 24 24">${IC[k]}</svg></button>`).join('');
+    stk: '<path d="M12 3 3 7.5l9 4.5 9-4.5z"/><path d="m3 12 9 4.5 9-4.5M3 16.5 12 21l9-4.5"/>',
+    wait: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/>'};
+  tb.innerHTML = [['all', 'Все кадры', 'All'], ['img', 'Картинки', 'Images'], ['vid', 'Видео (оживлённые)', 'Video'], ['stk', 'Стоки', 'Stock'], ['wait', 'Ещё делаются', 'In progress']]
+    .map(([k, r, e]) => `<button type="button" class="ghost ic" data-t="${k}" title="${pt(r, e)}"><svg viewBox="0 0 24 24">${IC[k]}</svg><span class="c"></span></button>`).join('');
   tb.querySelectorAll('button').forEach(b => b.onclick = () => { FRTAB = b.dataset.t; frFilter(); });
   h.after(tb);
   const bar = document.createElement('div'); bar.id = 'fsel'; bar.style.display = 'none';
@@ -2747,10 +2789,14 @@ function fsRender() {
   const ns = [...FSEL].filter(isStock).length, np = n - ns, run = jobRunning;
   $('fs_cnt').textContent = pt(`Выбрано: ${n}`, `Selected: ${n}`) + (ns ? pt(` (со стоков: ${ns})`, ` (stock: ${ns})`) : '');
   $('fs_all').textContent = pt('все показанные', 'all shown'); $('fs_none').textContent = pt('снять', 'clear');
-  $('fs_redo').textContent = ns === n ? pt(`Сгенерировать вместо стока (${n})`, `Generate instead of stock (${n})`) : pt(`Сгенерировать заново (${n})`, `Generate again (${n})`);
-  $('fs_redo').title = pt('Выбранные кадры рисуются заново по своим промптам: стоковые — вместо стока, обычные — перерисовываются (тратит кредиты)', 'Selected frames are generated again');
-  $('fs_to').textContent = pt(`Заменить на сток (${np})`, `Replace with stock (${np})`); $('fs_to').disabled = run || !np;
-  $('fs_next').textContent = pt(`Другие стоки (${ns})`, `Other stock (${ns})`); $('fs_next').disabled = run || !ns;
+  const ic = (d, c) => `<svg viewBox="0 0 16 16" aria-hidden="true">${d}</svg>${c ? `<span>${c}</span>` : ''}`;
+  const redoName = ns === n ? pt('Сгенерировать вместо стока', 'Generate instead of stock') : pt('Сгенерировать заново', 'Generate again');
+  $('fs_redo').innerHTML = ic('<path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.5v3h-3"/>', n); $('fs_redo').setAttribute('aria-label', `${redoName} (${n})`);
+  $('fs_redo').title = `${redoName} (${n}). ` + pt('Кадры рисуются заново по своим промптам: стоковые — вместо стока, обычные — перерисовываются. Тратит кредиты.', 'Selected frames are generated again.');
+  $('fs_to').innerHTML = ic('<path d="M8 2 2 5l6 3 6-3z"/><path d="m2 8.5 6 3 6-3M2 12l6 3 6-3"/>', np); $('fs_to').title = pt(`Заменить на сток (${np}): найти стоковые кадры для обычных сцен`, `Replace with stock (${np})`); $('fs_to').setAttribute('aria-label', $('fs_to').title);
+  $('fs_to').disabled = run || !np; $('fs_to').style.display = np ? '' : 'none';
+  $('fs_next').innerHTML = ic('<path d="M3 6h9l-2.5-2.5M13 10H4l2.5 2.5"/>', ns); $('fs_next').title = pt(`Другие стоки (${ns}): взять другие кадры со стока`, `Other stock (${ns})`); $('fs_next').setAttribute('aria-label', $('fs_next').title);
+  $('fs_next').disabled = run || !ns; $('fs_next').style.display = ns ? '' : 'none';
   $('fs_hint').textContent = run ? pt('Пока ролик делается, доступно только «Сгенерировать заново». Остальное — когда он закончится.', 'Only “Generate again” while the video is running.') : '';
 }
 async function fsAct(action) {
