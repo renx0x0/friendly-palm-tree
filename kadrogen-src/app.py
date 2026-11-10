@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p63"
+VERSION = "1.7.1-p64"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2415,6 +2415,19 @@ class Api:
                 im.save(p)
             out.append(p)
         return out
+
+    def fx_overlay_pick(self):
+        """Свой оверлей: выбираем mp4/mov с шумами, готовим (1920×1080, 25 к/с) и определяем режим по фону."""
+        try:
+            res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False,
+                                            file_types=("Видео (*.mp4;*.mov;*.webm;*.mkv;*.avi)", "Все файлы (*.*)"))
+            if not res:
+                return {"ok": False, "cancel": True}
+            src = res[0] if isinstance(res, (list, tuple)) else str(res)
+            path, dur, mode, name = pipeline.overlay_prepare(src)
+            return {"ok": True, "file": path, "dur": dur, "mode": mode, "name": name}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
 
     def fx_preview(self, fx):
         """3 секунды кадра вашего ролика с выбранными эффектами — для окна."""

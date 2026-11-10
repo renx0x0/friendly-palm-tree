@@ -1153,18 +1153,23 @@ const FX_INFO = [
   ['vintage', 'Винтажный шум', 'Vintage noise', 'мягкие светлые хлопья, вертикальные царапины, мерцание яркости', true],
   ['vignette', 'Виньетка', 'Vignette', 'затемнение по краям кадра', false],
   ['film', 'Старая плёнка (цвет)', 'Old film colour', 'сепия, выцветшие цвета или ч/б, приглушённые чёрные', false],
-  ['vhs', 'VHS', 'VHS', 'сдвиг цветов, строки развёртки, изредка полоса трекинга', true]];
+  ['vhs', 'VHS', 'VHS', 'сдвиг цветов, строки развёртки, изредка полоса трекинга', true],
+  ['ovl1', 'Свой оверлей 1', 'Custom overlay 1', 'ваш mp4 с шумами (белый, чёрный, серый или зелёный фон) — накладывается как есть', true],
+  ['ovl2', 'Свой оверлей 2', 'Custom overlay 2', 'ещё один свой mp4 с шумами', true],
+  ['ovl3', 'Свой оверлей 3', 'Custom overlay 3', 'ещё один свой mp4 с шумами', true]];
+const FX_MODES = [['multiply', 'тёмные шумы на белом', 'dark on white'], ['screen', 'светлые шумы на чёрном', 'light on black'], ['overlay', 'на сером фоне', 'on grey'], ['chroma', 'на зелёном (хромакей)', 'green screen']];
 let FXS = {}, FXW = {}, fxTimer = null, fxBusy = false, fxAgain = false;
-function fxDefault() { const o = {}; FX_INFO.forEach(([k]) => o[k] = {on: false, pw: 50, sp: 50, tone: 'sepia', fl: 20}); return o; }
+function fxDefault() { const o = {}; FX_INFO.forEach(([k]) => o[k] = {on: false, pw: k.startsWith('ovl') ? 100 : 50, sp: 50, tone: 'sepia', fl: 20, file: '', mode: 'multiply', clean: false, name: '', dur: 8}); return o; }
 const FX_OLD = {1: 25, 2: 50, 3: 80};
 function fxNorm(fx) {  // p37 хранил «слабо/средне/сильно» (1..3) — переводим в положение ползунка
   const o = fxDefault();
   FX_INFO.forEach(([k]) => { const v = (fx || {})[k] || {}; o[k].on = !!v.on; if (v.tone) o[k].tone = v.tone;
-    o[k].pw = v.pw != null ? +v.pw : (FX_OLD[v.power] ?? 50); o[k].sp = v.sp != null ? +v.sp : (FX_OLD[v.speed] ?? 50); if (v.fl != null) o[k].fl = +v.fl; });
+    o[k].pw = v.pw != null ? +v.pw : (FX_OLD[v.power] ?? (k.startsWith('ovl') ? 100 : 50)); o[k].sp = v.sp != null ? +v.sp : (FX_OLD[v.speed] ?? 50); if (v.fl != null) o[k].fl = +v.fl;
+    if (k.startsWith('ovl')) { o[k].file = v.file || ''; o[k].mode = v.mode || 'multiply'; o[k].clean = !!v.clean; o[k].name = v.name || ''; o[k].dur = +v.dur || 8; } });
   return o;
 }
 function fxSummary(fx) {
-  const on = FX_INFO.filter(([k]) => fx && fx[k] && fx[k].on).map(([k, r, e]) => pt(r, e) + (k === 'film' ? ' · ' + pt({sepia: 'сепия', faded: 'выцветшая', bw: 'ч/б'}[fx[k].tone] || '', fx[k].tone) : ''));
+  const on = FX_INFO.filter(([k]) => fx && fx[k] && fx[k].on && (!k.startsWith('ovl') || fx[k].file)).map(([k, r, e]) => (k.startsWith('ovl') ? '«' + (fx[k].name || pt(r, e)) + '»' : pt(r, e)) + (k === 'film' ? ' · ' + pt({sepia: 'сепия', faded: 'выцветшая', bw: 'ч/б'}[fx[k].tone] || '', fx[k].tone) : ''));
   return on.length ? on.join(', ') : pt('нет', 'none');
 }
 function fxLabels() {
@@ -1181,6 +1186,9 @@ function fxRender() {
       + `<div class="fxc"><div class="fxl"><span>${pt('Сила', 'Strength')}</span>${fxSlider(k, 'pw', v.pw, pt('слабо', 'low'), pt('сильно', 'high'))}</div>`
       + (anim ? `<div class="fxl"><span>${pt('Скорость', 'Speed')}</span>${fxSlider(k, 'sp', v.sp, pt('медл.', 'slow'), pt('быстро', 'fast'))}</div>` : '')
       + (k === 'vintage' ? `<div class="fxl"><span>${pt('Мерцание', 'Flicker')}</span>${fxSlider(k, 'fl', v.fl, pt('нет', 'off'), pt('сильно', 'high'))}</div>` : '')
+      + (k.startsWith('ovl') ? `<div class="fxl"><span>${pt('Файл', 'File')}</span><button class="ghost" data-ovf="${k}">${v.file ? esc(v.name || 'mp4') : pt('Выбрать mp4…', 'Choose mp4…')}</button></div>`
+        + `<div class="fxl"><span>${pt('Фон файла', 'Background')}</span><select data-ovm="${k}">${FX_MODES.map(([m, r2, e2]) => `<option value="${m}"${v.mode === m ? ' selected' : ''}>${pt(r2, e2)}</option>`).join('')}</select></div>`
+        + `<div class="fxl"><span></span><label><input type="checkbox" data-ovc="${k}"${v.clean ? ' checked' : ''}> ${pt('выровнять фон файла (если кадр слегка темнеет или светлеет)', 'flatten file background')}</label></div>` : '')
       + (k === 'film' ? `<div class="fxl"><span>${pt('Цвет', 'Colour')}</span><select data-tone="1"><option value="sepia"${v.tone === 'sepia' ? ' selected' : ''}>${pt('сепия', 'sepia')}</option><option value="faded"${v.tone === 'faded' ? ' selected' : ''}>${pt('выцветшая', 'faded')}</option><option value="bw"${v.tone === 'bw' ? ' selected' : ''}>${pt('ч/б', 'b/w')}</option></select></div>` : '')
       + `</div></div>`;
   }).join('');
@@ -1190,6 +1198,15 @@ function fxRender() {
     r.onchange = () => { FXW[r.dataset.k][r.dataset.key] = +r.value; fxPreviewSoon(); };
   });
   $('fx_list').querySelectorAll('[data-tone]').forEach(sl => sl.onchange = () => { FXW.film.tone = sl.value; fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('[data-ovm]').forEach(sl => sl.onchange = () => { FXW[sl.dataset.ovm].mode = sl.value; fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('[data-ovc]').forEach(c => c.onchange = () => { FXW[c.dataset.ovc].clean = c.checked; fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('[data-ovf]').forEach(b => b.onclick = async () => {
+    const k = b.dataset.ovf, r = await pywebview.api.fx_overlay_pick();
+    if (r.cancel) return;
+    if (!r.ok) { toast(r.error || pt('Не удалось открыть файл', 'Could not open the file'), 5000); return; }
+    Object.assign(FXW[k], {file: r.file, mode: r.mode, name: r.name, dur: r.dur, on: true});
+    fxRender(); fxPreviewSoon();
+  });
 }
 function fxPreviewSoon() { clearTimeout(fxTimer); fxTimer = setTimeout(fxPreview, 600); }
 async function fxPreview() {

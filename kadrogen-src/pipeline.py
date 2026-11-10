@@ -2898,7 +2898,9 @@ def crf_final():
 
 # ============ эффекты: пыль, белый шум, винтажный шум, виньетка, старая плёнка, VHS ============
 
-FX_KINDS = ("dust", "white", "vintage", "vignette", "film", "vhs")
+OVL_KINDS = ("ovl1", "ovl2", "ovl3")   # свои оверлеи: mp4 с шумами на белом / чёрном / сером / зелёном фоне
+OVL_MODES = ("multiply", "screen", "overlay", "chroma")
+FX_KINDS = ("dust", "white", "vintage", "vignette", "film", "vhs") + OVL_KINDS
 FX_ANIMATED = ("dust", "white", "vintage", "vhs")   # у этих есть живой слой поверх кадра
 FX_TONES = ("sepia", "faded", "bw")
 FX = {}                 # текущие эффекты сборки (нормализованные); пусто — без эффектов
@@ -2930,7 +2932,16 @@ def fx_settings(cfg):
             except (TypeError, ValueError):
                 pass
             return d
-        e = {"on": bool(v.get("on")), "pw": pct("pw", "power"), "sp": pct("sp", "speed")}
+        e = {"on": bool(v.get("on")), "pw": pct("pw", "power", 100 if k in OVL_KINDS else 50), "sp": pct("sp", "speed")}
+        if k in OVL_KINDS:
+            e["file"] = str(v.get("file") or "")
+            e["mode"] = v.get("mode") if v.get("mode") in OVL_MODES else "multiply"
+            e["clean"] = bool(v.get("clean"))
+            e["name"] = str(v.get("name") or "")[:80]
+            try:
+                e["dur"] = max(1.0, min(120.0, float(v.get("dur") or 8)))
+            except (TypeError, ValueError):
+                e["dur"] = 8.0
         if k == "film":
             e["tone"] = v.get("tone") if v.get("tone") in FX_TONES else "sepia"
         if k == "vintage":
@@ -2952,8 +2963,13 @@ def _fn(x, pts):
     return int(round(_fi(x, pts)))
 
 
+def _ovl_ready(e):
+    return bool(e.get("on")) and bool(e.get("file")) and os.path.isfile(e["file"])
+
+
 def fx_on(fx):
-    return any((fx or {}).get(k, {}).get("on") for k in FX_KINDS)
+    fx = fx or {}
+    return any(_ovl_ready(fx.get(k, {})) if k in OVL_KINDS else fx.get(k, {}).get("on") for k in FX_KINDS)
 
 
 def fx_sig(fx):
@@ -2963,8 +2979,9 @@ def fx_sig(fx):
     parts = []
     for k in FX_KINDS:
         e = fx.get(k) or {}
-        if e.get("on"):
-            parts.append(f"{k}{e.get('pw')}/{e.get('sp')}/{e.get('fl', '')}{e.get('tone', '')}")
+        if (_ovl_ready(e) if k in OVL_KINDS else e.get("on")):
+            parts.append(f"{k}{e.get('pw')}/{e.get('sp')}/{e.get('fl', '')}{e.get('tone', '')}"
+                         + (f"/{os.path.basename(e.get('file', ''))}/{e.get('mode')}/{int(bool(e.get('clean')))}" if k in OVL_KINDS else ""))
     return hashlib.md5("|".join(parts).encode()).hexdigest()[:6]
 
 
@@ -3183,10 +3200,76 @@ def fx_filter(seed=0, fx=None):
     if layer:
         off = (seed * 0.37) % FX_SECONDS  # у каждого клипа своё место в петле — слой не повторяется на стыках
         inputs = ["-stream_loop", "-1", "-ss", f"{off:.2f}", "-i", layer]
-        fc = f"[0:v]{','.join(pre)}[b];[1:v]scale={W}:{H},format=rgba[o];[b][o]overlay=shortest=1:format=auto"
+        base = f"[0:v]{','.join(pre)}[b];[1:v]scale={W}:{H},format=rgba[o];[b][o]overlay=shortest=1:format=auto[l1]"
     else:
-        fc = f"[0:v]{','.join(pre)}"
-    return inputs, fc + "".join("," + x for x in post) + ",format=yuv420p[v]"
+        base = f"[0:v]{','.join(pre)}[l1]"
+    frags, cur = [], "[l1]"
+    for k in OVL_KINDS:  # свои оверлеи: ваши mp4 с шумами, режим зависит от фона файла
+        e = fx.get(k) or {}
+        if not _ovl_ready(e):
+            continue
+        off = (seed * 0.37 + OVL_KINDS.index(k) * 1.7) % max(1.0, float(e.get("dur") or 8))  # у каждого клипа своё место в петле
+        inputs += ["-stream_loop", "-1", "-ss", f"{off:.2f}", "-i", e["file"]]
+        idx = len(inputs) // 6
+        spd = _fi(e["sp"], [(0, .5), (50, 1.0), (100, 2.0)])
+        op = max(0.0, min(1.0, e["pw"] / 100.0))
+        src = f"[{idx}:v]setpts=PTS/{spd:.3f},scale={W}:{H}"
+        out = f"[o{idx}]"
+        if e["mode"] == "chroma":  # зелёный фон: вырезаем, чистим зелёную кайму
+            frags.append(f"{src},format=rgba,chromakey=color=0x00FF00:similarity=0.30:blend=0.10,despill=type=green:mix=0.6:expand=0.2,"
+                         f"colorchannelmixer=aa={op:.3f}[k{idx}]")
+            frags.append(f"{cur}[k{idx}]overlay=shortest=1:format=auto{out}")
+        else:
+            lv = ""
+            if e.get("clean"):  # выравнивание фона файла: углы и серые пятна не затемняют кадр
+                lv = ",colorlevels=rimax=0.86:gimax=0.86:bimax=0.86" if e["mode"] == "multiply" else (
+                    ",colorlevels=rimin=0.07:gimin=0.07:bimin=0.07" if e["mode"] == "screen" else "")
+            frags.append(f"{src},format=gbrp{lv}[k{idx}]")
+            frags.append(f"{cur}format=gbrp[b{idx}];[b{idx}][k{idx}]blend=all_mode={e['mode']}:all_opacity={op:.3f}:shortest=1{out}")
+        cur = out
+    fc = base + "".join(";" + x for x in frags) + f";{cur}null" + "".join("," + x for x in post) + ",format=yuv420p[v]"
+    return inputs, fc
+
+
+def overlay_detect(path):
+    """Режим наложения по фону файла: зелёный → chroma, белый → multiply, чёрный → screen, серый → overlay."""
+    tmp = path + ".probe.png"
+    try:
+        run_ffmpeg(["-ss", "1", "-i", path, "-frames:v", "1", "-vf", "scale=96:54", tmp])
+        from PIL import Image
+        im = Image.open(tmp).convert("RGB")
+        px = sorted(im.getdata(), key=lambda p: sum(p))
+        r, g, b = px[len(px) // 2]
+        if g > 100 and g > r * 1.3 and g > b * 1.3:
+            return "chroma"
+        lum = (r + g + b) / 3
+        return "multiply" if lum > 200 else ("screen" if lum < 45 else "overlay")
+    except Exception:
+        return "multiply"
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
+def overlay_prepare(src):
+    """Ваш mp4 / mov с шумами → папка data/overlays: 1920×1080, 25 к/с, без звука, до 60 с. → (путь, длина, режим, имя)."""
+    if not os.path.isfile(src):
+        raise RuntimeError("Файл не найден.")
+    h = hashlib.sha1()
+    with open(src, "rb") as f:
+        h.update(f.read(1 << 20))
+    h.update(str(os.path.getsize(src)).encode())
+    d = os.path.join(data_dir(), "overlays")
+    os.makedirs(d, exist_ok=True)
+    dst = os.path.join(d, h.hexdigest()[:12] + ".mp4")
+    if not (os.path.isfile(dst) and os.path.getsize(dst) > 1000):
+        tmp = dst + ".tmp.mp4"
+        run_ffmpeg(["-i", src, "-an", "-t", "60", "-vf", f"scale={W}:{H}:flags=lanczos,fps={FPS}", "-c:v", "libx264", "-preset", "veryfast",
+                    "-crf", "12", "-pix_fmt", "yuv420p", "-movflags", "+faststart", tmp])
+        os.replace(tmp, dst)
+    return dst, round(audio_duration(dst), 2), overlay_detect(dst), os.path.splitext(os.path.basename(src))[0][:60]
 
 
 def apply_fx(clip, seed=0):
