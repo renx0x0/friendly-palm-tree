@@ -878,6 +878,7 @@
 <div id="hero_dlg"><div class="box"><h3 id="hd_t"></h3><div class="note" id="hd_n"></div>
   <textarea id="hd_text" spellcheck="false"></textarea>
   <div style="display:flex;gap:10px;align-items:center"><button class="primary" id="hd_add"></button><span class="note" id="hd_msg"></span><span style="flex:1"></span><button class="ghost" id="hd_all"></button></div>
+  <div style="display:flex;gap:10px;align-items:center"><button class="ghost" id="hd_sel"></button><button class="ghost" id="hd_del"></button></div>
   <div id="hero_list"></div>
   <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="primary" id="hd_close"></button></div></div></div>
 <div class="toast" id="toast"></div>
@@ -1190,7 +1191,7 @@ function fxSummary(fx) {
   const on = FX_INFO.filter(([k]) => fx && fx[k] && fx[k].on && (!k.startsWith('ovl') || fx[k].file)).map(([k, r, e]) => (k.startsWith('ovl') ? '«' + (fx[k].name || pt(r, e)) + '»' : pt(r, e)) + (k === 'film' ? ' · ' + pt({sepia: 'сепия', faded: 'выцветшая', bw: 'ч/б'}[fx[k].tone] || '', fx[k].tone) : ''));
   return on.length ? on.join(', ') : pt('нет', 'none');
 }
-let HEROES = [];
+let HEROES = [], HSEL = new Set();
 function heroLabels() {
   $('hero_lbl').textContent = pt('Герои (портреты)', 'Heroes (portraits)'); $('hero_btn').textContent = pt('Настроить ›', 'Set up ›');
   const on = HEROES.filter(h => h.on);
@@ -1199,11 +1200,13 @@ function heroLabels() {
 async function heroesLoad() { try { HEROES = await pywebview.api.heroes_list() || []; } catch (e) { HEROES = []; } heroLabels(); }
 function heroRender() {
   $('hero_list').innerHTML = HEROES.length ? HEROES.map(h => `<div class="hero${h.on ? '' : ' off'}" data-n="${esc(h.name)}"><div class="pic">${h.img ? `<img src="${h.img}">` : pt('нет портрета', 'no portrait')}</div>`
-    + `<div><div class="nm"><label><input type="checkbox" data-hon="${esc(h.name)}"${h.on ? ' checked' : ''}> ${esc(h.name)}</label></div><div class="ds">${esc(h.desc || '')}</div>`
+    + `<div><div class="nm"><label title="${pt('отметить для удаления', 'select')}"><input type="checkbox" data-hsel="${esc(h.name)}"${HSEL.has(h.name) ? ' checked' : ''}> ${esc(h.name)}</label><label class="note" style="margin-left:auto"><input type="checkbox" data-hon="${esc(h.name)}"${h.on ? ' checked' : ''}> ${pt('использовать', 'use')}</label></div><div class="ds">${esc(h.desc || '')}</div>`
     + `<div class="note">${h.portrait ? pt('запрос на портрет есть', 'portrait prompt set') : pt('PORTRAIT: none — портрет рисуется по описанию или загрузите свой', 'no portrait prompt')}</div></div>`
     + `<div class="bt"><button class="ghost" data-hmk="${esc(h.name)}">${h.img ? pt('Перерисовать', 'Redraw') : pt('Нарисовать портрет', 'Draw portrait')}</button><button class="ghost" data-hup="${esc(h.name)}">${pt('Свой файл…', 'Own file…')}</button><button class="ghost" data-hdel="${esc(h.name)}">${pt('Удалить', 'Delete')}</button></div></div>`).join('')
     : `<div class="note">${pt('Героев пока нет. Вставьте карточки из чата выше и нажмите «Добавить».', 'No heroes yet.')}</div>`;
   const q = a => $('hero_list').querySelectorAll(a);
+  q('[data-hsel]').forEach(c => c.onchange = () => { c.checked ? HSEL.add(c.dataset.hsel) : HSEL.delete(c.dataset.hsel); heroSelUi(); });
+  heroSelUi();
   q('[data-hon]').forEach(c => c.onchange = async () => { const r = await pywebview.api.hero_set(c.dataset.hon, {on: c.checked}); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } });
   q('[data-hmk]').forEach(b => b.onclick = async () => {
     const card = b.closest('.hero'); card.classList.add('busy'); b.disabled = true; b.textContent = pt('рисую…', 'drawing…');
@@ -1214,7 +1217,14 @@ function heroRender() {
   q('[data-hup]').forEach(b => b.onclick = async () => { const r = await pywebview.api.hero_upload(b.dataset.hup); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } else if (!r.cancel) toast(esc(r.error || ''), 6000); });
   q('[data-hdel]').forEach(b => b.onclick = async () => { const r = await pywebview.api.hero_delete(b.dataset.hdel); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } });
 }
+function heroSelUi() {
+  HSEL = new Set([...HSEL].filter(n => HEROES.some(h => h.name === n)));
+  const n = HSEL.size, all = HEROES.length && n === HEROES.length;
+  $('hd_sel').textContent = all ? pt('Снять выбор', 'Clear selection') : pt('Выбрать всех', 'Select all');
+  $('hd_del').textContent = pt('Удалить выбранных', 'Delete selected') + (n ? ` (${n})` : ''); $('hd_del').disabled = !n; $('hd_sel').disabled = !HEROES.length;
+}
 async function openHeroes() {
+  HSEL = new Set();
   await heroesLoad();
   $('hd_t').textContent = pt('Герои', 'Heroes');
   $('hd_n').textContent = pt('Вставьте карточки из чата (HERO / DESCRIPTION / PORTRAIT). Для кадров из готовых промптов и профиля программа найдёт имя героя в тексте кадра (точно, заглавными, например MIGUEL) и приложит его портрет как референс. Портрет можно нарисовать или загрузить свой. Работает на моделях, которые принимают референсы.',
@@ -1227,6 +1237,13 @@ async function openHeroes() {
     if (r.ok) { HEROES = r.heroes; $('hd_text').value = ''; $('hd_msg').textContent = pt('Добавлено: ', 'Added: ') + r.added.join(', '); heroRender(); heroLabels(); } else $('hd_msg').textContent = r.error;
   };
   $('hd_all').onclick = async () => { for (const h of HEROES.filter(x => x.on && !x.img)) { const b = document.querySelector(`[data-hmk="${CSS.escape(h.name)}"]`); if (b) { b.click(); await new Promise(r => { const t = setInterval(() => { if (!document.querySelector('.hero.busy')) { clearInterval(t); r(); } }, 400); }); } } };
+  $('hd_sel').onclick = () => { HSEL = HSEL.size === HEROES.length ? new Set() : new Set(HEROES.map(h => h.name)); heroRender(); };
+  $('hd_del').onclick = async () => {
+    const names = [...HSEL]; if (!names.length) return;
+    if (!confirm(pt(`Удалить героев (${names.length}) вместе с портретами? Это нельзя отменить.`, `Delete ${names.length} hero(es) with portraits?`))) return;
+    const r = await pywebview.api.heroes_delete_many(names);
+    if (r.ok) { HEROES = r.heroes; HSEL = new Set(); heroRender(); heroLabels(); }
+  };
   $('hd_close').onclick = () => { $('hero_dlg').classList.remove('show'); heroLabels(); };
   heroRender(); $('hero_dlg').classList.add('show');
 }

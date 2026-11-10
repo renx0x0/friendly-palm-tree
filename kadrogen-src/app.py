@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p67"
+VERSION = "1.7.1-p68"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2515,6 +2515,19 @@ class Api:
             os.remove(os.path.join(pipeline.hero_dir(), name + ".png"))
         except OSError:
             pass
+        return {"ok": True, "heroes": self._heroes_view()}
+
+    def heroes_delete_many(self, names):
+        """Удалить выбранных героев вместе с их портретами."""
+        names = {str(n) for n in (names or [])}
+        cfg = load_cfg()
+        cfg["heroes"] = [h for h in (cfg.get("heroes") or []) if h.get("name") not in names]
+        save_cfg(cfg)
+        for n in names:
+            try:
+                os.remove(os.path.join(pipeline.hero_dir(), n + ".png"))
+            except OSError:
+                pass
         return {"ok": True, "heroes": self._heroes_view()}
 
     def fx_overlay_list(self):
