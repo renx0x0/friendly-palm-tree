@@ -795,6 +795,11 @@
   body { font-size:14px; line-height:1.45; transition:none; }
   .bgl, .corner, .tagline, .logo.big, .logo::before, button.primary::after { display:none !important; }
   .wrap { margin:0 0 0 232px; max-width:none; height:100vh; padding:26px 36px 22px; }
+  @media (min-width:1900px) { .wrap { height:calc(100vh / 1.1); } #side { zoom:1.1; } }
+  @media (min-width:2300px) { .wrap { height:calc(100vh / 1.2); } #side { zoom:1.2; } }
+  @media (min-width:3200px) { .wrap { height:calc(100vh / 1.6); } #side { zoom:1.6; } }
+  .screen { width:100%; max-width:1480px; margin-left:auto; margin-right:auto; }
+  #providers { width:100%; max-width:1180px; margin-left:auto; margin-right:auto; } #screen1 .tile { max-height:190px; }
   /* левая колонка */
   #side { position:fixed; left:0; top:0; bottom:0; width:232px; z-index:3; background:var(--side); border-right:1px solid var(--line2); padding:22px 14px 14px; display:flex; flex-direction:column; gap:22px; }
   #side .sd_logo { display:flex; align-items:center; gap:10px; padding:0 8px; font-weight:700; font-size:17px; cursor:pointer; }
@@ -808,10 +813,10 @@
   #side .sd_it.done .n { background:var(--ok); border-color:var(--ok); color:#fff; }
   #side .sd_bot { margin-top:auto; display:flex; flex-direction:column; gap:10px; }
   #side .sd_ver { padding:0 8px; font-size:12px; color:var(--ink2); }
-  .topctl { position:fixed; left:14px; right:auto; top:auto; bottom:44px; width:204px; gap:6px; z-index:4; }
+  .topctl { position:static; display:flex; gap:6px; }
   .ctl { height:34px; min-width:34px; padding:0 10px; border:1px solid var(--line); border-radius:var(--r2); background:transparent; backdrop-filter:none; font-size:12px !important; font-weight:600; color:var(--ink); }
   .ctl.help { flex:1; padding:0 10px; font-size:12px !important; } .ctl:hover { transform:none; border-color:var(--ink2); background:var(--bg3); } .ctl svg { width:16px; height:16px; }
-  #credit { left:0; right:auto; width:232px; bottom:16px; font-size:11px !important; z-index:4; }
+  #credit { position:static; padding:0 4px; text-align:left; font-size:11px !important; line-height:1.45; font-weight:400; color:var(--ink2); overflow-wrap:anywhere; }
   .volbox { top:18px; right:18px; border:1px solid var(--line); border-radius:var(--r); background:var(--bg2); backdrop-filter:none; width:38px; height:180px !important; }
   .volbox input::-webkit-slider-thumb { transform:none; border-radius:50%; box-shadow:none; background:var(--acc); margin-left:-6px; }
   .volbox .nxt { border-top:1px solid var(--line); }
@@ -1182,6 +1187,7 @@ function go(n) {
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
+(() => { const b = document.querySelector('#side .sd_bot'); if (b) { b.appendChild(document.querySelector('.topctl')); b.appendChild($('credit')); } })();
 let sideMax = 1;
 function sideRender() {
   if (!$('sd_steps')) return;
