@@ -1999,6 +1999,105 @@ def slider_batch(ctx, scenes, img_dir, progress):
         list(ex.map(lambda a: run(a[0][0], a[0][1], a[1]), zip(units, parts)))
     return done
 
+# ---- герои из карточек чата: портрет → референс в каждом кадре, где в промпте есть имя ----
+
+HERO_NAME_OK = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,40}$")
+HERO_REF_TEXT = (" The attached reference image(s) show exactly how the character(s) {names} look — keep the same face, colors, markings "
+                 "and clothing. Use the reference ONLY for the character's appearance: the composition, pose, camera angle, "
+                 "framing, background and lighting must follow this prompt, never copy the reference picture itself.")
+HERO_MAX_REFS = 3
+
+
+def hero_dir():
+    d = os.path.join(data_dir(), "heroes")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def hero_cards(text):
+    """Карточки из чата → [{"name", "desc", "portrait"}]. Формат: HERO: NAME / DESCRIPTION: … / PORTRAIT: … (или none)."""
+    out, cur, key = [], None, None
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        m = re.match(r"^\s*(HERO|DESCRIPTION|PORTRAIT)\s*[:：]\s*(.*)$", line, re.I)
+        if m:
+            key = m.group(1).upper()
+            val = m.group(2).strip()
+            if key == "HERO":
+                cur = {"name": val.strip(" *`\"'«»").replace(" ", "_"), "desc": "", "portrait": ""}
+                out.append(cur)
+            elif cur is not None:
+                cur["desc" if key == "DESCRIPTION" else "portrait"] = val
+            continue
+        if cur is not None and key in ("DESCRIPTION", "PORTRAIT") and line.strip() and not line.strip().startswith("```"):
+            k = "desc" if key == "DESCRIPTION" else "portrait"
+            cur[k] = (cur[k] + " " + line.strip()).strip()
+    res = []
+    for c in out:
+        if c["portrait"].lower().strip(" .") in ("none", "нет", "-", ""):
+            c["portrait"] = ""
+        if HERO_NAME_OK.match(c["name"]):
+            res.append(c)
+    return res
+
+
+def hero_name_re(name):
+    return re.compile(r"(?<![A-Za-z0-9_])" + re.escape(name) + r"(?![A-Za-z0-9_])")
+
+
+def hero_portrait_prompt(h):
+    if h.get("portrait"):
+        return h["portrait"] + " " + NO_TEXT
+    return ("Character portrait, waist-up, facing the camera, calm neutral expression, even soft lighting, plain light background, "
+            "all clothing and distinguishing marks clearly visible. " + (h.get("desc") or h.get("name", "")) + " Only this character, nothing else. " + NO_TEXT)
+
+
+def hero_make_portrait(cfg, h):
+    """Рисует портрет героя первым же сервисом картинок, который ответит. Возвращает путь к файлу."""
+    providers = normalize_providers(cfg.get("image_providers") or cfg.get("image_provider"))
+    ctx = make_context(cfg, providers)
+    path = os.path.join(hero_dir(), h["name"] + ".png")
+    tmp = path + ".new.png"
+    scene = {"index": "hero-" + h["name"], "prompt": hero_portrait_prompt(h)}
+    for prov in ctx["providers"]:
+        try:
+            model = ctx["image_gen"][prov](scene, tmp, lambda *a: None, [])
+        except Cancelled:
+            raise
+        except Exception as e:
+            log(f"герой {h['name']}: {prov} — {str(e)[:160]}")
+            continue
+        if model and os.path.exists(tmp):
+            os.replace(tmp, path)
+            return path
+    raise RuntimeError("Портрет не получился: ни один сервис картинок не ответил. Проверьте ключи и модель.")
+
+
+def hero_apply(scenes, heroes):
+    """Находит имена героев в промптах кадров и готовит референсы. → {имя: путь к портрету}."""
+    act = [h for h in (heroes or []) if h.get("on", True) and h.get("name") and h.get("file") and os.path.isfile(h["file"])]
+    if not act:
+        return {}
+    res = {h["name"]: (h, hero_name_re(h["name"])) for h in act}
+    used = {n: 0 for n in res}
+    for s in scenes:
+        text = s.get("raw_prompt") or s.get("prompt") or ""
+        found = sorted((m.start(), n) for n, (h, rx) in res.items() for m in [rx.search(text)] if m)
+        names = [n for _, n in found][:HERO_MAX_REFS]
+        if not names:
+            continue
+        s["characters"] = names
+        s["use_refs"] = True
+        if "attached reference image" not in s.get("prompt", ""):
+            s["prompt"] = (s.get("prompt") or "") + HERO_REF_TEXT.format(names=", ".join(names))
+        for n in names:
+            used[n] += 1
+    log("герои: " + ", ".join(f"{n} — кадров {c}" for n, c in used.items()))
+    for n, c in used.items():
+        if not c:
+            log(f"герой {n}: имени нет ни в одном кадре — портрет не используется")
+    return {n: res[n][0]["file"] for n, c in used.items() if c}
+
+
 def make_references(ctx, style, job_dir, progress):
     """Один портрет на каждого героя. Возвращает {имя: путь}."""
     chars = style.get("characters") or []
@@ -4940,6 +5039,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             refs = ref_fut.result()
             ref_pool.shutdown(wait=True)
         apply_edits(scenes, job_dir)
+        if (prof or prompts_file) and cfg.get("heroes"):  # карточки героев: портрет прикладывается к кадрам с именем героя
+            try:
+                refs = hero_apply(scenes, cfg.get("heroes")) or refs
+            except Exception as e:
+                log(f"герои: не вышло ({str(e)[:160]})")
         stock_vids = {}
         if stock.settings(cfg)["active"]:  # часть сцен (или все) — со стоков: живое видео / фото / архив вместо генерации
             try:

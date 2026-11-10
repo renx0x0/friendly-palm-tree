@@ -676,6 +676,17 @@
   .seg3 button + button { border-left:none; } .seg3 button.on { color:var(--acc2); border-color:var(--acc2); box-shadow:inset 0 0 0 1px var(--acc2); }
   .fxi select { padding:4px 8px; font-size:12px; width:auto; min-width:150px; } #fx_row .fxsum { max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   @media (max-width: 900px) { #fx_dlg .fxbody { grid-template-columns:1fr; overflow-y:auto; } }
+  #hero_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:center; background:rgba(0,0,0,.6); } #hero_dlg.show { display:grid; }
+  #hero_dlg .box { background:var(--bg); border:1.5px solid var(--line); padding:18px 22px; width:min(980px, calc(100% - 40px)); max-height:92vh; display:flex; flex-direction:column; gap:10px; }
+  #hero_dlg h3 { margin:0; font:600 16px/1.3 "Exo 2", sans-serif; } #hero_dlg .note { color:var(--ink2); font-size:12px; }
+  #hero_dlg textarea { width:100%; min-height:90px; font:12px/1.4 monospace; resize:vertical; }
+  #hero_dlg button { padding:8px 14px; font-size:11px; letter-spacing:.16em; }
+  #hero_list { overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding-right:6px; min-height:60px; }
+  .hero { display:grid; grid-template-columns:96px 1fr auto; gap:12px; border:1px solid var(--line); padding:9px 12px; background:var(--bg2); align-items:start; } .hero.off { opacity:.55; }
+  .hero .pic { width:96px; height:96px; background:#1a1d24; display:grid; place-items:center; color:var(--ink2); font-size:11px; text-align:center; overflow:hidden; } .hero .pic img { width:100%; height:100%; object-fit:cover; }
+  .hero .nm { font:600 13px/1.2 "Exo 2", sans-serif; letter-spacing:.06em; display:flex; gap:8px; align-items:center; } .hero .ds { font-size:12px; color:var(--ink2); margin-top:4px; max-height:3.9em; overflow:hidden; }
+  .hero .bt { display:flex; flex-direction:column; gap:6px; } .hero.busy .pic { outline:1.5px solid var(--acc2); }
+  #hero_row .fxsum { max-width:520px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #fx_dlg .row1 { display:flex; align-items:center; gap:10px; margin-bottom:10px; } #fx_dlg h3 { margin:0; font:600 16px/1.3 "Exo 2", sans-serif; }
   #fx_dlg button { padding:8px 14px; font-size:11px; letter-spacing:.16em; } #fx_dlg .note { color:var(--ink2); font-size:12px; margin-top:8px; }
   .fxpv { position:relative; aspect-ratio:16 / 9; background:#22262c; } .fxpv video { width:100%; height:100%; display:block; }
@@ -864,6 +875,11 @@
   <div class="fxbody"><div><div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span></div><div class="note" id="fxd_n"></div><div class="pvset"></div></div>
   <div class="fxlist" id="fx_list"></div></div>
   <div class="row2"><button class="ghost" id="fxd_off"></button><span style="flex:1"></span><button class="ghost" id="fxd_x"></button><button class="primary" id="fxd_save"></button></div></div></div>
+<div id="hero_dlg"><div class="box"><h3 id="hd_t"></h3><div class="note" id="hd_n"></div>
+  <textarea id="hd_text" spellcheck="false"></textarea>
+  <div style="display:flex;gap:10px;align-items:center"><button class="primary" id="hd_add"></button><span class="note" id="hd_msg"></span><span style="flex:1"></span><button class="ghost" id="hd_all"></button></div>
+  <div id="hero_list"></div>
+  <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="primary" id="hd_close"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <div class="wrap">
 
@@ -930,6 +946,7 @@
       <label class="opt sec" id="motion" data-tipkey="tip_motion"><input type="checkbox" id="use_motion"><svg viewBox="0 0 64 64"><path d="M8 40c8-20 16-20 24 0s16 20 24 0"/><path d="M8 24c8-12 16-12 24 0s16 12 24 0"/></svg><span class="t" data-i18n="o_motion"></span><button type="button" class="ghost subcfg" id="tr_cfg_btn"></button><span class="dot"></span></label>
       <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
       <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button></div>
+      <div class="optx" id="hero_row"><svg viewBox="0 0 64 64"><circle cx="32" cy="22" r="10"/><path d="M12 54c2-14 10-20 20-20s18 6 20 20"/></svg><span class="t"><span id="hero_lbl"></span><small class="dsc fxsum" id="hero_sum"></small></span><button type="button" class="ghost subcfg" id="hero_btn" onclick="openHeroes()"></button></div>
       <div class="optx" id="vq_row"><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="36" rx="3"/><path d="M18 40V24l8 10 8-10v16M42 24v16"/></svg><span class="t"><span id="vq_lbl"></span><small class="dsc" id="vq_hint"></small></span><select id="vquality"><option value="standard"></option><option value="high"></option><option value="max"></option></select></div>
       <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="hd" data-tipkey="tip_hd"><input type="checkbox" id="use_hd"><svg viewBox="0 0 64 64"><rect x="6" y="14" width="52" height="36" rx="3"/><path d="M16 24v16M16 32h10M26 24v16M36 24v16h7a8 8 0 0 0 0-16z"/></svg><span class="t" data-i18n="o_hd"></span><span class="dot"></span></label>
@@ -1172,6 +1189,46 @@ function fxNorm(fx) {  // p37 хранил «слабо/средне/сильн�
 function fxSummary(fx) {
   const on = FX_INFO.filter(([k]) => fx && fx[k] && fx[k].on && (!k.startsWith('ovl') || fx[k].file)).map(([k, r, e]) => (k.startsWith('ovl') ? '«' + (fx[k].name || pt(r, e)) + '»' : pt(r, e)) + (k === 'film' ? ' · ' + pt({sepia: 'сепия', faded: 'выцветшая', bw: 'ч/б'}[fx[k].tone] || '', fx[k].tone) : ''));
   return on.length ? on.join(', ') : pt('нет', 'none');
+}
+let HEROES = [];
+function heroLabels() {
+  $('hero_lbl').textContent = pt('Герои (портреты)', 'Heroes (portraits)'); $('hero_btn').textContent = pt('Настроить ›', 'Set up ›');
+  const on = HEROES.filter(h => h.on);
+  $('hero_sum').textContent = on.length ? on.map(h => h.name + (h.img ? '' : ' (без портрета)')).join(', ') : pt('нет — кадры идут только по тексту промпта', 'none');
+}
+async function heroesLoad() { try { HEROES = await pywebview.api.heroes_list() || []; } catch (e) { HEROES = []; } heroLabels(); }
+function heroRender() {
+  $('hero_list').innerHTML = HEROES.length ? HEROES.map(h => `<div class="hero${h.on ? '' : ' off'}" data-n="${esc(h.name)}"><div class="pic">${h.img ? `<img src="${h.img}">` : pt('нет портрета', 'no portrait')}</div>`
+    + `<div><div class="nm"><label><input type="checkbox" data-hon="${esc(h.name)}"${h.on ? ' checked' : ''}> ${esc(h.name)}</label></div><div class="ds">${esc(h.desc || '')}</div>`
+    + `<div class="note">${h.portrait ? pt('запрос на портрет есть', 'portrait prompt set') : pt('PORTRAIT: none — портрет рисуется по описанию или загрузите свой', 'no portrait prompt')}</div></div>`
+    + `<div class="bt"><button class="ghost" data-hmk="${esc(h.name)}">${h.img ? pt('Перерисовать', 'Redraw') : pt('Нарисовать портрет', 'Draw portrait')}</button><button class="ghost" data-hup="${esc(h.name)}">${pt('Свой файл…', 'Own file…')}</button><button class="ghost" data-hdel="${esc(h.name)}">${pt('Удалить', 'Delete')}</button></div></div>`).join('')
+    : `<div class="note">${pt('Героев пока нет. Вставьте карточки из чата выше и нажмите «Добавить».', 'No heroes yet.')}</div>`;
+  const q = a => $('hero_list').querySelectorAll(a);
+  q('[data-hon]').forEach(c => c.onchange = async () => { const r = await pywebview.api.hero_set(c.dataset.hon, {on: c.checked}); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } });
+  q('[data-hmk]').forEach(b => b.onclick = async () => {
+    const card = b.closest('.hero'); card.classList.add('busy'); b.disabled = true; b.textContent = pt('рисую…', 'drawing…');
+    const r = await pywebview.api.hero_make(b.dataset.hmk);
+    if (r.ok) HEROES = r.heroes; else toast(esc(r.error || pt('Не вышло', 'Failed')), 7000);
+    heroRender(); heroLabels();
+  });
+  q('[data-hup]').forEach(b => b.onclick = async () => { const r = await pywebview.api.hero_upload(b.dataset.hup); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } else if (!r.cancel) toast(esc(r.error || ''), 6000); });
+  q('[data-hdel]').forEach(b => b.onclick = async () => { const r = await pywebview.api.hero_delete(b.dataset.hdel); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } });
+}
+async function openHeroes() {
+  await heroesLoad();
+  $('hd_t').textContent = pt('Герои', 'Heroes');
+  $('hd_n').textContent = pt('Вставьте карточки из чата (HERO / DESCRIPTION / PORTRAIT). Для кадров из готовых промптов и профиля программа найдёт имя героя в тексте кадра (точно, заглавными, например MIGUEL) и приложит его портрет как референс. Портрет можно нарисовать или загрузить свой. Работает на моделях, которые принимают референсы.',
+    'Paste hero cards from the chat. The portrait is attached to every frame whose prompt contains the hero name.');
+  $('hd_text').placeholder = 'HERO: MIGUEL\nDESCRIPTION: MIGUEL: 29-year-old ranch hand …\nPORTRAIT: Waist-up portrait of MIGUEL …\n\nHERO: DON_AUGUSTO\nDESCRIPTION: …\nPORTRAIT: none';
+  $('hd_add').textContent = pt('Добавить', 'Add'); $('hd_close').textContent = pt('Готово', 'Done'); $('hd_msg').textContent = '';
+  $('hd_all').textContent = pt('Нарисовать все без портрета', 'Draw all missing');
+  $('hd_add').onclick = async () => {
+    const r = await pywebview.api.heroes_add($('hd_text').value);
+    if (r.ok) { HEROES = r.heroes; $('hd_text').value = ''; $('hd_msg').textContent = pt('Добавлено: ', 'Added: ') + r.added.join(', '); heroRender(); heroLabels(); } else $('hd_msg').textContent = r.error;
+  };
+  $('hd_all').onclick = async () => { for (const h of HEROES.filter(x => x.on && !x.img)) { const b = document.querySelector(`[data-hmk="${CSS.escape(h.name)}"]`); if (b) { b.click(); await new Promise(r => { const t = setInterval(() => { if (!document.querySelector('.hero.busy')) { clearInterval(t); r(); } }, 400); }); } } };
+  $('hd_close').onclick = () => { $('hero_dlg').classList.remove('show'); heroLabels(); };
+  heroRender(); $('hero_dlg').classList.add('show');
 }
 function fxLabels() {
   $('fx_lbl').textContent = pt('Эффекты', 'Effects'); $('fx_btn').textContent = pt('Настроить ›', 'Set up ›');
@@ -2078,7 +2135,7 @@ async function loadConfig(keepScreen) {
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
   OUTDIR = {dir: c.output_dir || '', def: c.default_output || '', sub: c.out_sub !== false};
-  FXS = c.fx || {}; if ($('fx_lbl')) fxLabels(); lookLoad();
+  FXS = c.fx || {}; if ($('fx_lbl')) fxLabels(); lookLoad(); heroesLoad();
   if (c.stock) STK = c.stock; if (c.stock_keys) STKK = c.stock_keys; STKV = !!c.stock_vision; stockLabels();
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
   STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
@@ -2327,7 +2384,7 @@ function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
 function applyLang() {
-  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); lookRender(); styleHint(); stockLabels(); }
+  if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); heroLabels(); lookRender(); styleHint(); stockLabels(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
   document.querySelectorAll('[data-i18n]').forEach(el => { const v = t(el.dataset.i18n); if (v !== undefined) el.innerHTML = v; });
   drawVf(); fillStyles(); optDescs();

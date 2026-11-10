@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p66"
+VERSION = "1.7.1-p67"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -768,7 +768,7 @@ class _Failed(Exception):
 
 
 JOB_CFG_KEYS = ("quality", "qa_images", "speed_copies", "custom_style", "video_prompt", "fg_image_model", "fg_video_model", "profile_manual", "video_zoom_pct", "video_anchor",
-                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "fx", "stock", "tts_service", "tts_voice", "style", "image_providers")
+                "sub_style", "sub_source", "transitions", "video_quality", "output_dir", "fx", "stock", "heroes", "tts_service", "tts_voice", "style", "image_providers")
 
 
 def job_record(d, status, result=None, error=None):
@@ -2428,6 +2428,94 @@ class Api:
             return {"ok": True, "file": path, "dur": dur, "mode": mode, "name": name}
         except Exception as e:
             return {"ok": False, "error": str(e)[:300]}
+
+    # ----- герои из карточек чата -----
+    def _heroes_view(self):
+        out = []
+        for h in (load_cfg().get("heroes") or []):
+            f = h.get("file") or ""
+            ok = bool(f) and os.path.isfile(f)
+            out.append({"name": h.get("name", ""), "desc": h.get("desc", ""), "portrait": h.get("portrait", ""), "on": h.get("on", True) is not False,
+                        "img": make_thumb(f, 320) if ok else None})
+        return out
+
+    def heroes_list(self):
+        return self._heroes_view()
+
+    def heroes_add(self, text):
+        """Вставили карточки из чата (HERO / DESCRIPTION / PORTRAIT): добавляем новых, у существующих обновляем описание."""
+        cards = pipeline.hero_cards(text)
+        if not cards:
+            return {"ok": False, "error": "Не нашёл карточек. Нужны строки «HERO: ИМЯ», «DESCRIPTION: …», «PORTRAIT: …» (имя латиницей, без пробелов)."}
+        cfg = load_cfg()
+        cur = cfg.get("heroes") or []
+        by = {h["name"]: h for h in cur}
+        for c in cards:
+            if c["name"] in by:
+                by[c["name"]].update({"desc": c["desc"] or by[c["name"]].get("desc", ""), "portrait": c["portrait"]})
+            else:
+                h = {"name": c["name"], "desc": c["desc"], "portrait": c["portrait"], "file": "", "on": True}
+                cur.append(h)
+                by[c["name"]] = h
+        cfg["heroes"] = cur
+        save_cfg(cfg)
+        return {"ok": True, "added": [c["name"] for c in cards], "heroes": self._heroes_view()}
+
+    def hero_make(self, name):
+        cfg = load_cfg()
+        h = next((x for x in (cfg.get("heroes") or []) if x.get("name") == name), None)
+        if not h:
+            return {"ok": False, "error": "нет такого героя"}
+        try:
+            h["file"] = pipeline.hero_make_portrait(cfg, h)
+        except BaseException as e:
+            return {"ok": False, "error": str(e)[:300]}
+        save_cfg(cfg)
+        return {"ok": True, "heroes": self._heroes_view()}
+
+    def hero_upload(self, name):
+        """Свой портрет вместо нарисованного: файл → png ≤1600 px."""
+        cfg = load_cfg()
+        h = next((x for x in (cfg.get("heroes") or []) if x.get("name") == name), None)
+        if not h:
+            return {"ok": False, "error": "нет такого героя"}
+        res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False,
+                                        file_types=("Картинки (*.png;*.jpg;*.jpeg;*.webp)", "Все файлы (*.*)"))
+        if not res:
+            return {"ok": False, "cancel": True}
+        src = res[0] if isinstance(res, (list, tuple)) else str(res)
+        try:
+            from PIL import Image
+            im = Image.open(src).convert("RGB")
+            im.thumbnail((1600, 1600))
+            dst = os.path.join(pipeline.hero_dir(), name + ".png")
+            im.save(dst)
+            h["file"] = dst
+            save_cfg(cfg)
+            return {"ok": True, "heroes": self._heroes_view()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+
+    def hero_set(self, name, patch):
+        cfg = load_cfg()
+        h = next((x for x in (cfg.get("heroes") or []) if x.get("name") == name), None)
+        if not h or not isinstance(patch, dict):
+            return {"ok": False}
+        for k in ("on", "desc", "portrait"):
+            if k in patch:
+                h[k] = bool(patch[k]) if k == "on" else str(patch[k])[:2000]
+        save_cfg(cfg)
+        return {"ok": True, "heroes": self._heroes_view()}
+
+    def hero_delete(self, name):
+        cfg = load_cfg()
+        cfg["heroes"] = [h for h in (cfg.get("heroes") or []) if h.get("name") != name]
+        save_cfg(cfg)
+        try:
+            os.remove(os.path.join(pipeline.hero_dir(), name + ".png"))
+        except OSError:
+            pass
+        return {"ok": True, "heroes": self._heroes_view()}
 
     def fx_overlay_list(self):
         try:
