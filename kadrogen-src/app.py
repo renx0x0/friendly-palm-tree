@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p74"
+VERSION = "1.7.1-p75"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1153,7 +1153,7 @@ class Api:
             "has_openai": bool(cfg.get("openai_api_key")),
             "text_engine": cfg.get("text_engine", "fastgen"),
             "openai_model": cfg.get("openai_model", "gpt-4.1-mini"),
-            "theme": cfg.get("theme", "dark"),
+            "theme": cfg.get("theme", "dark"), "accent": cfg.get("accent", "blue"),
             "music": cfg.get("music_volume", 50),
             "tracks": music_tracks(),
             "providers": [p for p in (cfg.get("image_providers") or []) if p in pipeline.PROVIDERS],
@@ -1254,6 +1254,8 @@ class Api:
                 pass
         if data.get("theme") in ("light", "dark"):
             cfg["theme"] = data["theme"]
+        if data.get("accent") in ("blue", "sage", "lilac", "sand", "steel"):
+            cfg["accent"] = data["accent"]
         for k, allowed in (("stt_engine", ("fastgen", "whisper", "assemblyai")), ("llm_engine", ("fastgen", "openai", "anthropic", "gemini")),
                            ("quality", ("speed", "quality")), ("source", ("mp3", "script")),
                            ("tts_service", ("voicegen", "voicer", "lumean", "edge", "fastgen", "royal"))):
@@ -2152,6 +2154,35 @@ class Api:
             pipeline.CANCEL.set()
             pipeline.log("нажат «Стоп»")
         return {"ok": True, "running": busy}
+
+    def job_summary(self):
+        """Что делается на экране создания — по записи самого ролика (job.json), а не по текущим настройкам шагов."""
+        with LOCK:
+            d = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
+        if not d:
+            return {"ok": False}
+        rec = pipeline.read_json(os.path.join(d, "job.json"), {}) or {}
+        args, cfg = rec.get("args") or {}, rec.get("cfg") or {}
+        fx = [k for k, v in ((cfg.get("fx") or {}).items()) if isinstance(v, dict) and v.get("on")]
+        heroes = [h for h in (cfg.get("heroes") or []) if h.get("on", True) and h.get("file")]
+        stock = cfg.get("stock") or {}
+        return {"ok": bool(rec), "title": rec.get("title") or "", "mode": args.get("mode") or "", "subtitles": bool(args.get("subtitles")),
+                "motion": bool(args.get("motion")), "fx": fx, "heroes": len(heroes) if (args.get("profile") or args.get("prompts_file")) else 0,
+                "stock": int(stock.get("share") or 0) if stock.get("on") else 0, "profile": args.get("profile") or "",
+                "ready": bool(args.get("prompts_file")), "remix": bool(args.get("remix_from"))}
+
+    def result_info(self):
+        """Готовый ролик: длина и размер файла — для экрана «Готово»."""
+        with LOCK:
+            res = STATE.get("result")
+        if not res or not os.path.exists(res):
+            return {"ok": False}
+        out = {"ok": True, "path": res, "name": os.path.basename(res), "size_mb": round(os.path.getsize(res) / 1048576, 1), "duration": 0}
+        try:
+            out["duration"] = round(float(pipeline.audio_duration(res)), 1)
+        except Exception:
+            pass
+        return out
 
     def open_result(self):
         with LOCK:

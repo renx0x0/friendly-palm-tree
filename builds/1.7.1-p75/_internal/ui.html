@@ -840,6 +840,15 @@
   #fsel .hint { width:auto; order:9; margin-left:8px; }
   .psum { margin-top:12px; padding:10px 12px; border-radius:var(--r); background:var(--bg3); color:var(--ink2); font-size:12.5px; line-height:1.5; } .psum:empty { display:none; }
   #screen6 .plog pre#log { border-radius:var(--r); font-size:12px; }
+  /* выбор цвета, экран «Готово», карточка ошибки */
+  #side .sd_pal { display:flex; gap:8px; padding:0 4px; } #side .sd_pal button { width:20px; height:20px; padding:0; border-radius:50%; border:2px solid var(--side); box-shadow:0 0 0 1px var(--line); cursor:pointer; }
+  #side .sd_pal button.on { box-shadow:0 0 0 2px var(--ink); } #side .sd_pal button:hover { filter:brightness(1.1); }
+  #result.result { margin:0 0 12px; padding:14px 16px; border:1px solid var(--ok); background:transparent; border-radius:var(--r); } #result.result b { font-size:16px !important; font-weight:700; color:var(--ok); display:block; }
+  #result .rinfo { margin:6px 0 2px; font-size:13px; color:var(--ink); } #result .path { font-size:12px; color:var(--ink2); overflow-wrap:anywhere; margin-bottom:10px; }
+  #result button { padding:8px 14px; font-size:13px !important; margin:0 6px 6px 0; }
+  #p_err:not(:empty) { margin-top:12px; padding:12px 14px; border:1px solid var(--err); border-radius:var(--r); color:var(--ink); font-size:13px; line-height:1.5; white-space:pre-line; }
+  #p_err .eh { color:var(--err); font-weight:600; display:block; margin-bottom:4px; } #p_err .ea { color:var(--ink2); display:block; margin-top:6px; }
+  #error.status.err { display:none; } #p_time { text-transform:lowercase !important; font-size:12.5px !important; color:var(--ink2); }
   /* главная: ролики карточками */
   #hm_grid { flex:1; min-height:0; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:16px; align-content:start; padding:2px 6px 2px 2px; }
   .hcard { border:1px solid var(--line); border-radius:12px; background:var(--bg2); overflow:hidden; display:flex; flex-direction:column; }
@@ -1023,7 +1032,7 @@
   <button type="button" class="sd_new" id="sd_new" onclick="go(1)"></button>
   <div id="sd_nav"></div>
   <div><div class="sd_cap" id="sd_cap"></div><div id="sd_steps"></div></div>
-  <div class="sd_bot"></div></aside>
+  <div class="sd_bot"><div class="sd_pal" id="sd_pal"></div></div></aside>
 <div class="wrap">
 
   <div class="screen active" id="screen0">
@@ -1142,7 +1151,7 @@
       </div>
       <div class="panel" id="parts_panel"><h3 id="parts_title"></h3><div class="phint" id="parts_hint"></div><div id="parts"></div></div>
       <div class="panel"><h3 id="g_title"></h3><div class="frames" id="frames"></div>
-        <div id="result" class="result"><b data-i18n="done"></b><div class="path" id="r_path"></div><button class="primary" onclick="pywebview.api.open_result()" data-i18n="open"></button> <button class="ghost" onclick="pywebview.api.open_output()" data-i18n="folder"></button></div>
+        <div id="result" class="result"><b data-i18n="done"></b><div class="rinfo" id="r_info"></div><div class="path" id="r_path"></div><button class="primary" onclick="pywebview.api.open_result()" data-i18n="open"></button> <button class="ghost" onclick="pywebview.api.open_output()" data-i18n="folder"></button></div>
         <div id="error" class="status err"></div>
       </div>
     </div>
@@ -1252,6 +1261,12 @@ function go(n) {
   }, 240);
 }
 (() => { const b = document.querySelector('#side .sd_bot'); if (b) { b.appendChild(document.querySelector('.topctl')); b.appendChild($('credit')); } })();
+(() => { const pb = document.querySelector('#screen6 .pbtns'), r = $('result'); if (pb && r) pb.parentNode.insertBefore(r, pb); })();
+function openKeys() {  // ключи живут на шаге «Доступ»: открываем его и разворачиваем блок ключей
+  const open = () => { const k = document.querySelector('.keysbox .khead'); if (k && !k.parentNode.classList.contains('open')) k.click(); };
+  if (cur === 4) { open(); return; }
+  go(4); setTimeout(open, 600);
+}
 let sideMax = 1;
 function sideRender() {
   if (!$('sd_steps')) return;
@@ -1260,7 +1275,9 @@ function sideRender() {
   $('sd_cap').textContent = pt('Шаги нового ролика', 'New video steps'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
   $('pg0_t').textContent = pt('Ролики', 'Videos'); $('sd_new').textContent = pt('Новый ролик', 'New video'); $('hm_folder').textContent = pt('Рабочая папка', 'Work folder');
   if (typeof homeRender === 'function') homeRender();
-  $('sd_nav').innerHTML = `<div class="sd_it${cur === 0 ? ' cur' : ' can'}"${cur === 0 ? '' : ' onclick="goHome()"'}>${pt('Ролики', 'Videos')}</div>`;
+  accentApply(ACCENT);
+  $('sd_nav').innerHTML = `<div class="sd_it${cur === 0 ? ' cur' : ' can'}"${cur === 0 ? '' : ' onclick="goHome()"'}>${pt('Ролики', 'Videos')}</div>`
+    + (cur === 6 ? '' : `<div class="sd_it can" onclick="openKeys()">${pt('Ключи и сервисы', 'Keys & services')}</div>`);
   $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
     return `<div class="sd_it${n === cur ? ' cur' : ''}${n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
 }
@@ -1665,7 +1682,7 @@ let qaEngine = 'gemini', qaModel = '';
 $('use_qa').addEventListener('change', () => { mark(); pywebview.api.save_config({qa: $('use_qa').checked}); });
 $('use_speed').addEventListener('change', () => { mark(); pywebview.api.save_config({speed: $('use_speed').checked}); });
 $('use_tts').addEventListener('change', () => { if (rwOn() && !$('use_tts').checked) { $('use_tts').checked = true; mark(); return; } setSource($('use_tts').checked ? 'script' : 'mp3'); });
-$('theme').addEventListener('click', () => { const th = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = th; pywebview.api.save_config({theme: th}); });
+$('theme').addEventListener('click', () => { const th = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = th; pywebview.api.save_config({theme: th}); accentApply(ACCENT); });
 $('langbtn').addEventListener('click', () => { L = L === 'ru' ? 'en' : 'ru'; applyLang(); pywebview.api.save_config({lang: L}); });
 
 const dz = $('dropzone');
@@ -1856,7 +1873,54 @@ function recentRow(r, extra) {
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
   return `<div class="rjob${r.parent ? ' kid' : ''}"><span class="rtw"><span class="rt" title="${esc(r.title)}">${r.parent ? '↳ ' : ''}${esc(r.title)}</span>${extra || ''}</span>${r.profile && !r.parent ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
-function runSum() {
+const ACCENTS = {blue: {d: ['#3b82f6', '#6ea8ff', '#ffffff'], l: ['#2563eb', '#2563eb', '#ffffff'], n: ['Синий', 'Blue']},
+  sage: {d: ['#9cc2a5', '#9cc2a5', '#14161a'], l: ['#4f7f5d', '#3f6b4c', '#ffffff'], n: ['Шалфей', 'Sage']},
+  lilac: {d: ['#b3a6dc', '#b3a6dc', '#14161a'], l: ['#6d5bb0', '#5b4a9c', '#ffffff'], n: ['Лиловый', 'Lilac']},
+  sand: {d: ['#d9bd8c', '#d9bd8c', '#14161a'], l: ['#946c2e', '#7d5a22', '#ffffff'], n: ['Песочный', 'Sand']},
+  steel: {d: ['#8fb0c9', '#8fb0c9', '#14161a'], l: ['#4b7391', '#3d6280', '#ffffff'], n: ['Серо-голубой', 'Steel']}};
+let ACCENT = 'blue';
+function accentApply(k, save) {
+  if (!ACCENTS[k]) k = 'blue';
+  ACCENT = k; const dark = document.documentElement.dataset.theme !== 'light', v = ACCENTS[k][dark ? 'd' : 'l'], st = document.documentElement.style;
+  st.setProperty('--acc', v[0]); st.setProperty('--acc2', v[1]); st.setProperty('--onacc', v[2]);
+  if ($('sd_pal')) $('sd_pal').innerHTML = Object.keys(ACCENTS).map(a => `<button type="button" class="${a === k ? 'on' : ''}" style="background:${ACCENTS[a][dark ? 'd' : 'l'][0]}" title="${pt(ACCENTS[a].n[0], ACCENTS[a].n[1])}" aria-label="${pt('Цвет: ', 'Colour: ') + pt(ACCENTS[a].n[0], ACCENTS[a].n[1])}" onclick="accentApply('${a}', true)"></button>`).join('');
+  if (save) pywebview.api.save_config({accent: k});
+}
+let RINFO_FOR = '';
+async function resultInfo(path) {
+  if (RINFO_FOR === path) return; RINFO_FOR = path; $('r_info').textContent = '';
+  try {
+    const r = await pywebview.api.result_info(); if (!r || !r.ok) return;
+    const d = Math.round(r.duration || 0), tm = d ? `${Math.floor(d / 3600) ? Math.floor(d / 3600) + ':' + String(Math.floor(d % 3600 / 60)).padStart(2, '0') : Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')}` : '';
+    const sz = r.size_mb >= 1024 ? (r.size_mb / 1024).toFixed(1) + pt(' ГБ', ' GB') : Math.round(r.size_mb) + pt(' МБ', ' MB');
+    $('r_info').textContent = [tm && pt('длина ', 'length ') + tm, sz, document.querySelectorAll('#frames .frame').length + pt(' кадров', ' frames')].filter(Boolean).join(' · ');
+  } catch (e) {}
+}
+function errCard(msg) {
+  const m = String(msg || ''), low = m.toLowerCase();
+  const kinds = [[/кредит|credit|баланс|balance|insufficient/, pt('Закончились кредиты сервиса', 'Out of credits'), pt('Всё готовое сохранено. Пополните баланс и нажмите «Повторить» — программа продолжит с того же места.', 'Top up and press Retry.')],
+    [/лимит|limit|429|too many|rate/, pt('Сервис просит подождать (лимит запросов)', 'Rate limit'), pt('Программа сама делает паузы и повторяет. Если остановилась — подождите несколько минут и нажмите «Повторить».', 'Wait a few minutes and retry.')],
+    [/ключ|api key|unauthor|401|403|forbidden/, pt('Ключ не подошёл', 'Key rejected'), pt('Проверьте ключ в «Ключи и сервисы» (шаг «Доступ») и нажмите «Повторить».', 'Check the key and retry.')],
+    [/сеть|network|timeout|timed out|connection|соедин|dns|ssl/, pt('Нет связи с сервисом', 'No connection'), pt('Проверьте интернет и нажмите «Повторить». Готовые кадры не пропадут.', 'Check the connection and retry.')],
+    [/no space|места на диске|disk full|errno 28/, pt('Кончилось место на диске', 'Disk is full'), pt('Освободите место (например, «очистить заготовки» на шаге «Сервисы») и нажмите «Повторить».', 'Free up space and retry.')]];
+  const k = kinds.find(x => x[0].test(low));
+  $('p_err').innerHTML = k ? `<span class="eh">${k[1]}</span>${esc(m)}<span class="ea">${k[2]}</span>` : `<span class="eh">${pt('Ролик остановился', 'The video stopped')}</span>${esc(m)}<span class="ea">${pt('Готовое сохранено. Можно нажать «Повторить» или «Продолжить» на главной.', 'Progress is saved; you can retry.')}</span>`;
+}
+async function runSum() {
+  if (!$('p_sum')) return;
+  let j = null; try { j = await pywebview.api.job_summary(); } catch (e) {}
+  if (j && j.ok) {
+    const a = [], n = document.querySelectorAll('#frames .frame').length, fxn = Object.fromEntries(FX_INFO.map(([k, r, e]) => [k, pt(r, e)]));
+    if (n) a.push(`${n} ${pt('кадров', 'frames')}`);
+    a.push(j.remix ? pt('новая озвучка', 're-voice') : j.ready ? pt('готовые промпты', 'ready prompts') : j.profile ? pt('профиль ', 'profile ') + j.profile : '');
+    a.push({images: pt('только картинки', 'images only'), mixed: pt('50 на 50', '50/50'), video: pt('только видео', 'video only')}[j.mode] || '');
+    if (j.subtitles) a.push(pt('субтитры', 'subtitles')); if (j.motion) a.push(pt('движение и переходы', 'motion'));
+    if (j.fx.length) a.push(j.fx.map(k => fxn[k] || k).join(', ')); if (j.stock) a.push(pt('стоки ', 'stock ') + j.stock + '%'); if (j.heroes) a.push(pt('герои: ', 'heroes: ') + j.heroes);
+    $('p_sum').textContent = a.filter(Boolean).join(' · '); return;
+  }
+  runSumLocal();
+}
+function runSumLocal() {
   if (!$('p_sum')) return;
   const a = [], n = document.querySelectorAll('#frames .frame').length;
   if (n) a.push(`${n} ${pt('кадров', 'frames')}`);
@@ -2129,8 +2193,8 @@ async function pollOnce(gen) {
   });
   if (st.stage === 'images' && st.running) { let n = 0; document.querySelectorAll('.frame.pending').forEach(d => { d.classList.toggle('active', n < 6); n++; }); }
   if (st.queue && !st.queue_active) { $('result').classList.add('show'); $('r_path').innerHTML = queueSummary(st); $('g_title').textContent = t('frames_done'); queueItems = st.queue_items || queueItems; }
-  else if (st.result && !st.queue_active) { $('result').classList.add('show'); $('r_path').textContent = st.result; $('g_title').textContent = t('frames_done'); }
-  if (st.error) { $('error').textContent = t('error') + st.error; $('p_err').textContent = st.error; $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; $('btn_again').textContent = t('again'); }
+  else if (st.result && !st.queue_active) { $('result').classList.add('show'); $('r_path').textContent = st.result; $('g_title').textContent = t('frames_done'); resultInfo(st.result); }
+  if (st.error) { $('error').textContent = t('error') + st.error; errCard(st.error); $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; $('btn_again').textContent = t('again'); }
   if (st.cancelled) $('error').textContent = t('stopped');
   await updateParts();
   const queued = (st.queue_items || []).filter(q => q.status === 'queued').length;
@@ -2337,7 +2401,7 @@ function pasteDlg(n, readonlyText) {
 }
 async function loadConfig(keepScreen) {
   const st = await pywebview.api.get_state(); const c = st.config;
-  document.documentElement.dataset.theme = c.theme || 'dark'; L = c.lang || 'ru';
+  document.documentElement.dataset.theme = c.theme || 'dark'; L = c.lang || 'ru'; ACCENT = c.accent || 'blue';
   if (!keepScreen) { setTracks(c.tracks); $('vol').value = (c.music === undefined || c.music === null) ? 50 : c.music; applyMusic(+$('vol').value); }
   for (const k of ['openai','anthropic','gemini','assemblyai','openrouter']) single[k] = c['has_' + k] ? c[k] : '';
   setKeysFromConfig(c);
