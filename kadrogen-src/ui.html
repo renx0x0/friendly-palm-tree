@@ -2604,7 +2604,7 @@ function fsRender() {
   const ns = [...FSEL].filter(isStock).length, np = n - ns, run = jobRunning;
   $('fs_cnt').textContent = pt(`Выбрано: ${n}`, `Selected: ${n}`) + (ns ? pt(` (со стоков: ${ns})`, ` (stock: ${ns})`) : '');
   $('fs_all').textContent = pt('все показанные', 'all shown'); $('fs_none').textContent = pt('снять', 'clear');
-  $('fs_redo').textContent = pt(`Сгенерировать заново (${n})`, `Generate again (${n})`);
+  $('fs_redo').textContent = ns === n ? pt(`Сгенерировать вместо стока (${n})`, `Generate instead of stock (${n})`) : pt(`Сгенерировать заново (${n})`, `Generate again (${n})`);
   $('fs_redo').title = pt('Выбранные кадры рисуются заново по своим промптам: стоковые — вместо стока, обычные — перерисовываются (тратит кредиты)', 'Selected frames are generated again');
   $('fs_to').textContent = pt(`Заменить на сток (${np})`, `Replace with stock (${np})`); $('fs_to').disabled = run || !np;
   $('fs_next').textContent = pt(`Другие стоки (${ns})`, `Other stock (${ns})`); $('fs_next').disabled = run || !ns;
