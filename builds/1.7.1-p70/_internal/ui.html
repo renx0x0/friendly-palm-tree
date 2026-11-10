@@ -1394,7 +1394,7 @@ async function fxPreview() {
 }
 let FX_TGT = null;  // окно «Эффекты» для одного ролика (новая озвучка): сохраняет туда, а не в настройки программы
 async function openFx(tgt) {
-  if (!FX_LIB.length) { try { FX_LIB = await pywebview.api.fx_overlay_list() || []; } catch (e) {} }
+  if (!FX_LIB.length) { try { const r = await pywebview.api.fx_overlay_list(); FX_LIB = Array.isArray(r) ? r : []; } catch (e) {} }
   FX_TGT = tgt && tgt.onSave ? tgt : null;
   FXW = fxNorm(FX_TGT ? FX_TGT.fx : FXS);
   $('fxd_t').textContent = pt('Эффекты', 'Effects'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');
