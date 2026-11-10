@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p71"
+VERSION = "1.7.1-p72"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2869,7 +2869,14 @@ class Api:
                 st = self._job_script(d, base)
                 title = " ".join(st.split()[:7]) if st else base
             label = "новая озвучка" if args.get("remix_from") else "готовые промпты" if args.get("prompts_file") else ((args.get("profile") if rec else prof) or prof or "")
-            out.append({"id": n, "title": title[:80], "profile": label,
+            thumb = None
+            if imgs:
+                try:
+                    first = sorted(f for f in os.listdir(img_dir) if f.endswith(".png"))[0]
+                    thumb = make_thumb(os.path.join(img_dir, first), 420)
+                except Exception:
+                    thumb = None
+            out.append({"id": n, "title": title[:80], "profile": label, "thumb": thumb,
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else self._asm_status(d, rec),
                         "result": rec.get("result"), "has_video": bool(rec.get("result") and os.path.exists(rec.get("result"))),

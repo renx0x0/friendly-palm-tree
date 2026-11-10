@@ -799,6 +799,22 @@
   @media (min-width:2300px) { .wrap { height:calc(100vh / 1.2); } #side { zoom:1.2; } }
   @media (min-width:3200px) { .wrap { height:calc(100vh / 1.6); } #side { zoom:1.6; } }
   .screen { width:100%; max-width:1480px; margin-left:auto; margin-right:auto; }
+  /* главная: ролики карточками */
+  #hm_grid { flex:1; min-height:0; overflow-y:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:16px; align-content:start; padding:2px 6px 2px 2px; }
+  .hcard { border:1px solid var(--line); border-radius:12px; background:var(--bg2); overflow:hidden; display:flex; flex-direction:column; }
+  .hcard .cv { height:150px; background:var(--bg3) center/cover no-repeat; position:relative; cursor:pointer; }
+  .hcard .chip { position:absolute; left:10px; top:10px; padding:4px 10px; border-radius:12px; background:rgba(0,0,0,.66); color:#fff; font-size:12px; font-weight:600; }
+  .hcard .chip.ok { color:#8fe3b8; } .hcard .chip.warn { color:#ffd08a; }
+  .hcard .bd { padding:12px 14px 14px; display:flex; flex-direction:column; gap:9px; flex:1; }
+  .hcard .tt { font-weight:600; font-size:14px; line-height:1.35; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.7em; }
+  .hcard .pb { height:4px; border-radius:2px; background:var(--line2); } .hcard .pb i { display:block; height:4px; border-radius:2px; background:var(--acc); } .hcard .pb.warn i { background:var(--warn); } .hcard .pb.ok i { background:var(--ok); }
+  .hcard .mt { color:var(--ink2); font-size:12.5px; } .hcard .mt .lk { cursor:pointer; color:var(--acc2); }
+  .hcard .ac { display:flex; align-items:center; gap:6px; margin-top:auto; } .hcard .ac button { padding:6px 11px; font-size:12px !important; } .hcard .ac .sp { flex:1; }
+  .hcard .ac button.main { background:var(--bg3); font-weight:600; }
+  .hnew { border:1px dashed var(--line); border-radius:12px; background:transparent; min-height:250px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--ink2); cursor:pointer; font-size:13px !important; padding:20px; }
+  .hnew b { color:var(--ink); font-size:14px; font-weight:600; } .hnew svg { width:28px; height:28px; stroke:var(--ink2); fill:none; stroke-width:1.8; } .hnew:hover { border-color:var(--ink2); background:var(--bg2); }
+  .hm_tools { display:flex; gap:8px; align-items:center; } #screen1 .recent { display:none; }
+  #side .sd_new { height:38px; border-radius:var(--r); background:var(--acc); border-color:var(--acc); color:var(--onacc); font-weight:600; width:100%; } #side .sd_new:hover { background:var(--acc); filter:brightness(1.1); color:var(--onacc); }
   #providers { width:100%; max-width:1180px; margin-left:auto; margin-right:auto; } #screen1 .tile { max-height:190px; }
   /* левая колонка */
   #side { position:fixed; left:0; top:0; bottom:0; width:232px; z-index:3; background:var(--side); border-right:1px solid var(--line2); padding:22px 14px 14px; display:flex; flex-direction:column; gap:22px; }
@@ -963,11 +979,17 @@
   <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="primary" id="hd_close"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <aside id="side"><div class="sd_logo" onclick="goHome()"><i></i><span>KadroGen</span></div>
+  <button type="button" class="sd_new" id="sd_new" onclick="go(1)"></button>
+  <div id="sd_nav"></div>
   <div><div class="sd_cap" id="sd_cap"></div><div id="sd_steps"></div></div>
   <div class="sd_bot"></div></aside>
 <div class="wrap">
 
-  <div class="screen active" id="screen1">
+  <div class="screen active" id="screen0">
+    <div class="topbar"><div class="stepname"><span></span><span id="pg0_t"></span></div><div class="hm_tools"><span class="mt" id="hm_store" style="color:var(--ink2);font-size:12.5px"></span><button class="ghost" id="hm_folder" onclick="pywebview.api.open_jobs()"></button></div></div>
+    <div id="hm_grid"></div>
+  </div>
+  <div class="screen" id="screen1">
     <div class="topbar"><div class="stepname"><span></span><span id="pg1_t"></span></div></div>
     <div class="logo big"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div>
     <div id="update"><span class="ud"></span><div class="ut" id="u_text"></div><div class="ubar"><i id="u_bar"></i></div><button id="u_btn" onclick="installUpdate()"></button><a class="lk" id="u_link"></a></div>
@@ -1148,7 +1170,7 @@ const I18N = {
 let L = 'ru';
 const t = k => I18N[L][k];
 const TTS_PH = {voicegen:'VoiceGen key (Telegram bot)', voicer:'Voicer token', lumean:'Lumean key'};
-let audioPath = "", cur = 1, known = new Set(), total = 0, scanTimer = null, source = 'mp3';
+let audioPath = "", cur = 0, known = new Set(), total = 0, scanTimer = null, source = 'mp3';
 const ORDER = {start:0, rewrite:0, tts:0, transcribe:1, scenes:1, style:2, prompts:2, refs:3, images:4, videos:5, render:6, subtitles:7, done:8};
 const STAGE_KEYS = ['rewrite','tts','transcribe','prompts','refs','images','videos','render','subtitles','done'];
 const RW_LINKS = {fastgen:'https://fast-gen.ai/', openai:'https://platform.openai.com/api-keys', anthropic:'https://console.anthropic.com/settings/keys', gemini:'https://aistudio.google.com/apikey'};
@@ -1181,9 +1203,9 @@ function go(n) {
   const from = $('screen' + cur); from.classList.add('leaving');
   setTimeout(() => {
     from.classList.remove('leaving', 'active'); cur = n; sideRender();
-    for (let i = 1; i <= 6; i++) $('screen' + i).classList.toggle('active', i === n);
+    for (let i = 0; i <= 6; i++) $('screen' + i).classList.toggle('active', i === n);
     if (n === 4) renderAccess();
-    if (n === 1) refreshRecent();
+    if (n === 0) refreshRecent();
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
@@ -1193,8 +1215,11 @@ function sideRender() {
   if (!$('sd_steps')) return;
   sideMax = Math.max(sideMax, cur);
   const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Доступ', 'Access'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
-  $('sd_cap').textContent = pt('Новый ролик', 'New video'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
-  $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && n <= sideMax && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
+  $('sd_cap').textContent = pt('Шаги нового ролика', 'New video steps'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
+  $('pg0_t').textContent = pt('Ролики', 'Videos'); $('sd_new').textContent = pt('Новый ролик', 'New video'); $('hm_folder').textContent = pt('Рабочая папка', 'Work folder');
+  if (typeof homeRender === 'function') homeRender();
+  $('sd_nav').innerHTML = `<div class="sd_it${cur === 0 ? ' cur' : ' can'}"${cur === 0 ? '' : ' onclick="goHome()"'}>${pt('Ролики', 'Videos')}</div>`;
+  $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
     return `<div class="sd_it${n === cur ? ' cur' : ''}${n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
 }
 function provs() { return Array.from(document.querySelectorAll('input[name=prov]:checked')).map(x => x.value); }
@@ -1789,10 +1814,34 @@ function recentRow(r, extra) {
       + `<button class="ghost more" title="${pt('Перезапуск с другой моделью, удаление', 'Restart with another model, delete')}" onclick="jobMenu('${esc(r.id).replace(/'/g, '&#39;')}')">⋯</button>`;
   return `<div class="rjob${r.parent ? ' kid' : ''}"><span class="rtw"><span class="rt" title="${esc(r.title)}">${r.parent ? '↳ ' : ''}${esc(r.title)}</span>${extra || ''}</span>${r.profile && !r.parent ? `<span class="rp">${esc(r.profile)}</span>` : ''}${st}<span class="rs">${ago(r.updated)}</span>${btn}</div>`;
 }
+function homeCard(r) {
+  const id = esc(r.id).replace(/'/g, '&#39;'), pct = r.scenes ? Math.min(100, Math.round(r.images / r.scenes * 100)) : 0, kids = (r.children || []).length;
+  const done = r.status === 'done' && r.has_video;
+  const chip = r.status === 'running' ? ['', pt(`Делается · ${pct}%`, `In progress · ${pct}%`)] : r.status === 'assembling' ? ['warn', pt('Монтируется', 'Assembling')]
+    : done ? ['ok', pt('Готов', 'Done')] : r.status === 'error' ? ['warn', pt('Остановлен с ошибкой', 'Stopped with an error')] : ['', pct >= 100 ? pt('Кадры готовы · не собран', 'Frames ready · not assembled') : pt(`Не закончен · ${pct}%`, `Unfinished · ${pct}%`)];
+  const main = r.status === 'running' ? `<button class="main" onclick="go(6)">${pt('Открыть', 'Open')}</button>`
+    : r.status === 'assembling' ? '' : done ? `<button class="main" onclick="recentPlay('${id}')">${pt('Смотреть', 'Play')}</button><button class="ghost" title="${pt('Открыть папку с готовым роликом', 'Show in folder')}" onclick="recentReveal('${id}')">${pt('Папка', 'Folder')}</button>`
+    : `<button class="main" onclick="continueJob('${id}')">${pt('Продолжить', 'Continue')}</button>`;
+  const cv = r.thumb ? ` style="background-image:url('${r.thumb}')"` : '';
+  return `<div class="hcard"><div class="cv"${cv} onclick="${(r.images || r.videos) ? `showFrames('${id}')` : ''}" title="${pt('Посмотреть кадры', 'View frames')}"><span class="chip ${chip[0]}">${chip[1]}</span></div>`
+    + `<div class="bd"><div class="tt" title="${esc(r.title)}">${esc(r.title)}</div>`
+    + (done ? '' : `<div class="pb${r.status === 'error' ? ' warn' : ''}"><i style="width:${pct}%"></i></div>`)
+    + `<div class="mt">${r.profile ? esc(r.profile) + ' · ' : ''}${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''} · ${ago(r.updated)}`
+    + (kids ? ` · <span class="lk" onclick="showAllRecent()">${pt('озвучек', 're-voiced')}: ${kids}</span>` : '') + `</div>`
+    + `<div class="ac">${main}<span class="sp"></span>${framesBtn(r)}<button class="ghost" title="${pt('Перезапуск с другой моделью, новая озвучка, удаление', 'Restart, re-voice, delete')}" onclick="jobMenu('${id}')">⋯</button></div></div></div>`;
+}
+function homeRender() {
+  const g = $('hm_grid'); if (!g) return;
+  const plus = '<svg viewBox="0 0 28 28" aria-hidden="true"><path d="M14 6v16M6 14h16"/></svg>';
+  const list = RECENT || [];
+  g.innerHTML = list.map(homeCard).join('') + `<button type="button" class="hnew" onclick="go(1)">${plus}<b>${pt('Новый ролик', 'New video')}</b><span>${list.length ? pt('из озвучки, сценария или готовых промптов', 'from a voice-over, script or ready prompts')
+    : pt('Роликов пока нет. Начните с озвучки, сценария или готовых промптов — программа проведёт по шагам.', 'No videos yet. Start from a voice-over, a script or ready prompts.')}</span></button>`;
+}
 async function recentReveal(id) { const r = await pywebview.api.reveal_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function recentPlay(id) { const r = await pywebview.api.play_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function refreshRecent() {
   try { RECENT = await pywebview.api.recent_jobs(); } catch (e) { return; }
+  homeRender();
   const box = $('recent');
   if (!RECENT || !RECENT.length) { box.innerHTML = ''; return; }
   box.innerHTML = `<div class="rh">${pt('Недавние ролики', 'Recent videos')}${RECENT.length > 3 ? `<span class="lk" onclick="showAllRecent()">${pt('все', 'all')} (${RECENT.length})</span>` : ''}</div>` + RECENT.slice(0, 3).map(recentGroup).join('');
@@ -2574,9 +2623,9 @@ window.addEventListener('pywebviewready', () => loadConfig(false));
 // ===== «Главная»: из любого шага на первый экран; ролик при этом делается дальше =====
 const HOME_SVG = '<svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>';
 function goHome() {
-  if (cur === 1) return;
+  if (cur === 0) return;
   if (jobRunning) toast(pt('Ролик делается дальше в фоне — вернуться к нему можно по полоске сверху.', 'The video keeps going in the background — use the bar at the top to get back.'), 5000);
-  go(1);
+  go(0);
 }
 document.querySelectorAll('.topbar .logo').forEach(lg => {
   const w = document.createElement('div'); w.className = 'tleft';
@@ -3394,7 +3443,7 @@ async function asmPoll() {
       ASM.seen = d.at;
       if (d.state === 'done') { ASM.lastRes = d.result; toast(pt(`Смонтирован «${esc(d.title)}» — готов в output`, `“${esc(d.title)}” assembled`) + ` <a onclick="pywebview.api.open_path(ASM.lastRes)">${pt('открыть', 'open')}</a>`, 9000); }
       else if (d.state === 'error') toast(pt(`Монтаж «${esc(d.title)}» не удался: ${esc(d.error || '')}. Ролик можно доделать «Продолжить».`, `Assembly failed: ${esc(d.error || '')}`), 12000);
-      if (cur === 1) refreshRecent();
+      if (cur === 0) refreshRecent();
     }
   }
   setTimeout(asmPoll, c_or(r) ? 1500 : 4000);
