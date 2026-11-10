@@ -799,6 +799,22 @@
   @media (min-width:2300px) { .wrap { height:calc(100vh / 1.2); } #side { zoom:1.2; } }
   @media (min-width:3200px) { .wrap { height:calc(100vh / 1.6); } #side { zoom:1.6; } }
   .screen { width:100%; max-width:1480px; margin-left:auto; margin-right:auto; }
+  /* окна настроек — панели справа: предпросмотр сверху, настройки под ним */
+  #fx_dlg, #sub_dlg, #tr_dlg, #stock_dlg, #hero_dlg { place-items:stretch end; grid-template-rows:minmax(0, 1fr); background:rgba(0,0,0,.3); }
+  #fx_dlg .box, #sub_dlg .box, #tr_dlg .box, #stock_dlg .box, #hero_dlg .box { width:min(640px, 100%) !important; height:auto; min-height:0; max-height:none !important; border-radius:0 !important; border-width:0 0 0 1px !important;
+    padding:20px 24px 16px; box-shadow:-18px 0 50px rgba(0,0,0,.35); animation:panelin .22s ease; background:var(--side); }
+  @keyframes panelin { from { transform:translateX(36px); opacity:0; } }
+  #fx_dlg .fxbody, #sub_dlg .sbody, #tr_dlg .tbody { grid-template-columns:minmax(0, 1fr); overflow-y:auto; align-content:start; gap:14px; padding-right:4px; }
+  #fx_dlg .fxbody > :first-child, #sub_dlg .sbody > :first-child, #tr_dlg .tbody > :first-child { position:sticky; top:0; z-index:2; background:var(--side); padding-bottom:8px; }
+  #fx_dlg .fxlist, #sub_dlg .sform, #tr_dlg .tform { overflow:visible; padding-right:0; }
+  #sub_pv, #tr_pv { border-radius:var(--r); overflow:hidden; }
+  #sub_dlg .row, #tr_dlg .row { flex-wrap:wrap; } #sd_note { order:-1; flex:1 1 100%; }
+  #hero_dlg textarea { flex:none; height:110px; min-height:80px; }
+  #fx_dlg .fxpv, #sub_pv, #tr_pv { width:min(100%, calc(30vh * 16 / 9)); height:auto; aspect-ratio:16 / 9; margin:0 auto; }
+  #fx_dlg .fxbody .note, #fx_dlg .pvset { font-size:12px; }
+  @media (min-width:1900px) { #fx_dlg, #sub_dlg, #tr_dlg, #stock_dlg, #hero_dlg { zoom:1.1; } }
+  @media (min-width:2300px) { #fx_dlg, #sub_dlg, #tr_dlg, #stock_dlg, #hero_dlg { zoom:1.2; } }
+  @media (min-width:3200px) { #fx_dlg, #sub_dlg, #tr_dlg, #stock_dlg, #hero_dlg { zoom:1.6; } }
   /* экран создания: кадры в середине, справа ход работы и журнал */
   #screen6 { max-width:none; }
   #screen6 .proc, #screen6 .proc.with-parts, #screen6 .proc.parts-mini { grid-template-columns:minmax(0, 1fr) 380px; grid-template-rows:auto minmax(0, 1fr); gap:14px 16px; }
@@ -3029,6 +3045,11 @@ function lbStock(m, i) {  // стоковая сцена: откуда кадр,
 function fmtT(x) { x = Math.max(0, x || 0); const m = Math.floor(x / 60), s = Math.floor(x % 60); return `${m}:${String(s).padStart(2, '0')}`; }
 function stepLB(d) { const n = LB.i + d; if (n < 0 || (LB.total && n >= LB.total)) return; LB.i = n; if (LB.kind !== 'image') LB.kind = 'auto'; showLB(); }  // выбрали «Картинка» — листаем картинки
 $('lb_prev').onclick = () => stepLB(-1); $('lb_next').onclick = () => stepLB(1);
+document.addEventListener('keydown', e => {  // Esc закрывает открытую панель настроек (как «Отмена»)
+  if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
+  for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])
+    if ($(dlg) && $(dlg).classList.contains('show') && $(btn)) { $(btn).click(); e.preventDefault(); return; }
+});
 document.addEventListener('keydown', e => {
   if (!$('lb').classList.contains('show') || (e.target.closest && e.target.closest('textarea, input'))) return;
   if (e.key === 'ArrowLeft') { stepLB(-1); e.preventDefault(); } else if (e.key === 'ArrowRight') { stepLB(1); e.preventDefault(); } else if (e.key === 'Escape') closeLB();
