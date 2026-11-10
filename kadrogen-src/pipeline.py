@@ -3211,24 +3211,44 @@ def fx_filter(seed=0, fx=None):
         off = (seed * 0.37 + OVL_KINDS.index(k) * 1.7) % max(1.0, float(e.get("dur") or 8))  # у каждого клипа своё место в петле
         inputs += ["-stream_loop", "-1", "-ss", f"{off:.2f}", "-i", e["file"]]
         idx = len(inputs) // 6
+        mode = overlay_mode(e)
         spd = _fi(e["sp"], [(0, .5), (50, 1.0), (100, 2.0)])
         op = max(0.0, min(1.0, e["pw"] / 100.0))
         src = f"[{idx}:v]setpts=PTS/{spd:.3f},scale={W}:{H}"
         out = f"[o{idx}]"
-        if e["mode"] == "chroma":  # зелёный фон: вырезаем, чистим зелёную кайму
+        if mode == "chroma":  # зелёный фон: вырезаем, чистим зелёную кайму
             frags.append(f"{src},format=rgba,chromakey=color=0x00FF00:similarity=0.30:blend=0.10,despill=type=green:mix=0.6:expand=0.2,"
                          f"colorchannelmixer=aa={op:.3f}[k{idx}]")
             frags.append(f"{cur}[k{idx}]overlay=shortest=1:format=auto{out}")
         else:
             lv = ""
             if e.get("clean"):  # выравнивание фона файла: углы и серые пятна не затемняют кадр
-                lv = ",colorlevels=rimax=0.86:gimax=0.86:bimax=0.86" if e["mode"] == "multiply" else (
-                    ",colorlevels=rimin=0.07:gimin=0.07:bimin=0.07" if e["mode"] == "screen" else "")
+                lv = ",colorlevels=rimax=0.86:gimax=0.86:bimax=0.86" if mode == "multiply" else (
+                    ",colorlevels=rimin=0.07:gimin=0.07:bimin=0.07" if mode == "screen" else "")
             frags.append(f"{src},format=gbrp{lv}[k{idx}]")
-            frags.append(f"{cur}format=gbrp[b{idx}];[b{idx}][k{idx}]blend=all_mode={e['mode']}:all_opacity={op:.3f}:shortest=1{out}")
+            frags.append(f"{cur}scale={W}:{H},format=gbrp[b{idx}];[b{idx}][k{idx}]blend=all_mode={mode}:all_opacity={op:.3f}:shortest=1{out}")
         cur = out
     fc = base + "".join(";" + x for x in frags) + f";{cur}null" + "".join("," + x for x in post) + ",format=yuv420p[v]"
     return inputs, fc
+
+
+_OVL_DET = {}
+
+
+def overlay_mode(e):
+    """Режим наложения для файла. Фон чёрный/белый/зелёный определяется по самому файлу и не зависит от выбора в списке:
+    неверный режим портит кадр (белый фон в «светлых на чёрном» засвечивает, чёрный в «тёмных на белом» чернит).
+    Выбор в списке действует только для серого фона."""
+    f = e.get("file") or ""
+    det = _OVL_DET.get(f)
+    if det is None:
+        try:
+            det = _OVL_DET[f] = overlay_detect(f)
+        except Exception:
+            det = "overlay"
+    if det in ("multiply", "screen", "chroma"):
+        return det
+    return e.get("mode") if e.get("mode") in ("overlay", "multiply", "screen") else "overlay"
 
 
 def overlay_detect(path):
