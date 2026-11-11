@@ -840,6 +840,31 @@
   #fsel .hint { width:auto; order:9; margin-left:8px; }
   .psum { margin-top:12px; padding:10px 12px; border-radius:var(--r); background:var(--bg3); color:var(--ink2); font-size:12.5px; line-height:1.5; } .psum:empty { display:none; }
   #screen6 .plog pre#log { border-radius:var(--r); font-size:12px; }
+  /* шаг «Оформление»: один список, шаблон в шапке, плитки, справа предпросмотр */
+  #screen3 { max-width:none; } #screen3 .topbar { margin-bottom:2px; padding-right:0; align-items:flex-end; }
+  #screen3 .lookbar { border:0; background:transparent; padding:0; margin:0; gap:8px; display:flex; align-items:center; } #screen3 .lookbar .lbl { color:var(--ink2); font-size:13px !important; font-weight:400; }
+  #screen3 .lookbar select { width:auto; min-width:200px; padding:8px 12px; font-size:13px; } #screen3 .lookbar button { padding:8px 12px; }
+  .s3sub { color:var(--ink2); margin:0 0 14px; font-size:14px; }
+  .s3wrap { flex:1; min-height:0; display:flex; gap:22px; } .s3main { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  #screen3 .opts { display:flex; flex-direction:column; gap:0; flex:0 1 auto; min-height:0; overflow-y:auto; border:1px solid var(--line); border-radius:12px; background:var(--bg2); padding:0; margin:0; max-width:none; grid-template-columns:none; }
+  #screen3 .optq { display:none; } #screen3 .opts > .lookbar { display:none; }
+  #screen3 .grp { margin:0; padding:9px 18px 7px; font-size:12px !important; color:var(--ink2); background:var(--bg); border:0; border-bottom:1px solid var(--line2); border-radius:0; } #screen3 .grp::before, #screen3 .grp::after { display:none; }
+  #screen3 .opt, #screen3 .optx { display:flex; align-items:center; gap:16px; padding:13px 18px; min-height:0; border:0; border-bottom:1px solid var(--line2); border-radius:0; background:transparent; box-shadow:none; margin:0; opacity:1; }
+  #screen3 .opts > :last-child { border-bottom:0; } #screen3 .opt svg, #screen3 .optx svg { display:none; }
+  #screen3 .opt .dot, #screen3 .optx .dot { order:-1; flex:none; cursor:pointer; } #screen3 .optx .dot { transform:none; width:36px; height:20px; border-radius:10px; border:0; background:var(--line); position:relative; }
+  #screen3 .optx .dot::after { content:""; position:absolute; left:2px; top:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .2s; } #screen3 .optx .dot.on { background:var(--acc); } #screen3 .optx .dot.on::after { left:18px; }
+  #screen3 .opt .t, #screen3 .optx .t { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; font-size:14.5px !important; font-weight:600; color:var(--ink); }
+  #screen3 .opt .dsc, #screen3 .optx .dsc { font-size:13px !important; font-weight:400; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:none; }
+  #screen3 .opt:hover, #screen3 .optx:hover { background:var(--bg3); } #screen3 .opt.open, #screen3 .optx.open { background:var(--bg3); box-shadow:inset 3px 0 0 var(--acc); }
+  #screen3 .opt .subcfg, #screen3 .optx .subcfg { padding:7px 14px; font-size:13px !important; }
+  .s3tiles { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; flex:none; } .s3t { padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .s3t small { color:var(--ink2); font-size:13px; } .s3t b { font-weight:600; font-size:14.5px; } .s3t select { width:100%; padding:6px 8px; font-size:13px; } .s3t #vq_row { display:contents; } .s3t #vq_row .t { display:none !important; }
+  #s3_side { width:400px; flex:none; display:flex; flex-direction:column; gap:14px; min-height:0; } .s3card { padding:16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:10px; }
+  .s3h { display:flex; justify-content:space-between; align-items:center; } .s3h b { font-weight:600; } .s3h .lk { color:var(--acc2); cursor:pointer; font-size:12.5px; } .s3n { color:var(--ink2); font-size:12.5px; line-height:1.5; }
+  .s3pv { position:relative; aspect-ratio:16 / 9; background:var(--bg3); border-radius:10px; overflow:hidden; } .s3pv video { width:100%; height:100%; display:block; object-fit:cover; }
+  .s3pv .busy { position:absolute; right:8px; top:8px; padding:3px 9px; border-radius:10px; background:rgba(0,0,0,.6); color:#fff; font-size:12px; display:none; } .s3pv.loading .busy { display:block; }
+  #s3_run { cursor:pointer; } #s3_run:hover { border-color:var(--ink2); }
+  @media (max-width:1250px) { #s3_side { display:none; } }
   /* окна по центру и блоки промптов: скругления всему, у чего своего радиуса нет */
   :where(.box, #parts_panel, #lb, .alist, .cols, .proc) :where(div, label, span, a, button, textarea, select, input[type=text], input[type=number], input[type=password], pre, video, img, li) { border-radius:8px; }
   .frsel { border:0 !important; background:var(--bg3); border-radius:var(--r); padding:6px 8px 6px 12px; } .frsel .lk { color:var(--ink2); } .frsel button { padding:6px 11px; font-size:12px !important; }
@@ -1164,6 +1189,8 @@
 
   <div class="screen" id="screen3">
     <div class="topbar"><div class="logo"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div><div class="stepname"><span data-i18n="step"></span> <b>03</b> · <span data-i18n="s3"></span></div></div>
+    <div class="s3sub" id="s3_sub"></div>
+    <div class="s3wrap"><div class="s3main">
     <div class="opts">
       <input type="checkbox" id="use_refs" hidden>
       <h1 class="optq" data-i18n="opt_q"></h1>
@@ -1174,14 +1201,18 @@
       <div class="lookbar" id="look_row"><span class="lbl" id="look_lbl"></span><select id="look_sel" onchange="lookPick(this.value)"></select><button type="button" class="ghost" id="look_save" onclick="lookSave()"></button><button type="button" class="ghost" id="look_del" onclick="lookDel()">×</button></div>
       <label class="opt sec" id="motion" data-tipkey="tip_motion"><input type="checkbox" id="use_motion"><svg viewBox="0 0 64 64"><path d="M8 40c8-20 16-20 24 0s16 20 24 0"/><path d="M8 24c8-12 16-12 24 0s16 12 24 0"/></svg><span class="t" data-i18n="o_motion"></span><button type="button" class="ghost subcfg" id="tr_cfg_btn"></button><span class="dot"></span></label>
       <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
-      <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button></div>
-      <div class="optx" id="hero_row"><svg viewBox="0 0 64 64"><circle cx="32" cy="22" r="10"/><path d="M12 54c2-14 10-20 20-20s18 6 20 20"/></svg><span class="t"><span id="hero_lbl"></span><small class="dsc fxsum" id="hero_sum"></small></span><button type="button" class="ghost subcfg" id="hero_btn" onclick="openHeroes()"></button></div>
+      <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button><span class="dot" id="fx_dot" onclick="openFx()"></span></div>
+      <div class="optx" id="hero_row"><svg viewBox="0 0 64 64"><circle cx="32" cy="22" r="10"/><path d="M12 54c2-14 10-20 20-20s18 6 20 20"/></svg><span class="t"><span id="hero_lbl"></span><small class="dsc fxsum" id="hero_sum"></small></span><button type="button" class="ghost subcfg" id="hero_btn" onclick="openHeroes()"></button><span class="dot" id="hero_dot" onclick="openHeroes()"></span></div>
       <div class="optx" id="vq_row"><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="36" rx="3"/><path d="M18 40V24l8 10 8-10v16M42 24v16"/></svg><span class="t"><span id="vq_lbl"></span><small class="dsc" id="vq_hint"></small></span><select id="vquality"><option value="standard"></option><option value="high"></option><option value="max"></option></select></div>
       <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="hd" data-tipkey="tip_hd"><input type="checkbox" id="use_hd"><svg viewBox="0 0 64 64"><rect x="6" y="14" width="52" height="36" rx="3"/><path d="M16 24v16M16 32h10M26 24v16M36 24v16h7a8 8 0 0 0 0-16z"/></svg><span class="t" data-i18n="o_hd"></span><span class="dot"></span></label>
       <label class="opt sec" id="qa" data-tipkey="tip_qa"><input type="checkbox" id="use_qa"><svg viewBox="0 0 64 64"><path d="M6 32c8-12 16-18 26-18s18 6 26 18c-8 12-16 18-26 18S14 44 6 32z"/><circle cx="32" cy="32" r="8"/><path d="M44 50l6 6 10-12"/></svg><span class="t" data-i18n="o_qa"></span><span class="dot"></span></label>
       <label class="opt sec" id="speed" data-tipkey="tip_speed"><input type="checkbox" id="use_speed"><svg viewBox="0 0 64 64"><path d="M8 44a24 24 0 0 1 48 0"/><path d="M32 44l12-16"/><circle cx="32" cy="44" r="3"/><path d="M14 44h4M46 44h4M20 30l3 3M44 30l-3 3"/></svg><span class="t" data-i18n="o_speed"></span><span class="dot"></span></label>
     </div>
+    <div class="s3tiles"><div class="s3t" id="s3t_q"><small id="s3_ql"></small></div><div class="s3t"><small id="s3_frl"></small><b id="s3_fr"></b></div><div class="s3t"><small id="s3_fcl"></small><b id="s3_fc"></b></div></div>
+    </div><aside id="s3_side"><div class="s3card"><div class="s3h"><b id="s3_pvt"></b><span class="lk" id="s3_pvr" onclick="s3Preview(true)"></span></div>
+      <div class="s3pv" id="s3_pvbox"><video id="s3_pv" autoplay loop muted playsinline></video><span class="busy" id="s3_pvb"></span></div><div class="s3n" id="s3_pvn"></div></div>
+      <div class="s3card" id="s3_run" style="display:none" onclick="go(6)"><div class="s3h"><b id="s3_runt"></b><span class="lk" id="s3_runo"></span></div><div class="s3n" id="s3_runn"></div></div></aside></div>
     <div class="nav"><button class="ghost" onclick="go(2)" data-i18n="back"></button><button class="primary" id="btn_opts" onclick="go(4)" data-i18n="next"></button></div>
   </div>
 
@@ -1330,6 +1361,7 @@ function go(n) {
     if (n === 4) renderAccess();
     if (n === 0) refreshRecent();
     if (n === 1) svcKeys();
+    if (n === 3) s3Enter();
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
@@ -1572,6 +1604,53 @@ function pvxInit() {
     b.onclick = e => { e.stopPropagation(); $(dlg).classList.toggle('wide'); lab(); }; box.appendChild(b); b._lab = lab; lab(); });
   document.querySelectorAll('.pvx').forEach(b => b._lab && b._lab());
 }
+// ===== шаг «Оформление»: сводки строк, плитки, предпросмотр =====
+let S3SUM = {tr: '', sub: ''}, s3Seq = 0, s3Busy = false, s3Again = false;
+async function s3Sums() {
+  try { const r = await pywebview.api.trans_get(); const st = (r && r.settings) || {}, names = {classic: pt('как было', 'classic'), soft: pt('мягкие', 'soft'), full: pt('максимум', 'max'), none: pt('без переходов', 'no transitions'), custom: pt(`свои: переходов ${(st.set || []).length}`, `custom: ${(st.set || []).length}`)};
+    S3SUM.tr = [names[st.preset] || st.preset || '', st.preset !== 'none' && st.duration ? `${st.duration} ${pt('с', 's')}` : '', ({static: pt('картинки стоят', 'static'), soft: pt('мягкий наезд', 'soft push-in'), full: pt('полное движение', 'full motion'), classic: pt('движение через кадр', 'classic motion')})[st.kb] || ''].filter(Boolean).join(' · '); } catch (e) {}
+  try { const r = await pywebview.api.sub_style_get(); const st = (r && r.style) || {}, ef = (typeof SUB_EFFECTS !== 'undefined' ? SUB_EFFECTS : []).find(x => x[0] === st.effect);
+    S3SUM.sub = r && r.classic ? pt('классический вид', 'classic look') : [st.font ? `${st.font} ${st.size || ''}`.trim() : '', st.box ? pt('плашка', 'box') : '', ef && st.effect !== 'none' ? pt(ef[1], ef[2]).toLowerCase() : ''].filter(Boolean).join(' · '); } catch (e) {}
+  s3Paint();
+}
+function s3Paint() {
+  if (!$('s3_sub')) return;
+  const set = (id, v, fb) => { const d = document.querySelector(`#${id} .t .dsc`); if (d) d.textContent = v || fb; };
+  set('motion', $('use_motion').checked ? S3SUM.tr : '', pt('переходы между сценами и движение камеры по кадрам', 'transitions and camera motion'));
+  set('subs', $('use_subs').checked ? S3SUM.sub : '', pt('текст озвучки на видео — вид, шрифт и эффекты', 'voice-over text on the video'));
+  $('s3_sub').textContent = pt('Как будет выглядеть ролик. Строка показывает, что выбрано; «Настроить» открывает панель справа.', 'How the video will look.');
+  if ($('fx_dot')) $('fx_dot').classList.toggle('on', fxSummary(FXS) !== pt('нет', 'none'));
+  if ($('hero_dot')) $('hero_dot').classList.toggle('on', (HEROES || []).some(h => h.on));
+  $('s3_ql').textContent = pt('Качество видео', 'Video quality'); $('s3_frl').textContent = pt('Кадров', 'Frames'); $('s3_fcl').textContent = pt('Прогноз', 'Forecast');
+  $('s3_pvt').textContent = pt('Предпросмотр', 'Preview'); $('s3_pvr').textContent = pt('обновить', 'refresh'); $('s3_pvb').textContent = pt('рисую…', 'rendering…');
+  $('tr_cfg_btn').textContent = pt('Настроить', 'Set up'); $('sub_cfg_btn').textContent = pt('Настроить', 'Set up'); $('fx_btn').textContent = pt('Настроить', 'Set up'); $('hero_btn').textContent = (HEROES || []).length ? pt('Настроить', 'Set up') : pt('Добавить', 'Add');
+  $('s3_run').style.display = jobRunning ? '' : 'none'; $('s3_runt').textContent = pt('Сейчас делается', 'In progress'); $('s3_runo').textContent = pt('открыть', 'open'); $('s3_runn').textContent = ($('runpill_tx') && $('runpill_tx').textContent) || '';
+}
+async function s3Forecast() {
+  const none = pt('после выбора озвучки', 'after choosing the voice-over');
+  try { const o = opts(); if ((o.source === 'script' && !(o.script || '').trim()) || (o.source !== 'script' && !o.audio)) { $('s3_fr').textContent = none; $('s3_fc').textContent = none; return; }
+    const e = await pywebview.api.estimate(o); if (!e || !e.ok) { $('s3_fr').textContent = none; $('s3_fc').textContent = none; return; }
+    $('s3_fr').textContent = `≈ ${e.scenes}` + (e.duration && e.scenes ? ` · ${(e.duration / e.scenes).toFixed(0)} ${pt('с на кадр', 's per frame')}` : '');
+    $('s3_fc').textContent = `≈ ${fmtMin(e.minutes)}` + (e.fastgen ? ` · ${e.credits} ${pt('кредитов', 'credits')}` : '');
+  } catch (e) { $('s3_fr').textContent = none; $('s3_fc').textContent = none; }
+}
+async function s3Preview(force) {
+  if (cur !== 3 && !force) return;
+  if (s3Busy) { s3Again = true; return; }
+  s3Busy = true; $('s3_pvbox').classList.add('loading');
+  try { const on = $('use_subs').checked, r = await pywebview.api.look_preview(on);
+    if (r && r.ok) { $('s3_pv').src = r.video; $('s3_pv').play().catch(() => {}); $('s3_pvn').textContent = pt('3 секунды кадра: эффекты', '3 seconds: effects') + (on ? pt(' и субтитры', ' and subtitles') : '') + pt('. Переходы и движение смотрите в их панели.', '.'); }
+    else if (r && !r.busy) $('s3_pvn').textContent = r.error || '';
+  } catch (e) {} finally { s3Busy = false; $('s3_pvbox').classList.remove('loading'); if (s3Again) { s3Again = false; s3Preview(); } }
+}
+function s3Enter() { s3Sums(); s3Forecast(); s3Preview(); }
+(() => { // шаблон — в шапку шага, качество — в плитку, подсветка открытой строки
+  const tb = document.querySelector('#screen3 .topbar'), lb = $('look_row'); if (tb && lb) tb.appendChild(lb);
+  const q = $('vq_row'); if (q && $('s3t_q')) $('s3t_q').appendChild(q);
+  const map = {fx_dlg: 'fx_row', hero_dlg: 'hero_row', sub_dlg: 'subs', tr_dlg: 'motion'};
+  Object.keys(map).forEach(d => { const el = $(d); if (!el) return; new MutationObserver(() => { const open = el.classList.contains('show'); $(map[d]).classList.toggle('open', open); if (!open && cur === 3) { s3Sums(); s3Preview(); } }).observe(el, {attributes: true, attributeFilter: ['class']}); });
+  ['use_subs', 'use_motion'].forEach(id => $(id).addEventListener('change', () => { s3Paint(); if (id === 'use_subs') s3Preview(); }));
+})();
 let HCNT = null;
 async function openHeroes() {
   HSEL = new Set(); HCNT = null;

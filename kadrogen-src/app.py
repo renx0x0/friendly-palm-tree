@@ -2377,6 +2377,29 @@ class Api:
         except Exception as e:
             return {"ok": False, "error": str(e)[:300]}
 
+    def look_preview(self, subs=True):
+        """Шаг «Оформление»: 3 секунды кадра с текущими эффектами и, если включены, субтитрами — как будет в ролике."""
+        import base64
+        if not PREVIEW_LOCK.acquire(blocking=False):
+            return {"ok": False, "busy": True}
+        try:
+            cfg = load_cfg()
+            work = os.path.join(data_dir(), "jobs", "_look_preview")
+            os.makedirs(work, exist_ok=True)
+            fxv = pipeline.fx_preview(cfg.get("fx") if isinstance(cfg.get("fx"), dict) else {}, self._preview_images(1)[0], os.path.join(work, "fx.mp4"))
+            out = fxv
+            if subs:
+                st = cfg.get("sub_style")
+                out = os.path.join(work, "look.mp4")
+                pipeline.subs_style.preview(pipeline.ffmpeg_bin(), pipeline.subs_style.normalize(st if isinstance(st, dict) else {}) if pipeline.sub_style_of(cfg) else {},
+                                            out, work, pipeline.font_dirs(), background=fxv, creationflags=pipeline.NO_WINDOW)
+            with open(out, "rb") as f:
+                return {"ok": True, "video": "data:video/mp4;base64," + base64.b64encode(f.read()).decode()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+        finally:
+            PREVIEW_LOCK.release()
+
     # ===== переходы и движение картинок =====
     def trans_get(self):
         cfg = load_cfg()
