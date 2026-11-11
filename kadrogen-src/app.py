@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p80"
+VERSION = "1.7.1-p81"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки

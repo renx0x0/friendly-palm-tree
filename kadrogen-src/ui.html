@@ -840,6 +840,75 @@
   #fsel .hint { width:auto; order:9; margin-left:8px; }
   .psum { margin-top:12px; padding:10px 12px; border-radius:var(--r); background:var(--bg3); color:var(--ink2); font-size:12.5px; line-height:1.5; } .psum:empty { display:none; }
   #screen6 .plog pre#log { border-radius:var(--r); font-size:12px; }
+  /* шаг 2 «Режим и стиль»: карточки режимов со значками, список настроек, справа сводка */
+  #screen2 { max-width:none; } #screen2 .topbar { margin-bottom:2px; } .pgsub { color:var(--ink2); margin:0 0 14px; font-size:14px; }
+  .s2wrap { flex:1; min-height:0; display:flex; gap:22px; } .s2main { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  #screen2 #modes { display:grid !important; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:0 !important; max-width:none; flex:none; }
+  #screen2 #modes .tile { height:auto !important; aspect-ratio:auto; max-height:none; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:8px; padding:14px 16px; border-radius:12px; text-align:left; }
+  #screen2 #modes .tile svg { width:34px !important; height:34px !important; stroke:var(--ink2); } #screen2 #modes .tile.sel svg { stroke:var(--ink); }
+  #screen2 #modes .tile .t { font-size:15px !important; font-weight:600; text-align:left; } #screen2 #modes .tile .md { color:var(--ink2); font-size:13px; line-height:1.45; }
+  #screen2 #modes .tile .dot { top:14px; right:14px; }
+  .s2list { flex:1 1 auto; min-height:0; overflow-y:auto; border:1px solid var(--line); border-radius:12px; background:var(--bg2); }
+  .s2list .s2g { padding:9px 18px 7px; font-size:12px; color:var(--ink2); background:var(--bg); border-bottom:1px solid var(--line2); }
+  .s2list > .s2r:not(.hidden) { display:flex !important; align-items:center; gap:14px; padding:12px 18px; margin:0 !important; border:0; border-bottom:1px solid var(--line2); border-radius:0; background:transparent; justify-content:flex-start; max-width:none; width:auto; flex-wrap:wrap; }
+  .s2list > .s2r.hidden { display:none !important; } .s2list > .s2r:last-child { border-bottom:0; }
+  .s2list > label.s2r { flex-wrap:nowrap !important; cursor:pointer; } .s2list > label.s2r > span { flex:1; font-size:14px !important; font-weight:600; color:var(--ink); line-height:1.4; } .s2list > label.s2r input { margin:0; width:16px; height:16px; flex:none; }
+  .s2list .srow .note, .s2list .srow small { flex:1 1 100%; margin:0; color:var(--ink2); font-size:12.5px; }
+  .aL .lrow .ctl, .aR .lrow .ctl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .aR .lrow .ctl input[type=text] { flex:1 1 100%; min-width:0; height:38px; }
+  .aR .lrow .ctl button { flex:none; } .aR .lrow .ctl label { flex:1 1 100%; } .aL .vseg { flex:none; } .aL .lrow .ctl > .note, .aL .lrow .ctl > span.note { flex:1 1 100%; color:var(--ink2); font-size:12.5px; }
+  .aL .lrow .ctl input[type=text] { flex:1; min-width:0; height:38px; }
+  .aL .lrow .ctl, .aR .lrow .ctl { border:0 !important; background:transparent !important; padding:0 !important; height:auto !important; }
+  .aL .lrow .ctl > input, .aL .lrow .ctl > button, .aL .lrow .ctl > select, .aL .lrow .ctl > textarea, .aR .lrow .ctl > input, .aR .lrow .ctl > button, .aR .lrow .ctl > select { border:1px solid var(--line) !important; border-radius:8px !important; height:38px; }
+  .aL .lrow .ctl > textarea { height:100%; padding:12px 14px; font-size:13.5px; } .aL .lrow .ctl > button, .aR .lrow .ctl > button { padding:0 14px; background:transparent; }
+  .aL .lrow .ctl > input, .aR .lrow .ctl > input { padding:0 12px; font-size:13.5px; background:var(--bg); }
+  .aL .vseg { display:inline-flex; padding:3px; border-radius:9px; background:var(--bg3); border:0 !important; height:auto !important; } .aL .vseg button { height:auto !important; padding:7px 16px; border:0 !important; border-radius:7px !important; background:transparent; color:var(--ink2); font-size:13px !important; }
+  .aL .vseg button.on { background:var(--bg2); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.25); }
+  .aL .lrow .ctl > :not(input):not(button):not(select):not(textarea):not(.vseg) { border:0 !important; height:auto; }
+  .s2list .seg { border:0; padding:3px; border-radius:9px; background:var(--bg3); } .s2list .seg label { padding:6px 16px !important; font-size:13px !important; border-radius:7px; border:0 !important; }
+  .aL .lrow.tallrow .ctl > textarea { min-height:340px; }
+  .aL .lrow.tallrow .ctl { align-self:stretch !important; } .aL .lrow.tallrow .ctl > textarea { height:100% !important; flex:1 1 100%; }
+  /* старые переключатели на «Проверке» — как остальные */
+  .sw { font-size:13px !important; font-weight:500; color:var(--ink2); } .sw i { width:36px; height:20px; border:0 !important; border-radius:10px; background:var(--line) !important; }
+  .sw i::after { top:2px !important; left:2px; width:16px; height:16px; border-radius:50%; transform:none !important; background:#fff !important; } .sw input:checked + i { background:var(--acc) !important; } .sw input:checked + i::after { left:18px; } .s2list > .s2r[style*="display: none"] { display:none !important; }
+  .s2list .s2r > .lbl, .s2list .s2r > label.jdc > span, .s2list .s2r .lbl > span:first-child { font-size:14px !important; font-weight:600; color:var(--ink); }
+  .s2list .s2r > .lbl { flex:1; min-width:180px; display:flex; align-items:center; gap:8px; text-align:left; }
+  .s2list .s2r select { width:300px; flex:none; padding:8px 12px; font-size:13px; } .s2list .s2r .arr { display:none; }
+  .s2list .s2r input[type=range] { width:220px; flex:none; } .s2list .s2r textarea { flex:1 1 100%; min-height:70px; }
+  .s2list .s2r.jdc, .s2list .s2r .jdc { font-size:14px; } #screen2 .sgrid { display:contents; }
+  #s2_side { width:400px; flex:none; display:flex; flex-direction:column; gap:14px; } #s2_sum { display:grid; grid-template-columns:110px 1fr; row-gap:8px; font-size:13px; color:var(--ink2); } #s2_sum b { color:var(--ink); font-weight:400; }
+  @media (max-width:1250px) { #s2_side { display:none; } }
+  /* шаг 4 «Озвучка и файлы»: слева озвучка и сценарий, справа название, папка, промпты */
+  #screen4 { max-width:none; } #screen4 .alist { padding:0; } #screen4 .alist-in { max-width:none; margin:0; height:100%; }
+  .acols { display:flex; gap:22px; min-height:100%; } .aL { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; } .aR { width:420px; flex:none; display:flex; flex-direction:column; gap:12px; }
+  .aL .lrow, .aR .lrow { border:1px solid var(--line); border-radius:12px; background:var(--bg2); padding:14px 16px; margin:0; }
+  .aR .lrow { grid-template-columns:1fr !important; row-gap:10px; } .aR .lrow .lab { font-weight:600; } .aR .lrow .ctl { height:auto !important; flex-wrap:wrap; }
+  .aL .lrow.tallrow { flex:1; align-items:stretch; } .aL .lrow.tallrow .ctl { height:100% !important; } .aL .lrow.tallrow textarea { height:100%; min-height:160px; }
+  .aL .lrow.filerow { border-style:dashed; border-color:var(--ink2); padding:20px 18px; }
+  #screen4 .alist .qbox { display:none; }
+  /* шаг 5 «Проверка»: слева всё выбранное, справа прогноз и предупреждения */
+  #screen5 { max-width:none; } #screen5 .review { display:flex !important; gap:22px; flex:1; min-height:0; }
+  .rvmain { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; min-height:0; }
+  .rvmain > .panel { border-radius:12px; padding:0; overflow:auto; } .rvmain > .panel h3 { margin:0; padding:9px 18px 7px; font-size:12px !important; font-weight:400; color:var(--ink2); background:var(--bg); border-bottom:1px solid var(--line2); }
+  #rv_script_panel { padding:14px 16px !important; flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; } #rv_script_panel h3 { background:transparent; border:0; padding:0; }
+  .rvlist > div { display:flex !important; align-items:center; gap:16px; padding:11px 18px; border-bottom:1px solid var(--line2); margin:0; } .rvlist > div:last-child { border-bottom:0; }
+  .rvlist > div > span:first-child { width:170px; flex:none; color:var(--ink2); } .rvlist > div > span:nth-child(2) { flex:1; min-width:0; } .rvlist .rvgo { color:var(--acc2); cursor:pointer; font-size:13px; white-space:nowrap; }
+  #rv_side { width:420px; flex:none; display:flex; flex-direction:column; gap:14px; } #rv_side .s3card .fc { display:block !important; border:0; padding:0; margin:0; background:transparent; }
+  #rv_side #fc .lbl { display:none; } #rv_side #fc .big { font-size:30px !important; font-weight:700; } #rv_side #fc .sub, #rv_side #fc .alt { font-size:13px; color:var(--ink2); line-height:1.5; margin-top:6px; }
+  #rv_warn { border-color:var(--warn) !important; } #rv_warn .wi { font-size:13px; line-height:1.5; } #rv_warn .wi .lk { color:var(--acc2); cursor:pointer; margin-left:6px; }
+  @media (max-width:1250px) { #rv_side { width:340px; } }
+  /* просмотр кадра: кадр слева, справа панель «Что с кадром» */
+  #lb.show { display:grid !important; grid-template-columns:minmax(0, 1fr) 420px; grid-template-rows:auto minmax(0, 1fr) auto auto; background:#0c0d10; }
+  #lb .lbtop { grid-column:1; padding:22px 20px 10px 28px; } #lb .lbmid { grid-column:1; padding:0 20px 0 28px; } #lb .lbcap { grid-column:1; padding:12px 20px 4px 28px; } #lb .lbhint { grid-column:1; padding:4px 20px 18px 28px; color:var(--ink2); font-size:12.5px; }
+  #lb .lbtop b { font-size:18px !important; font-weight:700; } #lb .lbseg { margin-left:auto; padding:3px; border-radius:9px; background:var(--bg3); } #lb .lbseg button { border:0 !important; border-radius:7px; padding:6px 14px; font-size:13px !important; color:var(--ink2); } #lb .lbseg button.on { background:var(--bg2); color:var(--ink); }
+  #lb .lbmid img, #lb .lbmid video { border-radius:12px; box-shadow:none; } #lb .nav2 { width:48px; height:48px; border-radius:50% !important; background:rgba(0,0,0,.55); border:0; font-size:24px; line-height:46px; } #lb .nav2.l { left:36px; } #lb .nav2.r { right:28px; }
+  #lb .lbcap .pr { display:none; }
+  #lb_side { grid-column:2; grid-row:1 / span 4; background:var(--side); border-left:1px solid var(--line2); padding:22px 24px 20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+  #lb_side .lbh { display:flex; align-items:center; justify-content:space-between; } #lb_side .lbh b { font-size:15px; font-weight:600; }
+  #lb_side .s3card button { width:100%; padding:9px 12px; font-size:13px !important; } #lb_side .lb2 { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+  #lb_side #lb_ptext { color:var(--ink2); font-size:13px; line-height:1.5; max-height:140px; overflow:auto; white-space:pre-wrap; }
+  #lb_side .lbstk { display:flex; flex-direction:column; align-items:stretch; gap:8px; padding:0; background:transparent; color:var(--ink2); } #lb_side .lbstk .sp { display:none; }
+  #lb_side .lbed { padding:0; } #lb_side .lbed textarea { background:var(--bg); border-color:var(--line); border-radius:8px; color:var(--ink); }
+  #lb_side .lbnote { margin-top:auto; color:var(--ink2); font-size:12.5px; line-height:1.5; } #lb_side #lb_x { width:100%; padding:11px; }
   /* шаг «Оформление»: один список, шаблон в шапке, плитки, справа предпросмотр */
   #screen3 { max-width:none; } #screen3 .topbar { margin-bottom:2px; padding-right:0; align-items:flex-end; }
   #screen3 .lookbar { border:0; background:transparent; padding:0; margin:0; gap:8px; display:flex; align-items:center; } #screen3 .lookbar .lbl { color:var(--ink2); font-size:13px !important; font-weight:400; }
@@ -849,7 +918,7 @@
   #screen3 .opts { display:flex; flex-direction:column; gap:0; flex:0 1 auto; min-height:0; overflow-y:auto; border:1px solid var(--line); border-radius:12px; background:var(--bg2); padding:0; margin:0; max-width:none; grid-template-columns:none; }
   #screen3 .optq { display:none; } #screen3 .opts > .lookbar { display:none; }
   #screen3 .opts { display:flex !important; flex-direction:column !important; padding:0 !important; gap:0 !important; align-items:stretch; } #screen3 .opts > * { margin:0 !important; width:auto !important; max-width:none !important; align-self:stretch; }
-  /* шаг «Доступ»: очередь здесь только добавляет ролик, список — в панели «Очередь» */
+  /* шаг «Озвучка и файлы»: очередь здесь только добавляет ролик, список — в панели «Очередь» */
   .alist .qbox .qqlist, .alist .qbox .qed, .alist .qbox .qset { display:none; }
   #screen3 .grp { margin:0; padding:9px 18px 7px; font-size:12px !important; color:var(--ink2); background:var(--bg); border:0; border-bottom:1px solid var(--line2); border-radius:0; } #screen3 .grp::before, #screen3 .grp::after { display:none; }
   #screen3 .opt, #screen3 .optx { display:flex; align-items:center; gap:16px; padding:13px 18px; min-height:0; border:0; border-bottom:1px solid var(--line2); border-radius:0; background:transparent; box-shadow:none; margin:0; opacity:1; }
@@ -1106,7 +1175,12 @@
 <div id="lb"><div class="lbtop"><b id="lb_n"></b><span class="lbseg" id="lb_seg"><button type="button" id="lb_si"></button><button type="button" id="lb_sv"></button></span><span id="lb_t"></span><span class="sp"></span>
   <button class="ghost" id="lb_edit"></button><button class="ghost" id="lb_own"></button><button class="ghost" id="lb_sw"></button><button class="ghost" id="lb_ext"></button><button class="primary" id="lb_x" onclick="closeLB()"></button></div>
   <div class="lbmid"><button class="nav2 l" id="lb_prev">&#8249;</button><div id="lb_media" style="display:contents"></div><button class="nav2 r" id="lb_next">&#8250;</button></div>
-  <div class="lbcap" id="lb_cap"></div>
+  <div class="lbcap" id="lb_cap"></div><div class="lbhint" id="lb_hint"></div>
+  <aside id="lb_side"><div class="lbh"><b id="lb_st"></b></div>
+    <div class="s3card" id="lb_cp"><div class="s3h"><b id="lb_pt"></b></div><div id="lb_ptext"></div><div id="lb_pslot"></div></div>
+    <div class="s3card" id="lb_cs"><b id="lb_stt"></b><div id="lb_sslot"></div></div>
+    <div class="s3card"><b id="lb_ft"></b><div class="lb2" id="lb_fslot"></div></div>
+    <div class="lbnote" id="lb_note"></div><div id="lb_xslot"></div></aside>
   <div class="lbstk" id="lb_stk"><span id="lb_sinfo"></span><span class="sp"></span><button class="ghost" id="lb_snext"></button><button class="ghost" id="lb_sq"></button><button class="ghost" id="lb_sgen"></button></div>
   <div class="lbed"><textarea id="lb_prompt" spellcheck="false"></textarea><div class="r"><span class="n" id="lb_en"></span><button class="ghost" id="lb_ecancel"></button><button class="primary" id="lb_ego"></button></div></div></div>
 <div id="tr_dlg"><div class="box"><h3 id="tr_t"></h3>
@@ -1211,6 +1285,8 @@
 
   <div class="screen" id="screen2">
     <div class="topbar"><div class="logo"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div><div class="stepname"><span data-i18n="step"></span> <b>02</b> · <span data-i18n="s2"></span></div></div>
+    <div class="pgsub" id="s2_sub"></div>
+    <div class="s2wrap"><div class="s2main">
     <div class="tiles c3" id="modes">
       <label class="tile"><input type="radio" name="mode" value="images"><span class="dot"></span>
         <svg viewBox="0 0 64 64"><rect x="8" y="12" width="48" height="40"/><path d="M8 44l14-14 10 10 8-8 16 12"/><circle cx="44" cy="24" r="4"/></svg><span class="t" data-i18n="m_images"></span></label>
@@ -1233,6 +1309,8 @@
     <div class="vfrow" id="vc_row"><span class="lbl" id="vc_lbl"></span><input type="range" id="vzoom" min="100" max="115" step="1" value="104"><span class="val" id="vc_val"></span>
       <select id="vanchor" class="qst"><option value="top"></option><option value="center"></option><option value="bottom"></option></select></div>
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
+    <div class="s2list" id="s2_list"></div>
+    </div><aside id="s2_side"><div class="s3card"><b id="s2_st"></b><div id="s2_sum"></div></div><div class="s3card"><b id="s2_ht"></b><div class="s3n" id="s2_hint"></div></div></aside></div>
     <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
   </div>
 
@@ -1271,18 +1349,19 @@
     <datalist id="voice_list"></datalist>
     <datalist id="lang_list"><option value="русском"><option value="польском"><option value="английском"><option value="украинском"><option value="немецком"><option value="испанском"><option value="французском"><option value="португальском"><option value="итальянском"><option value="турецком"></datalist>
     <div class="status err" id="s_prep" style="text-align:center"></div>
-    <div class="nav"><button class="ghost" onclick="go(3)" data-i18n="back"></button><button class="primary" id="btn_prep" onclick="startAll()" data-i18n="begin"></button></div>
+    <div class="nav"><button class="ghost" onclick="go(3)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="s4_q" onclick="queueAdd().then(ok => { if (ok) toast(pt('Ролик поставлен в очередь.', 'Added to the queue.'), 4000); })"></button><button class="primary" id="btn_prep" onclick="startAll()" data-i18n="begin"></button></div>
   </div>
 
   <div class="screen" id="screen5">
     <div class="topbar"><div class="logo"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div><div class="stepname"><span data-i18n="step"></span> <b>05</b> · <span data-i18n="s5"></span></div></div>
     <div class="scan" id="scan" style="display:none"><div class="wave" id="wave"></div><div class="phase" id="scan_phase"></div><div class="line"></div><div class="sub" id="scan_sub"></div></div>
     <div class="review" id="review">
-      <div class="panel rv"><div class="fc" id="fc" style="display:none"><div class="lbl" data-i18n="fc_title"></div><div class="big" id="fc_big"></div><div class="sub" id="fc_sub"></div><div class="alt" id="fc_alt"></div></div><h3 data-i18n="rv_settings"></h3><div class="rvlist" id="rv_sum"></div></div>
-      <div class="panel rv" id="rv_script_panel"><h3 id="rv_script_title"></h3><textarea id="rv_script" spellcheck="false"></textarea><div class="status" id="rv_words"></div></div>
+      <div class="rvmain"><div class="panel rv"><div class="fc" id="fc" style="display:none"><div class="lbl" data-i18n="fc_title"></div><div class="big" id="fc_big"></div><div class="sub" id="fc_sub"></div><div class="alt" id="fc_alt"></div></div><h3 data-i18n="rv_settings"></h3><div class="rvlist" id="rv_sum"></div></div>
+      <div class="panel rv" id="rv_script_panel"><h3 id="rv_script_title"></h3><textarea id="rv_script" spellcheck="false"></textarea><div class="status" id="rv_words"></div></div></div>
+      <aside id="rv_side"><div class="s3card" id="rv_fcc"><b id="rv_fct"></b></div><div class="s3card" id="rv_warn" style="display:none"><b id="rv_wt" style="color:var(--warn)"></b><div id="rv_wl"></div></div><div class="s3card"><b id="rv_mt"></b><div class="s3n" id="rv_mn"></div></div></aside>
     </div>
     <div class="status err" id="s_prep2" style="text-align:center"></div>
-    <div class="nav"><button class="ghost" onclick="autoStart = false; go(4)" data-i18n="back"></button><button class="primary" id="btn_go" onclick="startFromReview()" data-i18n="go"></button></div>
+    <div class="nav"><button class="ghost" onclick="autoStart = false; go(4)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="rv_q" onclick="queueAdd().then(ok => { if (ok) toast(pt('Ролик поставлен в очередь.', 'Added to the queue.'), 4000); })"></button><button class="primary" id="btn_go" onclick="startFromReview()" data-i18n="go"></button></div>
   </div>
 
   <div class="screen" id="screen6">
@@ -1313,10 +1392,10 @@
 <script>
 const $ = id => document.getElementById(id);
 const I18N = {
-  ru: {help:'Инструкция', credit:'', tagline:'MP3 / сценарий → Video', upd1:'Доступна версия', upd2:'Скачать', upd3:'и распаковать поверх папки программы.', hint1:'Выберите, чем хотите генерировать видео. Можно отметить несколько.', hint_err:'Отметьте хотя бы один сервис.', next:'Далее', back:'Назад', step:'Шаг', s2:'Режим', s3:'Оформление', s4:'Доступ', s5:'Проверка', s6:'Создание', begin:'Начать', rv_settings:'Настройки', rv_services:'Сервисы', to_settings:'К настройкам', err_script:'Вставьте текст сценария.', err_audio:'Выберите файл озвучки или перетащите его в окно.', err_rw_empty:'рерайт вернулся пустым', rv_script:'Сценарий, можно править', rv_script_rw:'Переписанный сценарий, можно править', rv_words:'слов', rv_none:'—', rv_yes:'да', rv_no:'нет', addkey:'ещё ключ', opt_q:'Нужны эти опции?', no_next:'Нет, далее', check:'Проверить', same_key:'тот же ключ, что для картинок', drop_hint:'перетащите mp3 в окно или выберите файл', models:'Модель для текстов', src_lbl:'Сценарий', file_lbl:'Файл озвучки', o_tts:'Сделать озвучку', o_rw:'Рерайт сценария', g_main:'Основное', g_extra:'Дополнительно', rw_text_src:'Свой текст', rw_words:'Слов в сценарии', rw_lang:'Язык сценария', rw_size:'Объём и язык', rw_llm:'Кто переписывает', rw_then:'Озвучка нового сценария', voice_rw:'Рерайт и озвучка', vo_q:'Сделать вам <b>озвучку</b>?', vo_mine:'У меня своя', vo_make:'Сделайте', voice_mp3:'Ваша озвучка', voice_tts:'Озвучка сценария',
+  ru: {help:'Инструкция', credit:'', tagline:'MP3 / сценарий → Video', upd1:'Доступна версия', upd2:'Скачать', upd3:'и распаковать поверх папки программы.', hint1:'Выберите, чем хотите генерировать видео. Можно отметить несколько.', hint_err:'Отметьте хотя бы один сервис.', next:'Далее', back:'Назад', step:'Шаг', s2:'Режим и стиль', s3:'Оформление', s4:'Озвучка и файлы', s5:'Проверка', s6:'Создание', begin:'Начать', rv_settings:'Настройки', rv_services:'Сервисы', to_settings:'К настройкам', err_script:'Вставьте текст сценария.', err_audio:'Выберите файл озвучки или перетащите его в окно.', err_rw_empty:'рерайт вернулся пустым', rv_script:'Сценарий, можно править', rv_script_rw:'Переписанный сценарий, можно править', rv_words:'слов', rv_none:'—', rv_yes:'да', rv_no:'нет', addkey:'ещё ключ', opt_q:'Нужны эти опции?', no_next:'Нет, далее', check:'Проверить', same_key:'тот же ключ, что для картинок', drop_hint:'перетащите mp3 в окно или выберите файл', models:'Модель для текстов', src_lbl:'Сценарий', file_lbl:'Файл озвучки', o_tts:'Сделать озвучку', o_rw:'Рерайт сценария', g_main:'Основное', g_extra:'Дополнительно', rw_text_src:'Свой текст', rw_words:'Слов в сценарии', rw_lang:'Язык сценария', rw_size:'Объём и язык', rw_llm:'Кто переписывает', rw_then:'Озвучка нового сценария', voice_rw:'Рерайт и озвучка', vo_q:'Сделать вам <b>озвучку</b>?', vo_mine:'У меня своя', vo_make:'Сделайте', voice_mp3:'Ваша озвучка', voice_tts:'Озвучка сценария',
        m_images:'Только картинки', m_mixed:'50 на 50', m_video:'Только видео', regime:'Режим', speed:'Скорость', quality:'Качество',
        q_title:'Очередь', q_note:'несколько сценариев или файлов подряд, у каждого свой голос · остальные настройки общие', q_add:'+ В очередь', q_clear:'убрать готовые', q_empty:'Пусто. Вставьте сценарий или выберите mp3 и нажмите «+ В очередь»; повторите для следующего. Кнопка «Начать» запустит все по очереди.', q_voice_ph:'голос (пусто — по умолчанию)', q_retry:'повторить', q_need:'Сначала вставьте сценарий или выберите файл', q_added:'Добавлено в очередь', q_st:{queued:'в очереди', running:'идёт', assembling:'монтируется', done:'готово', error:'ошибка', stopped:'остановлено'}, q_job:'Задание', q_of:'из', q_summary:'Готово {d} из {n}', rv_queue:'Очередь', q_default:'голос по умолчанию', redo_btn:'перерисовать этот кадр', redo_queued:'Кадр {n} будет перерисован до сборки ролика', redo_deleted:'Кадр {n} удалён. Нажмите «Ещё одно» и запустите тот же ролик — программа дорисует только его и пересоберёт видео', redo_late:'Ролик уже собирается. Перерисовать можно, когда он будет готов: нажмите ↻ на кадре и запустите ролик ещё раз', fgimg_lbl:'Модель картинок', fgvid_lbl:'Модель видео', tip_fgm:'Модель fast-gen для этого ролика. «Авто» — как раньше: программа сама перебирает модели. Выбранная модель идёт первой; если она не отдаст кадр, программа перейдёт на обычную цепочку. Список моделей — файл fastgen_models.json рядом с программой, его можно дописывать.', prof_lbl:'Профиль', prof_none:'без профиля', tip_profile:'Свой мастер-промпт для кадров: папка profiles рядом с программой. С профилем программа делит сценарий на части, пишет промпты по вашему мастер-промпту и ставит кадры точно под озвучку; стиль ниже тогда не используется.', style_lbl:'Стиль', custom_name:'Свой стиль', custom_ph:'Опишите стиль своими словами, лучше по-английски: например, «vintage Soviet poster, flat colors, bold shapes, paper texture». Программа положит это в основу всех картинок ролика.', q_styles:'Разный стиль', q_styles_on:'Разный стиль · вкл', q_style_common:'стиль как у всех', tip_style:'Единый вид всех картинок ролика. Ультрареализм — как фото. Остальные — кино, рисунок, комикс, мультфильм. В рисованных стилях одинаковость героев держится хуже, чем в реализме, а аниме и комикс при оживлении иногда «плывут». «Свой стиль» — опишите сами. Смена стиля перерисовывает ролик заново.', tts_royal_note:'озвучка ElevenLabs v4 по ключу royaltechno · ключ уже введён в строке картинок · оплата за символы с баланса', tts_royal_nokey:'нужен ключ royaltechno — введите его в строке картинок выше', tts_fg_note:'голоса Gemini по ключу fast-gen · ключ уже введён в строке картинок · 10 запросных кредитов за фразу, кредиты картинок не тратятся', tts_fg_nokey:'нужен ключ fast-gen — введите его в строке картинок выше', gb:'ГБ', mb:'МБ', store_line:'Видео: {o} · заготовки: {j}', store_open:'открыть папку с видео', store_clear:'очистить заготовки', store_confirm:'Удалить заготовки ВСЕХ проектов: картинки, промпты, озвучку, клипы? Готовые видео останутся, но все проекты пропадут из «Недавних» — доделать, перерисовать кадр или сделать новую озвучку на них уже не выйдет. Удалить один проект — кнопка «…» у него.', store_done:'Освобождено {m} МБ', upd_ready:'Версия <b>{v}</b> скачана — установится сама, когда вы закроете программу', upd_now:'Установить сейчас', base_url:'Свой адрес API', base_note:'необязательно · прокси или зеркало вместо официального адреса; пусто — официальный', vf_lbl:'Оживить первые', vf_none:'нет', vf_mixed:'+ каждая вторая', voice_ok:'Голос найден: ', voice_unknown:'Такого ID нет в загруженном списке — будет использован как введён. Нажмите «Список», чтобы проверить.', spent:'ЗАТРАЧЕНО ', vf_scenes:['сцену','сцены','сцен'], tip_vf:'Первые N сцен ролика будут оживлены видео, остальные — картинками с движением камеры (в «50 на 50» ещё и каждая вторая). Удобно, когда видео-кредитов мало: зритель решает в первые секунды, а на них и уходит оживление.',
-       rv_vf:'Оживить первые', rv_vf_mixed:'+ каждая вторая сцена (режим 50 на 50)', o_ultra:'Ультра режим', o_hd:'HD-картинки', tip_hd:'Картинки Nano Banana приходят вдвое крупнее (около 2750×1540 вместо 1376×768) и после сжатия до Full HD выглядят заметно резче. Работает в режиме «Качество» через fast-gen (8 кредитов за картинку вместо 1) и royaltechno (двойной вес). Сама картинка делается чуть дольше; заметно дольше станет, только если ролик упирается в часовой лимит кредитов — он кончится вдвое быстрее.', o_subs:'Субтитры', o_motion:'Моушн-дизайн', o_speed:'Копии 0,98 и 1,02', tip_speed:'Рядом с готовым роликом сохраняются ещё две версии: чуть медленнее (0,98) и чуть быстрее (1,02), со звуком в том же тоне. Нужны, чтобы один сюжет выкладывать на разные каналы как разные видео. Битрейт копий берётся у самого ролика, поэтому весят они примерно как оригинал. Добавляет к сборке несколько минут на часовой ролик.', o_qa:'Автоотбор картинок', qa_row:'Автоотбор картинок', qa_note:'нейросеть смотрит каждый кадр и бракует: текст, лишние люди, кривые руки, не тот предмет', qa_or_model:'название модели на OpenRouter, например google/gemini-2.5-flash или qwen/qwen3-vl', tip_qa:'Нейросеть-зритель (Gemini, Claude, OpenAI или OpenRouter по вашему ключу) смотрит каждую картинку сразу после генерации. Брак — читаемый текст, лишние люди, уродства рук и лиц, не тот предмет, кадр не по описанию — перерисовывается с подсказкой, что было не так, до двух раз; из вариантов берётся лучший. Ключ вводится на экране «Доступ». Проверка идёт параллельно с рисованием и почти не удлиняет ролик; перерисовки стоят кредитов картинок (обычно 5–15% сцен). Через fast-gen это не работает: его тариф не даёт моделям смотреть картинки.',
+       rv_vf:'Оживить первые', rv_vf_mixed:'+ каждая вторая сцена (режим 50 на 50)', o_ultra:'Ультра режим', o_hd:'HD-картинки', tip_hd:'Картинки Nano Banana приходят вдвое крупнее (около 2750×1540 вместо 1376×768) и после сжатия до Full HD выглядят заметно резче. Работает в режиме «Качество» через fast-gen (8 кредитов за картинку вместо 1) и royaltechno (двойной вес). Сама картинка делается чуть дольше; заметно дольше станет, только если ролик упирается в часовой лимит кредитов — он кончится вдвое быстрее.', o_subs:'Субтитры', o_motion:'Моушн-дизайн', o_speed:'Копии 0,98 и 1,02', tip_speed:'Рядом с готовым роликом сохраняются ещё две версии: чуть медленнее (0,98) и чуть быстрее (1,02), со звуком в том же тоне. Нужны, чтобы один сюжет выкладывать на разные каналы как разные видео. Битрейт копий берётся у самого ролика, поэтому весят они примерно как оригинал. Добавляет к сборке несколько минут на часовой ролик.', o_qa:'Автоотбор картинок', qa_row:'Автоотбор картинок', qa_note:'нейросеть смотрит каждый кадр и бракует: текст, лишние люди, кривые руки, не тот предмет', qa_or_model:'название модели на OpenRouter, например google/gemini-2.5-flash или qwen/qwen3-vl', tip_qa:'Нейросеть-зритель (Gemini, Claude, OpenAI или OpenRouter по вашему ключу) смотрит каждую картинку сразу после генерации. Брак — читаемый текст, лишние люди, уродства рук и лиц, не тот предмет, кадр не по описанию — перерисовывается с подсказкой, что было не так, до двух раз; из вариантов берётся лучший. Ключ вводится на экране «Озвучка и файлы». Проверка идёт параллельно с рисованием и почти не удлиняет ролик; перерисовки стоят кредитов картинок (обычно 5–15% сцен). Через fast-gen это не работает: его тариф не даёт моделям смотреть картинки.',
        keys:'Ключи', key:'Ключ', what:'что это?', where:'где взять?', stt:'Распознавание речи', llm:'Тексты сцен', check_many:'Проверить ключи', check_one:'Проверить ключ', models:'модели для текстов', voice:'Озвучка', src_mp3:'Готовый mp3', src_script:'Сценарий → озвучить', drop:'Перетащите mp3', or:'или', pick:'Выбрать файл', ttskey:'Ключ озвучки', voiceid:'ID голоса', list:'Список', script:'Текст сценария', ready:'Готов', go:'Поехали', stop:'Стоп', again:'Ещё одно', frames:'Кадры', frames_done:'Кадры · готово', done:'Готово', open:'Открыть видео', folder:'Папка', log:'журнал',
        ph_key:'ключ', ph_voice:'вставьте voice_id (пусто — голос по умолчанию)', tts_edge:'Edge · бесплатно', tts_edge_note:'ключ не нужен · по умолчанию русский мужской голос Дмитрий, женский — ru-RU-SvetlanaNeural', ph_script:'Вставьте текст, который нужно озвучить…', checking:'Проверяю…', saved:'Сохранено', loading:'Загружаю список…', voices_n:'в списке голосов: {n} — начните вводить в поле ID', voices_none:'сервис не отдал список; введите voice_id вручную', recent:'Недавние: ', recent_none:'Пусто — будет голос сервиса по умолчанию.', recent_tag:'недавний',
        ph_rw:'Переписываю сценарий', ph_rw_sub:'Модель читает исходник и пишет новый текст', ph_tts:'Озвучиваю сценарий', ph_tts_sub:'Голос синтезируется, это может занять минуту', phases:[['Слушаю озвучку','Распознаю речь и расставляю таймкоды каждого слова'],['Ищу паузы и фразы','Границы предложений станут границами сцен'],['Режу на сцены','Каждая сцена: от 3 до 7 секунд'],['Считаю стоимость','Сколько сцен, кредитов и минут понадобится']],
@@ -1341,7 +1420,7 @@ const I18N = {
        tip_tts:'Озвучка из текста сценария. Бесплатно и без ключа — голоса Microsoft Edge (по-русски Дмитрий и Светлана, качество среднее). Дороже и живее — ElevenLabs v3 через VoiceGen, Voicer или Lumean, понадобится их ключ. Без этой галочки нужен готовый mp3.',
        tip_subs:'Текст озвучки накладывается на видео с точными таймингами: строки до 42 символов, без мигания на паузах. Файл .srt — в «файлах ролика» проекта («…» у ролика → «Сценарий и .srt»).',
        tip_motion:'Плавные переходы между сценами: затемнение, сдвиг, раскрытие, наезд. Ролик выглядит смонтированным. Сборка дольше примерно на минуту.'},
-  en: {help:'Guide', credit:'', tagline:'MP3 / script → Video', upd1:'Version', upd2:'Download', upd3:'is available — unpack over the program folder.', hint1:'Choose what to generate the video with. You can pick several.', hint_err:'Pick at least one service.', next:'Next', back:'Back', step:'Step', s2:'Mode', s3:'Look', s4:'Access', s5:'Review', s6:'Creating', begin:'Start', rv_settings:'Settings', rv_services:'Services', to_settings:'To settings', err_script:'Paste the script text.', err_audio:'Choose a voice-over file or drop it into the window.', err_rw_empty:'the rewrite came back empty', rv_script:'Script, editable', rv_script_rw:'Rewritten script, editable', rv_words:'words', rv_none:'—', rv_yes:'yes', rv_no:'no', addkey:'another key', opt_q:'Need these options?', no_next:'No, next', check:'Check', same_key:'same key as for images', drop_hint:'drop an mp3 into the window or choose a file', models:'Text model', src_lbl:'Script', file_lbl:'Voice-over file', o_tts:'Make voice-over', o_rw:'Script rewrite', g_main:'Main', g_extra:'Extras', rw_text_src:'My text', rw_words:'Words in script', rw_lang:'Script language', rw_size:'Length and language', rw_llm:'Who rewrites', rw_then:'Voice-over of the new script', voice_rw:'Rewrite and voice-over', vo_q:'Should we make the <b>voice-over</b>?', vo_mine:'I have my own', vo_make:'Make it', voice_mp3:'Your voice-over', voice_tts:'Script voice-over',
+  en: {help:'Guide', credit:'', tagline:'MP3 / script → Video', upd1:'Version', upd2:'Download', upd3:'is available — unpack over the program folder.', hint1:'Choose what to generate the video with. You can pick several.', hint_err:'Pick at least one service.', next:'Next', back:'Back', step:'Step', s2:'Mode & style', s3:'Look', s4:'Voice & files', s5:'Review', s6:'Creating', begin:'Start', rv_settings:'Settings', rv_services:'Services', to_settings:'To settings', err_script:'Paste the script text.', err_audio:'Choose a voice-over file or drop it into the window.', err_rw_empty:'the rewrite came back empty', rv_script:'Script, editable', rv_script_rw:'Rewritten script, editable', rv_words:'words', rv_none:'—', rv_yes:'yes', rv_no:'no', addkey:'another key', opt_q:'Need these options?', no_next:'No, next', check:'Check', same_key:'same key as for images', drop_hint:'drop an mp3 into the window or choose a file', models:'Text model', src_lbl:'Script', file_lbl:'Voice-over file', o_tts:'Make voice-over', o_rw:'Script rewrite', g_main:'Main', g_extra:'Extras', rw_text_src:'My text', rw_words:'Words in script', rw_lang:'Script language', rw_size:'Length and language', rw_llm:'Who rewrites', rw_then:'Voice-over of the new script', voice_rw:'Rewrite and voice-over', vo_q:'Should we make the <b>voice-over</b>?', vo_mine:'I have my own', vo_make:'Make it', voice_mp3:'Your voice-over', voice_tts:'Script voice-over',
        m_images:'Images only', m_mixed:'50 / 50', m_video:'Video only', regime:'Mode', speed:'Speed', quality:'Quality',
        q_title:'Queue', q_note:'several scripts or files in a row, each with its own voice · all other settings are shared', q_add:'+ Add to queue', q_clear:'remove finished', q_empty:'Empty. Paste a script or pick an mp3 and press “+ Add to queue”; repeat for the next one. “Start” runs them one by one.', q_voice_ph:'voice (empty — default)', q_retry:'retry', q_need:'Paste a script or pick a file first', q_added:'Added to the queue', q_st:{queued:'queued', running:'running', assembling:'assembling', done:'done', error:'error', stopped:'stopped'}, q_job:'Job', q_of:'of', q_summary:'Done {d} of {n}', rv_queue:'Queue', q_default:'default voice', redo_btn:'redraw this frame', redo_queued:'Frame {n} will be redrawn before the video is assembled', redo_deleted:'Frame {n} deleted. Press “One more” and run the same video — only this frame is redrawn and the video is rebuilt', redo_late:'The video is already being assembled. Once it is done, press ↻ on the frame and run the video again', fgimg_lbl:'Image model', fgvid_lbl:'Video model', tip_fgm:'fast-gen model for this video. Auto — as before, the app tries models itself. The chosen model goes first; if it fails, the usual chain follows. The list is fastgen_models.json next to the app and can be extended.', prof_lbl:'Profile', prof_none:'no profile', tip_profile:'Your own master prompt for frames: the profiles folder next to the app. With a profile the app splits the script into parts, writes prompts from your master prompt and times frames to the voice-over; the style below is then not used.', style_lbl:'Style', custom_name:'Custom style', custom_ph:'Describe the style in your own words, e.g. "vintage Soviet poster, flat colors, bold shapes, paper texture". It becomes the base of every image in the video.', q_styles:'Per-job style', q_styles_on:'Per-job style · on', q_style_common:'same as all', tip_style:'One look for every image in the video. Ultra-realism is photo-like; the rest are film, drawing, comic or cartoon. Drawn styles keep characters consistent less reliably than realism, and anime or comic frames may “swim” when animated. “Custom style” — describe it yourself. Changing the style redraws the video from scratch.', tts_royal_note:'ElevenLabs v4 voice-over via your royaltechno key · the key is already entered in the images row · billed per character from your balance', tts_royal_nokey:'needs a royaltechno key — enter it in the images row above', tts_fg_note:'Gemini voices via your fast-gen key · the key is already entered in the images row · 10 request credits per phrase, image credits are not spent', tts_fg_nokey:'needs a fast-gen key — enter it in the images row above', gb:'GB', mb:'MB', store_line:'Videos: {o} · work files: {j}', store_open:'open videos folder', store_clear:'clear work files', store_confirm:'Delete work files of ALL projects (images, prompts, voice-over, clips)? Finished videos stay, but every project leaves “Recent” and can no longer be edited. To delete one project use its “…” button.', store_done:'Freed {m} MB', upd_ready:'Version <b>{v}</b> is downloaded — it will install itself when you close the app', upd_now:'Install now', base_url:'Custom API base URL', base_note:'optional · a proxy or mirror instead of the official address; empty — official', vf_lbl:'Animate the first', vf_none:'none', vf_mixed:'+ every second', voice_ok:'Voice found: ', voice_unknown:'This ID is not in the loaded list — it will be used as typed. Press “List” to check.', spent:'TIME SPENT ', vf_scenes:['scene','scenes','scenes'], tip_vf:'The first N scenes are animated to video, the rest stay as images with camera motion (in 50/50 every second scene too). Handy when video credits are scarce: viewers decide in the first seconds.',
        rv_vf:'Animate the first', rv_vf_mixed:'+ every second scene (50/50 mode)', o_ultra:'Ultra mode', o_hd:'HD images', tip_hd:'Nano Banana images come twice as large (about 2750×1540 instead of 1376×768) and look noticeably sharper after downscaling to Full HD. Quality mode via fast-gen (8 credits per image instead of 1) and royaltechno (double weight). Each image takes slightly longer; it gets noticeably longer only if the video hits the hourly credit limit — it runs out twice as fast.', o_subs:'Subtitles', o_motion:'Motion design', o_speed:'0.98 and 1.02 copies', tip_speed:'Two extra versions are saved next to the finished video: slightly slower (0.98) and slightly faster (1.02), audio pitch unchanged. Handy for posting one story to several channels as different videos. Copies use the video’s own bitrate, so they weigh about the same as the original. Adds a few minutes per hour of video.', o_qa:'Auto image review', qa_row:'Auto image review', qa_note:'a vision model checks every frame and rejects text, extra people, broken hands, wrong objects', qa_or_model:'model name on OpenRouter, e.g. google/gemini-2.5-flash or qwen/qwen3-vl', tip_qa:'A vision model (Gemini, Claude, OpenAI or OpenRouter via your own key) looks at every image right after generation. Rejects — readable text, extra people, deformed hands or faces, wrong object, frame off-description — are redrawn with a hint about what was wrong, up to twice; the best variant is kept. The key goes on the Access screen. Review runs in parallel with drawing and barely extends the job; redraws cost image credits (usually 5–15% of scenes). Not available via fast-gen: its plan does not let chat models see images.',
@@ -1411,6 +1490,8 @@ function go(n) {
     if (n === 0) refreshRecent();
     if (n === 1) svcKeys();
     if (n === 3) s3Enter();
+    if (n === 2) try { s2Paint(); } catch (e) {}
+    if (n === 5) try { rvSide(); } catch (e) {}
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
@@ -1480,7 +1561,7 @@ function setRender() {
 function openSettings() { const st = $('store'); if (st && st.parentNode !== $('st_store')) $('st_store').appendChild(st); setRender(); refreshStore(); $('st_close').onclick = () => $('set_dlg').classList.remove('show'); $('set_dlg').classList.add('show'); }
 // очередь — своя панель
 let qpTimer = null;
-function keysMove() { const kb = document.querySelector('#dropzone .keysbox'); if (kb && $('kt_adv')) { kb.classList.add('open'); $('kt_adv').innerHTML = ''; $('kt_adv').appendChild(kb); } }
+function keysMove() { try { accessCols(); } catch (e) {} const kb = document.querySelector('#dropzone .keysbox'); if (kb && $('kt_adv')) { kb.classList.add('open'); $('kt_adv').innerHTML = ''; $('kt_adv').appendChild(kb); } }
 window.addEventListener('load', () => { const ra0 = renderAccess; renderAccess = function () { const r = ra0.apply(this, arguments); try { keysMove(); if ($('queue_dlg').classList.contains('show')) qpRender(); sideNav(); } catch (e) {} return r; }; });
 let RUN = null;  // что делается сейчас: {title, stage, pct, queued}
 function runCard() {
@@ -1517,7 +1598,7 @@ function qpRender() {
     : `<div class="qc run"><div class="q1"><span class="qtt">${esc(RUN.title)}</span><span class="chipq running">${pt('идёт', 'running')}</span></div><div class="q2"><span>${esc(RUN.stage)} · ${RUN.pct}%</span><span>${pt('запущен не из очереди', 'started directly')}</span></div><div class="qb"><i style="width:${RUN.pct}%"></i></div><div class="qacts"><button class="ghost" onclick="qpClose(); go(6)">${pt('Открыть', 'Open')}</button></div></div>`);
   if (next.length) h += `<div class="qsec">${pt('Дальше, по порядку', 'Next, in order')} · ${next.length}</div>` + next.map((q, k) => qCard(q, k + 1)).join('');
   if (rest.length) h += `<div class="qsec" style="display:flex;align-items:center;gap:10px"><span style="flex:1">${pt('Готово и ошибки', 'Done & failed')} · ${rest.length}</span><span class="lk" style="color:var(--acc2);cursor:pointer" onclick="queueOp('clear')">${pt('убрать готовые', 'clear')}</span></div>` + rest.map(q => qCard(q)).join('');
-  if (!h) h = `<div class="qempty">${pt('В очереди пусто и ничего не делается. Чтобы поставить ролик в очередь, пройдите шаги нового ролика до «Доступ» и нажмите там «+ В очередь».', 'The queue is empty.')}</div>`;
+  if (!h) h = `<div class="qempty">${pt('В очереди пусто и ничего не делается. Чтобы поставить ролик в очередь, пройдите шаги нового ролика до «Озвучка и файлы» и нажмите там «+ В очередь».', 'The queue is empty.')}</div>`;
   h += `<div class="qsec">${pt('Настройки очереди', 'Queue settings')}</div><div class="qc"><label class="jdc"><input type="checkbox"${queueStyles ? ' checked' : ''} onchange="toggleQueueStyles()">${pt('разный стиль у каждого ролика (выбирается в «Изменить»)', 'own style per video')}</label></div>`;
   $('qp_body').innerHTML = h; bindQueue(); try { sideNav(); } catch (e) {}
 }
@@ -1529,7 +1610,7 @@ async function openQueue() {
   await queueRefresh(); qpRender(); $('queue_dlg').classList.add('show');
   clearInterval(qpTimer); qpTimer = setInterval(async () => { if (!$('queue_dlg').classList.contains('show')) { clearInterval(qpTimer); return; } if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#qp_body input, #qp_body select')) return; await queueRefresh(); qpRender(); }, 3000);
 }
-function openKeys() {  // ключи живут на шаге «Доступ»: открываем его и разворачиваем блок ключей
+function openKeys() {  // ключи живут на шаге «Озвучка и файлы»: открываем его и разворачиваем блок ключей
   const open = () => { const k = document.querySelector('.keysbox .khead'); if (k && !k.parentNode.classList.contains('open')) k.click(); };
   openKeysTable();
 }
@@ -1537,7 +1618,7 @@ let sideMax = 1;
 function sideRender() {
   if (!$('sd_steps')) return;
   sideMax = Math.max(sideMax, cur);
-  const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Доступ', 'Access'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
+  const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Озвучка и файлы', 'Voice & files'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
   $('sd_cap').textContent = pt('Шаги нового ролика', 'New video steps'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
   $('pg0_t').textContent = pt('Ролики', 'Videos'); $('sd_new').textContent = pt('Новый ролик', 'New video'); $('hm_folder').textContent = pt('Рабочая папка', 'Work folder');
   if (typeof homeRender === 'function') homeRender();
@@ -1552,7 +1633,7 @@ function sideNav() {
     + `<div class="sd_it can" onclick="openProfiles()">${pt('Профили', 'Profiles')}</div>`
     + `<div class="sd_it can" onclick="openHeroes()">${pt('Герои', 'Heroes')}${sdN(() => HEROES.length)}</div>`;
   runCard();
-  const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Доступ', 'Access'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
+  const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Озвучка и файлы', 'Voice & files'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
   $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
     return `<div class="sd_it${n === cur ? ' cur' : ''}${n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
 }
@@ -1743,13 +1824,81 @@ function s3Enter() { s3Sums(); s3Forecast(); s3Preview(); }
   Object.keys(map).forEach(d => { const el = $(d); if (!el) return; new MutationObserver(() => { const open = el.classList.contains('show'); $(map[d]).classList.toggle('open', open); if (!open && cur === 3) { s3Sums(); s3Preview(); } }).observe(el, {attributes: true, attributeFilter: ['class']}); });
   ['use_subs', 'use_motion'].forEach(id => $(id).addEventListener('change', () => { s3Paint(); if (id === 'use_subs') s3Preview(); }));
 })();
+// ===== шаг 2: раскладка по макету =====
+(() => {
+  const L = $('s2_list'); if (!L) return;
+  const g = t => { const d = document.createElement('div'); d.className = 's2g'; d.dataset.g = t; L.appendChild(d); };
+  const mv = id => { const e = typeof id === 'string' ? (document.getElementById(id) || document.querySelector(id)) : id; if (e) { e.classList.add('s2r'); L.appendChild(e); } };
+  g('img'); mv(document.querySelector('#screen2 .qrow:not(.srow)')); mv('vf_row'); mv('fgimg_row'); mv('fgvid_row'); mv('vc_row'); mv('vp_row');
+  g('pr'); const sr = document.querySelectorAll('#screen2 .sgrid .srow'); mv(sr[0]); mv(sr[1]); mv('custom_row'); mv('pm_row'); mv('stock_row');
+  const D = {images: ['Кадры с плавным движением камеры. Дешевле и быстрее всего.', 'Frames with smooth camera motion. Cheapest and fastest.'], mixed: ['Каждая вторая сцена оживляется в видео, остальные — картинки.', 'Every second scene is animated.'], video: ['Каждая сцена — оживлённый клип. Дольше и дороже.', 'Every scene is a video clip. Slower and pricier.']};
+  document.querySelectorAll('#modes .tile').forEach(tl => { const v = tl.querySelector('input').value, sp = document.createElement('span'); sp.className = 'md'; sp.dataset.m = v; tl.appendChild(sp); });
+  window.s2Paint = function () {
+    $('s2_sub').textContent = pt('Что рисуем, чем и по каким промптам', 'What we draw, with what, and from which prompts');
+    const ql = document.querySelector('#s2_list .qrow:not(.srow) > .lbl'); if (ql) ql.textContent = pt('Качество', 'Quality');
+    document.querySelectorAll('#modes .md').forEach(sp => sp.textContent = pt(...D[sp.dataset.m]));
+    L.querySelectorAll('.s2g').forEach(d => d.textContent = d.dataset.g === 'img' ? pt('Картинки и видео', 'Images and video') : pt('Промпты', 'Prompts'));
+    $('s2_st').textContent = pt('Что получится', 'What you get'); $('s2_ht').textContent = pt('Подсказка', 'Tip');
+    $('s2_hint').textContent = pt('Для роликов с героями берите «Качество» или карточки героев на шаге «Оформление»: в режиме «Скорость» внешность держится только по тексту промпта.', 'For stories with heroes use Quality or hero cards.');
+    const selTxt = id => { const e = $(id); return e && e.selectedIndex >= 0 ? (e.options[e.selectedIndex] || {}).text || '' : ''; };
+    const m = mode(), rows = [[pt('Кадры', 'Frames'), m === 'images' ? (vf() ? pt(`картинки, первые ${vf()} — видео`, `images, first ${vf()} as video`) : pt('картинки с движением камеры', 'images with camera motion')) : m === 'mixed' ? pt('половина — видео, половина — картинки', 'half video, half images') : pt('все сцены — видео', 'all scenes as video')],
+      [pt('Качество', 'Quality'), fgq() === 'quality' ? pt('качество, одинаковые герои', 'quality, consistent heroes') : pt('скорость', 'speed')],
+      [pt('Модель', 'Model'), selTxt('fgimg_sel') || pt('авто', 'auto')],
+      [pt('Промпты', 'Prompts'), (typeof promptsFile !== 'undefined' && promptsFile) ? pt('готовые из файла', 'ready, from a file') : profileName ? pt('профиль «', 'profile «') + profileName + '»' : pt('стиль: ', 'style: ') + selTxt('style_sel')],
+      [pt('Стоки', 'Stock'), ($('use_stock') && $('use_stock').checked) ? (($('stock_sum') && $('stock_sum').textContent) || pt('включены', 'on')) : pt('выключены', 'off')]];
+    $('s2_sum').innerHTML = rows.map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join('');
+  };
+  ['change', 'input'].forEach(ev => $('screen2').addEventListener(ev, () => setTimeout(s2Paint, 50)));
+})();
+// ===== шаг 4: две колонки =====
+function accessCols() {
+  const box = document.querySelector('#dropzone .alist-in'); if (!box || box.querySelector('.acols')) return;
+  const cols = document.createElement('div'); cols.className = 'acols'; cols.innerHTML = '<div class="aL"></div><div class="aR"></div>';
+  const kids = [...box.children]; box.appendChild(cols);
+  kids.forEach(e => { if (e.classList.contains('qbox')) return;
+    const right = e.querySelector('#video_name, #out_dir, #pf_name, .pfnote');
+    if (e.querySelector('textarea')) e.classList.add('tallrow'); if (e.querySelector('#file_name')) e.classList.add('filerow');
+    cols.querySelector(right ? '.aR' : '.aL').appendChild(e); });
+  if ($('s4_q')) $('s4_q').textContent = pt('В очередь', 'To the queue');
+}
+// ===== шаг 5: «изменить», предупреждения, памятка =====
+async function rvSide() {
+  if (!$('rv_side')) return;
+  const f = $('fc'); if (f && f.parentNode !== $('rv_fcc')) $('rv_fcc').appendChild(f);
+  $('rv_fct').textContent = pt('Прогноз', 'Forecast'); $('rv_mt').textContent = pt('Если что-то пойдёт не так', 'If something goes wrong');
+  $('rv_mn').textContent = pt('Готовые кадры сохраняются. Ролик можно остановить и продолжить с того же места с главной.', 'Finished frames are kept; you can stop and continue later.');
+  $('rv_q').textContent = pt('В очередь', 'To the queue'); $('rv_wt').textContent = pt('Обратите внимание', 'Note');
+  const W = [];
+  try { if (profileName || (typeof promptsFile !== 'undefined' && promptsFile)) (HEROES || []).filter(h => h.on && !h.img).forEach(h => W.push(`${pt('У героя', 'Hero')} <b>${esc(h.name)}</b> ${pt('нет портрета — он пойдёт только по тексту промпта.', 'has no portrait.')}<span class="lk" onclick="openHeroes()">${pt('Нарисовать портрет', 'Draw portrait')}</span>`)); } catch (e) {}
+  try { await ktLoad(); provs().forEach(p => { const r = KT.find(x => x.id === p); if (r && !r.count) W.push(`${esc(r.name)}: ${pt('ключ не введён.', 'no key.')}<span class="lk" onclick="openKeysTable()">${pt('Ввести', 'Add')}</span>`); }); } catch (e) {}
+  if (source !== 'script' && !audioPath && !rwOn()) W.push(pt('Не выбран файл озвучки.', 'No voice-over file.') + `<span class="lk" onclick="go(4)">${pt('Выбрать', 'Choose')}</span>`);
+  $('rv_wl').innerHTML = W.map(w => `<div class="wi">${w}</div>`).join(''); $('rv_warn').style.display = W.length ? '' : 'none';
+}
+function rvLinks() {
+  const map = [[t('rv_services'), 1], [t('rv_vf'), 2], [t('o_rw'), 3], [t('o_tts'), 4], [t('file_lbl'), 4], [t('regime'), 2], [t('style_lbl'), 2]];
+  document.querySelectorAll('#rv_sum > div').forEach(d => { const k = (d.querySelector('span') || {}).textContent || '', m = map.find(([l]) => l === k);
+    if (m && !d.querySelector('.rvgo')) { const a = document.createElement('span'); a.className = 'rvgo'; a.textContent = pt('изменить', 'change'); a.onclick = () => go(m[1]); d.appendChild(a); } });
+}
+// ===== просмотр кадра: панель справа =====
+(() => {
+  const mv = (id, slot) => { const e = $(id), s = $(slot); if (e && s) s.appendChild(e); };
+  mv('lb_edit', 'lb_pslot'); document.querySelector('#lb .lbed') && $('lb_pslot').appendChild(document.querySelector('#lb .lbed'));
+  mv('lb_stk', 'lb_sslot'); mv('lb_own', 'lb_fslot'); mv('lb_ext', 'lb_fslot'); mv('lb_sw', 'lb_fslot'); mv('lb_x', 'lb_xslot');
+  const sync = () => { const pr = document.querySelector('#lb_cap .pr'); $('lb_ptext').textContent = pr ? pr.textContent : ''; $('lb_cs').style.display = $('lb_stk').style.display === 'none' ? 'none' : '';
+    $('lb_st').textContent = pt('Что с кадром', 'This frame'); $('lb_pt').textContent = pt('Промпт', 'Prompt'); $('lb_stt').textContent = pt('Сток', 'Stock'); $('lb_ft').textContent = pt('Свой файл и видео', 'Own file & video');
+    $('lb_hint').textContent = pt('← → листать · пробел — пауза видео · Esc — закрыть', '← → browse · space — pause · Esc — close');
+    $('lb_note').textContent = pt('Изменения попадут в ролик после «Пересобрать ролик». Пока ролик делается, доступно только «Перерисовать».', 'Changes go into the video after Rebuild.'); };
+  new MutationObserver(sync).observe($('lb_cap'), {childList: true, subtree: true, characterData: true});
+  new MutationObserver(sync).observe($('lb_stk'), {attributes: true, attributeFilter: ['style']});
+  new MutationObserver(sync).observe($('lb'), {attributes: true, attributeFilter: ['class']});
+})();
 let HCNT = null;
 async function openHeroes() {
   HSEL = new Set(); HCNT = null;
   try { if (typeof promptsFile !== 'undefined' && promptsFile) { const c = await pywebview.api.hero_counts(promptsFile); if (c && c.ok) HCNT = c; } } catch (e) {}
   await heroesLoad();
   $('hd_t').textContent = pt('Герои', 'Heroes');
-  $('hd_cnt').textContent = HCNT ? '' : pt('Чтобы увидеть, в скольких кадрах встречается каждый герой, выберите файл готовых промптов на шаге «Доступ».', 'Choose a ready-prompts file on the Access step to see frame counts.');
+  $('hd_cnt').textContent = HCNT ? '' : pt('Чтобы увидеть, в скольких кадрах встречается каждый герой, выберите файл готовых промптов на шаге «Озвучка и файлы».', 'Choose a ready-prompts file on the Access step to see frame counts.');
   $('hd_n').textContent = pt('Вставьте карточки из чата (HERO / DESCRIPTION / PORTRAIT). Для кадров из готовых промптов и профиля программа найдёт имя героя в тексте кадра (точно, заглавными, например MIGUEL) и приложит его портрет как референс. Портрет можно нарисовать или загрузить свой. Работает на моделях, которые принимают референсы.',
     'Paste hero cards from the chat. The portrait is attached to every frame whose prompt contains the hero name.');
   $('hd_text').placeholder = 'HERO: MIGUEL\nDESCRIPTION: MIGUEL: 29-year-old ranch hand …\nPORTRAIT: Waist-up portrait of MIGUEL …\n\nHERO: DON_AUGUSTO\nDESCRIPTION: …\nPORTRAIT: none';
@@ -2134,7 +2283,7 @@ function renderReview(script) {
   $('rv_script_title').textContent = rwOn() ? t('rv_script_rw') : t('rv_script');
   $('rv_script').value = script || ''; updRvWords();
   $('rv_mode').addEventListener('change', refreshForecast); $('rv_fgq').addEventListener('change', refreshForecast);
-  refreshForecast();
+  refreshForecast(); try { rvLinks(); rvSide(); } catch (e) {}
 }
 function updRvWords() { const n = $('rv_script').value.trim().split(/\s+/).filter(Boolean).length; $('rv_words').textContent = n ? `${n} ${t('rv_words')}` : ''; }
 let fcTimer = null;
@@ -2251,7 +2400,7 @@ function errCard(msg) {
   const m = String(msg || ''), low = m.toLowerCase();
   const kinds = [[/кредит|credit|баланс|balance|insufficient/, pt('Закончились кредиты сервиса', 'Out of credits'), pt('Всё готовое сохранено. Пополните баланс и нажмите «Повторить» — программа продолжит с того же места.', 'Top up and press Retry.')],
     [/лимит|limit|429|too many|rate/, pt('Сервис просит подождать (лимит запросов)', 'Rate limit'), pt('Программа сама делает паузы и повторяет. Если остановилась — подождите несколько минут и нажмите «Повторить».', 'Wait a few minutes and retry.')],
-    [/ключ|api key|unauthor|401|403|forbidden/, pt('Ключ не подошёл', 'Key rejected'), pt('Проверьте ключ в «Ключи и сервисы» (шаг «Доступ») и нажмите «Повторить».', 'Check the key and retry.')],
+    [/ключ|api key|unauthor|401|403|forbidden/, pt('Ключ не подошёл', 'Key rejected'), pt('Проверьте ключ в «Ключи и сервисы» (шаг «Озвучка и файлы») и нажмите «Повторить».', 'Check the key and retry.')],
     [/сеть|network|timeout|timed out|connection|соедин|dns|ssl/, pt('Нет связи с сервисом', 'No connection'), pt('Проверьте интернет и нажмите «Повторить». Готовые кадры не пропадут.', 'Check the connection and retry.')],
     [/no space|места на диске|disk full|errno 28/, pt('Кончилось место на диске', 'Disk is full'), pt('Освободите место (например, «очистить заготовки» на шаге «Сервисы») и нажмите «Повторить».', 'Free up space and retry.')]];
   const k = kinds.find(x => x[0].test(low));
@@ -2809,7 +2958,7 @@ async function loadConfig(keepScreen) {
   if (!keepScreen) pywebview.api.check_update().then(u => { if (u) showUpdate(u); });
 }
 
-// ===== экран «Доступ»: одна колонка строк =====
+// ===== экран «Озвучка и файлы»: одна колонка строк =====
 const F = {script:'', rwUrl:'', rwText:'', rwWords:1500, rwLang:'польском', voice:'', name:''};
 // значение — как в промпте («на польском»), подпись — по-человечески («Польский»)
 const LANG_NAMES = {'английском':'Английский','китайском':'Китайский','хинди':'Хинди','испанском':'Испанский','арабском':'Арабский','французском':'Французский','бенгальском':'Бенгальский','португальском':'Португальский','русском':'Русский','урду':'Урду','индонезийском':'Индонезийский','немецком':'Немецкий','японском':'Японский','турецком':'Турецкий','вьетнамском':'Вьетнамский','корейском':'Корейский','итальянском':'Итальянский','персидском':'Персидский','польском':'Польский','украинском':'Украинский','голландском':'Голландский','румынском':'Румынский','греческом':'Греческий','чешском':'Чешский','венгерском':'Венгерский','шведском':'Шведский','казахском':'Казахский','узбекском':'Узбекский','азербайджанском':'Азербайджанский','иврите':'Иврит','финском':'Финский','датском':'Датский','норвежском':'Норвежский'};
@@ -3464,7 +3613,7 @@ function lbStock(m, i) {  // стоковая сцена: откуда кадр,
   box.style.display = k ? '' : 'none'; if (!k) return;
   $('lb_sinfo').innerHTML = `${pt('Сток', 'Stock')}: <b>${esc(k.src)}</b> · ${k.kind === 'video' ? pt('видео', 'video') : pt('фото', 'photo')} · ${pt('запрос', 'query')} «${esc(k.q || '')}»`
     + (k.page ? ` · <span class="lk" onclick="pywebview.api.open_url('${esc(k.page).replace(/'/g, '%27')}')">${pt('на сайте', 'source')}</span>` : '');
-  $('lb_snext').textContent = pt('Другой со стока', 'Another one'); $('lb_sq').textContent = pt('Свой запрос…', 'Own query…'); $('lb_sgen').textContent = pt('Сгенерировать вместо', 'Generate instead');
+  $('lb_snext').textContent = pt('Другой со стока', 'Another one'); $('lb_sq').textContent = pt('Свой запрос…', 'Own query…'); $('lb_sgen').textContent = pt('Сгенерировать вместо стока', 'Generate instead of stock');
   const after = (r, what) => {
     if (!r.ok) { toast(esc(r.error || ''), 7000); return; }
     toast(`${what} <span class="lk" onclick="continueJob('${esc(LB.job).replace(/'/g, '&#39;')}')">${pt('Пересобрать ролик', 'Rebuild the video')}</span>`, 12000);
@@ -3828,7 +3977,7 @@ async function applyProfileVoice(name, quiet) {
 // ===== правка кадра в окне просмотра =====
 function lbJobId() { return LB.job; }
 function lbEditLabels() {
-  $('lb_edit').textContent = pt('✎ Промпт', '✎ Prompt'); $('lb_own').textContent = pt('Своя картинка…', 'Own image…');
+  $('lb_edit').textContent = pt('Править промпт и перерисовать', 'Edit prompt & redraw'); $('lb_own').textContent = pt('Своя картинка…', 'Own image…');
   $('lb_ecancel').textContent = pt('Отмена', 'Cancel'); $('lb_ego').textContent = pt('Перерисовать', 'Redraw');
   $('lb_en').textContent = pt('Поменяйте промпт (или оставьте как есть) — кадр нарисуется заново, ролик пересоберётся. Тратится 1 картинка (и 1 видео, если кадр оживлён).', 'Edit the prompt — the frame is redrawn and the video reassembled.');
 }
