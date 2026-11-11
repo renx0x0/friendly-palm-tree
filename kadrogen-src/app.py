@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p75"
+VERSION = "1.7.1-p76"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2155,6 +2155,41 @@ class Api:
             pipeline.log("нажат «Стоп»")
         return {"ok": True, "running": busy}
 
+    KEY_ROWS = (("fastgen", "fast-gen", "картинки, видео, тексты"), ("nonstop", "veononstop", "картинки и видео"), ("yougen", "yougen", "картинки и видео"),
+                ("royal", "royaltechno", "картинки и видео"), ("slider", "secretslider", "картинки"), ("google", "Google", "картинки и видео"),
+                ("openai", "OpenAI", "тексты, автоотбор"), ("anthropic", "Claude", "тексты, автоотбор"), ("gemini", "Gemini", "тексты, автоотбор"),
+                ("assemblyai", "AssemblyAI", "распознавание речи"), ("voicegen", "voicegen", "озвучка"), ("voicer", "voicer", "озвучка"), ("lumean", "lumean", "озвучка"),
+                ("pexels", "Pexels", "стоки"), ("pixabay", "Pixabay", "стоки"))
+
+    def keys_table(self):
+        """Раздел «Ключи и сервисы»: какие ключи введены (без самих ключей)."""
+        cfg = load_cfg()
+        rows = []
+        for kid, name, role in self.KEY_ROWS:
+            if kid in pipeline.PROVIDERS:
+                keys = pipeline.provider_keys(cfg, kid)
+            else:
+                k = cfg.get(f"{kid}_api_key") or ""
+                keys = [k] if k else []
+            rows.append({"id": kid, "name": name, "role": role, "count": len(keys), "mask": mask(keys[0]) if keys else "",
+                         "selected": kid in (cfg.get("image_providers") or [])})
+        return rows
+
+    def keys_check(self, kid):
+        """Проверка одного сервиса для таблицы ключей. → {"ok", "text"}"""
+        kid = str(kid or "")
+        try:
+            if kid in ("pexels", "pixabay"):
+                r = self.stock_check(kid)
+                return {"ok": bool(r.get("ok")), "text": "OK" + (f" · {r.get('note')}" if r.get("note") else "") if r.get("ok") else (r.get("error") or "ошибка")}
+            r = self.check_keys([kid]).get(kid)
+            vals = r if isinstance(r, list) else [r]
+            vals = [str(v or "") for v in vals]
+            ok = bool(vals) and all(v.startswith("OK") for v in vals)
+            return {"ok": ok, "text": " | ".join(vals) if vals else "нет ответа"}
+        except Exception as e:
+            return {"ok": False, "text": str(e)[:200]}
+
     def job_summary(self):
         """Что делается на экране создания — по записи самого ролика (job.json), а не по текущим настройкам шагов."""
         with LOCK:
@@ -2180,6 +2215,24 @@ class Api:
         out = {"ok": True, "path": res, "name": os.path.basename(res), "size_mb": round(os.path.getsize(res) / 1048576, 1), "duration": 0}
         try:
             out["duration"] = round(float(pipeline.audio_duration(res)), 1)
+        except Exception:
+            pass
+        try:  # кредиты fast-gen по оставшимся кадрам: модель кадра × цена модели; повторы и брак сюда не попадают
+            with LOCK:
+                d = STATE.get("job_dir") or pipeline.LAST_JOB_DIR
+            models = pipeline.fastgen_models() or {}
+            price = {m.get("op"): m.get("credits") or 0 for kind in ("image", "video") for m in (models.get(kind) or []) if m.get("op")}
+            total, other = 0, 0
+            for name in ("images.json", "videos.json"):
+                for v in (pipeline.read_json(os.path.join(d, name), {}) or {}).values():
+                    m = str((v or {}).get("model") or "") if isinstance(v, dict) else ""
+                    if not m or not (v or {}).get("ok", True):
+                        continue
+                    if m.startswith("fastgen:"):
+                        total += price.get(m.split(":", 1)[1], 0)
+                    elif not m.startswith(("stock:", "copy_prev")):
+                        other += 1
+            out["credits"], out["other"] = total, other
         except Exception:
             pass
         return out

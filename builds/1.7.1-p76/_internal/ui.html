@@ -840,6 +840,17 @@
   #fsel .hint { width:auto; order:9; margin-left:8px; }
   .psum { margin-top:12px; padding:10px 12px; border-radius:var(--r); background:var(--bg3); color:var(--ink2); font-size:12.5px; line-height:1.5; } .psum:empty { display:none; }
   #screen6 .plog pre#log { border-radius:var(--r); font-size:12px; }
+  /* ключи и сервисы: таблица */
+  #keys_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:stretch end; grid-template-rows:minmax(0, 1fr); background:rgba(0,0,0,.3); } #keys_dlg.show { display:grid; }
+  #keys_dlg .box { width:min(820px, 100%) !important; min-height:0; border-radius:0 !important; border-width:0 0 0 1px !important; padding:20px 24px 16px; background:var(--side); display:flex; flex-direction:column; gap:12px; animation:panelin .22s ease; box-shadow:-18px 0 50px rgba(0,0,0,.35); }
+  #keys_dlg h3 { margin:0; font-size:18px !important; font-weight:700; } #keys_dlg .note { color:var(--ink2); font-size:12.5px; }
+  #kt_list { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:4px; }
+  .ktr { display:grid; grid-template-columns:150px 1fr auto; gap:4px 14px; align-items:center; padding:10px 14px; border:1px solid var(--line); border-radius:var(--r); background:var(--bg2); }
+  .ktr.nokey { opacity:.6; } .ktr .nm { font-weight:600; } .ktr .rl { color:var(--ink2); font-size:12px; }
+  .ktr .ks { font-size:12.5px; color:var(--ink2); overflow-wrap:anywhere; } .ktr .ks.ok { color:var(--ok); } .ktr .ks.err { color:var(--err); } .ktr .ks .mk { color:var(--ink2); }
+  .ktr button { padding:6px 12px; font-size:12px !important; }
+  @media (min-width:1900px) { #keys_dlg { zoom:1.1; } } @media (min-width:2300px) { #keys_dlg { zoom:1.2; } } @media (min-width:3200px) { #keys_dlg { zoom:1.6; } }
+  #side .sd_it .cnt { margin-left:auto; color:var(--ink2); font-size:12px; font-weight:400; }
   /* выбор цвета, экран «Готово», карточка ошибки */
   #side .sd_pal { display:flex; gap:8px; padding:0 4px; } #side .sd_pal button { width:20px; height:20px; padding:0; border-radius:50%; border:2px solid var(--side); box-shadow:0 0 0 1px var(--line); cursor:pointer; }
   #side .sd_pal button.on { box-shadow:0 0 0 2px var(--ink); } #side .sd_pal button:hover { filter:brightness(1.1); }
@@ -1027,6 +1038,9 @@
   <div style="display:flex;gap:10px;align-items:center"><button class="ghost" id="hd_sel"></button><button class="ghost" id="hd_del"></button></div>
   <div id="hero_list"></div>
   <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="primary" id="hd_close"></button></div></div></div>
+<div id="keys_dlg"><div class="box"><div style="display:flex;align-items:center;gap:10px"><h3 id="kt_t"></h3><span style="flex:1"></span><button class="ghost" id="kt_all"></button><button class="ghost" id="kt_edit"></button></div>
+  <div class="note" id="kt_n"></div><div id="kt_list"></div>
+  <div style="display:flex"><span style="flex:1"></span><button class="primary" id="kt_close"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <aside id="side"><div class="sd_logo" onclick="goHome()"><i></i><span>KadroGen</span></div>
   <button type="button" class="sd_new" id="sd_new" onclick="go(1)"></button>
@@ -1262,6 +1276,30 @@ function go(n) {
 }
 (() => { const b = document.querySelector('#side .sd_bot'); if (b) { b.appendChild(document.querySelector('.topctl')); b.appendChild($('credit')); } })();
 (() => { const pb = document.querySelector('#screen6 .pbtns'), r = $('result'); if (pb && r) pb.parentNode.insertBefore(r, pb); })();
+const sdN = f => { let n = 0; try { n = f() || 0; } catch (e) {} return n ? `<span class="cnt">${n}</span>` : ''; };
+let KT = [], KST = {};
+function ktRender() {
+  $('kt_list').innerHTML = KT.map(r => { const st = KST[r.id];
+    return `<div class="ktr${r.count ? '' : ' nokey'}"><div><div class="nm">${esc(r.name)}${r.selected ? ' ✓' : ''}</div><div class="rl">${esc(r.role)}</div></div>`
+      + `<div class="ks ${st ? (st.busy ? '' : st.ok ? 'ok' : 'err') : ''}">${st ? (st.busy ? pt('проверяю…', 'checking…') : esc(st.text)) : (r.count ? `<span class="mk">${esc(r.mask)}${r.count > 1 ? pt(` · ключей: ${r.count}`, ` · keys: ${r.count}`) : ''} · ${pt('не проверялся', 'not checked')}</span>` : pt('ключ не введён', 'no key'))}</div>`
+      + (r.count ? `<button class="ghost" onclick="ktCheck('${r.id}')"${st && st.busy ? ' disabled' : ''}>${pt('Проверить', 'Check')}</button>` : `<button class="ghost" onclick="ktEdit()">${pt('Ввести', 'Add')}</button>`) + `</div>`; }).join('');
+}
+async function ktCheck(id) {
+  KST[id] = {busy: true}; ktRender();
+  let r; try { r = await pywebview.api.keys_check(id); } catch (e) { r = {ok: false, text: String(e)}; }
+  KST[id] = {ok: !!(r && r.ok), text: (r && r.text) || ''}; ktRender();
+}
+function ktEdit() { $('keys_dlg').classList.remove('show'); openKeys(); }
+async function openKeysTable() {
+  $('kt_t').textContent = pt('Ключи и сервисы', 'Keys & services'); $('kt_all').textContent = pt('Проверить все', 'Check all'); $('kt_edit').textContent = pt('Изменить ключи', 'Edit keys'); $('kt_close').textContent = pt('Готово', 'Done');
+  $('kt_n').textContent = pt('Все сервисы программы. Галочка у названия — сервис выбран для картинок. «Проверить» делает пробный запрос: у fast-gen покажет лимиты в час, у остальных — баланс или тариф, если сервис их отдаёт. Сами ключи вводятся на шаге «Доступ».',
+    'All services. “Check” makes a test request and shows limits or balance where the service reports them.');
+  $('kt_close').onclick = () => $('keys_dlg').classList.remove('show'); $('kt_edit').onclick = ktEdit;
+  $('kt_all').onclick = async () => { for (const r of KT.filter(x => x.count)) await ktCheck(r.id); };
+  try { const r = await pywebview.api.keys_table(); KT = Array.isArray(r) ? r : []; } catch (e) { KT = []; }
+  ktRender(); $('keys_dlg').classList.add('show');
+}
+function openQueue() { const go4 = () => { const q = document.querySelector('.qbox'); if (q) q.scrollIntoView({block: 'center'}); }; if (cur === 4) go4(); else { go(4); setTimeout(go4, 600); } }
 function openKeys() {  // ключи живут на шаге «Доступ»: открываем его и разворачиваем блок ключей
   const open = () => { const k = document.querySelector('.keysbox .khead'); if (k && !k.parentNode.classList.contains('open')) k.click(); };
   if (cur === 4) { open(); return; }
@@ -1277,7 +1315,10 @@ function sideRender() {
   if (typeof homeRender === 'function') homeRender();
   accentApply(ACCENT);
   $('sd_nav').innerHTML = `<div class="sd_it${cur === 0 ? ' cur' : ' can'}"${cur === 0 ? '' : ' onclick="goHome()"'}>${pt('Ролики', 'Videos')}</div>`
-    + (cur === 6 ? '' : `<div class="sd_it can" onclick="openKeys()">${pt('Ключи и сервисы', 'Keys & services')}</div>`);
+    + (cur === 6 ? '' : `<div class="sd_it can" onclick="openQueue()">${pt('Очередь', 'Queue')}${sdN(() => queueItems.length)}</div>`)
+    + `<div class="sd_it can" onclick="openProfiles()">${pt('Профили', 'Profiles')}</div>`
+    + `<div class="sd_it can" onclick="openHeroes()">${pt('Герои', 'Heroes')}${sdN(() => HEROES.length)}</div>`
+    + `<div class="sd_it can" onclick="openKeysTable()">${pt('Ключи и сервисы', 'Keys & services')}</div>`;
   $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
     return `<div class="sd_it${n === cur ? ' cur' : ''}${n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
 }
@@ -1893,7 +1934,8 @@ async function resultInfo(path) {
     const r = await pywebview.api.result_info(); if (!r || !r.ok) return;
     const d = Math.round(r.duration || 0), tm = d ? `${Math.floor(d / 3600) ? Math.floor(d / 3600) + ':' + String(Math.floor(d % 3600 / 60)).padStart(2, '0') : Math.floor(d / 60)}:${String(d % 60).padStart(2, '0')}` : '';
     const sz = r.size_mb >= 1024 ? (r.size_mb / 1024).toFixed(1) + pt(' ГБ', ' GB') : Math.round(r.size_mb) + pt(' МБ', ' MB');
-    $('r_info').textContent = [tm && pt('длина ', 'length ') + tm, sz, document.querySelectorAll('#frames .frame').length + pt(' кадров', ' frames')].filter(Boolean).join(' · ');
+    $('r_info').textContent = [tm && pt('длина ', 'length ') + tm, sz, document.querySelectorAll('#frames .frame').length + pt(' кадров', ' frames'),
+      r.credits ? pt(`≈ ${r.credits} кредитов fast-gen (без повторов)`, `≈ ${r.credits} fast-gen credits`) : '', r.other ? pt(`${r.other} кадров другими сервисами`, `${r.other} frames by other services`) : ''].filter(Boolean).join(' · ');
   } catch (e) {}
 }
 function errCard(msg) {
@@ -3113,10 +3155,12 @@ document.addEventListener('keydown', e => {  // Esc закрывает откр�
   if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
   for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])
     if ($(dlg) && $(dlg).classList.contains('show') && $(btn)) { $(btn).click(); e.preventDefault(); return; }
+  if ($('keys_dlg').classList.contains('show')) $('keys_dlg').classList.remove('show');
 });
 document.addEventListener('keydown', e => {
   if (!$('lb').classList.contains('show') || (e.target.closest && e.target.closest('textarea, input'))) return;
   if (e.key === 'ArrowLeft') { stepLB(-1); e.preventDefault(); } else if (e.key === 'ArrowRight') { stepLB(1); e.preventDefault(); } else if (e.key === 'Escape') closeLB();
+  else if (e.key === ' ') { const v = $('lb').querySelector('video'); if (v) { v.paused ? v.play().catch(() => {}) : v.pause(); e.preventDefault(); } }
 });
 
 // ===== переходы и движение картинок =====
