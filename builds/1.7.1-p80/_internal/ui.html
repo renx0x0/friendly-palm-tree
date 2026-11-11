@@ -900,6 +900,13 @@
   #screen1 .tile .tk { font-size:12px; color:var(--ink2); } #screen1 .tile .tk.ok { color:var(--ok); } #screen1 .tile .tk .lk { color:var(--acc2); cursor:pointer; }
   #screen1 .hint { text-align:left; margin:14px 0 0; } #screen1 .hint::before { display:none; } #screen1 .store { display:none; }
   #screen1 #update { max-width:760px; margin:0 0 14px; } #screen1 .nav { margin-top:auto; }
+  .fxlive { position:absolute; right:8px; top:8px; padding:3px 9px; border-radius:10px !important; background:rgba(0,0,0,.6); color:#fff; font-size:12px; } .fxpv.loading .fxlive { display:none; }
+  .fxl .ovn { color:var(--ink); font-weight:600; } .fxl .lk { color:var(--acc2); cursor:pointer; margin-left:10px; }
+  #s3_log { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--ink2); } #s3_log .bad { color:var(--warn); }
+  /* метки на кадрах: маленькие тёмные, слева сверху (справа — галочка выбора) */
+  .frame .live, .frame .sk, .gfr .sk, .gfr .v { position:absolute; left:8px !important; right:auto !important; top:8px; padding:2px 8px !important; border-radius:9px !important; background:rgba(0,0,0,.62) !important; color:#fff !important; font-size:11px !important; font-weight:500 !important; line-height:1.5 !important; animation:none; }
+  .frame .live + .sk, .frame .sk + .live, .frame.isvid .sk { top:32px; } .gfr .v + .sk, .gfr .sk + .v { top:32px; }
+  .frame.redo::after { color:var(--warn); font-size:13px !important; }
   /* экран создания: шапка как в макете */
   #screen6 .topbar { align-items:flex-end; padding-right:0 !important; margin-bottom:14px; } #screen6 .crumb { color:var(--ink2); font-size:13px; margin-bottom:3px; }
   #screen6 .stepname { display:flex; flex-direction:column; } #screen6 .stepname > span:last-child { font-size:24px; }
@@ -1143,7 +1150,7 @@
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
   <div class="note" id="pfv_n"></div><pre id="pfv_text"></pre></div></div>
 <div id="fx_dlg"><div class="box"><div class="row1"><h3 id="fxd_t"></h3><span style="flex:1"></span></div>
-  <div class="fxbody"><div><div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span></div><div class="note" id="fxd_n"></div><div class="pvset"></div></div>
+  <div class="fxbody"><div><div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span><span class="fxlive" id="fxd_live"></span></div><div class="note" id="fxd_n"></div><div class="pvset"></div></div>
   <div class="fxlist" id="fx_list"></div></div>
   <div class="row2"><button class="ghost" id="fxd_off"></button><span style="flex:1"></span><button class="ghost" id="fxd_x"></button><button class="primary" id="fxd_save"></button></div></div></div>
 <div id="hero_dlg"><div class="box"><h3 id="hd_t"></h3><div class="note" id="hd_n"></div><div class="note" id="hd_cnt"></div>
@@ -1254,7 +1261,7 @@
     <div class="s3tiles"><div class="s3t" id="s3t_q"><small id="s3_ql"></small></div><div class="s3t"><small id="s3_frl"></small><b id="s3_fr"></b></div><div class="s3t"><small id="s3_fcl"></small><b id="s3_fc"></b></div></div>
     </div><aside id="s3_side"><div class="s3card"><div class="s3h"><b id="s3_pvt"></b><span class="lk" id="s3_pvr" onclick="s3Preview(true)"></span></div>
       <div class="s3pv" id="s3_pvbox"><video id="s3_pv" autoplay loop muted playsinline></video><span class="busy" id="s3_pvb"></span></div><div class="s3n" id="s3_pvn"></div></div>
-      <div class="s3card" id="s3_run" style="display:none" onclick="go(6)"><div class="s3h"><b id="s3_runt"></b><span class="lk" id="s3_runo"></span></div><div class="s3n" id="s3_runn"></div></div></aside></div>
+      <div class="s3card" id="s3_run" style="display:none" onclick="go(6)"><div class="s3h"><b id="s3_runt"></b><span class="lk" id="s3_runo"></span></div><div class="s3n" id="s3_runn"></div><div id="s3_log"></div></div></aside></div>
     <div class="nav"><button class="ghost" onclick="go(2)" data-i18n="back"></button><button class="primary" id="btn_opts" onclick="go(4)" data-i18n="next"></button></div>
   </div>
 
@@ -1283,7 +1290,7 @@
     <div class="proc">
       <div class="panel">
         <div class="ring"><svg width="180" height="180" viewBox="0 0 180 180"><circle class="tick" cx="90" cy="90" r="86"/><circle class="bg" cx="90" cy="90" r="80"/><circle class="fg" id="ring" cx="90" cy="90" r="80"/><circle class="glow" id="ring_glow" cx="90" cy="90" r="80"/></svg>
-          <div class="pct"><div><span id="p_pct">0%</span><small id="p_stage"></small></div></div></div>
+          <div class="pct"><div><span id="p_pct">0%</span><small id="p_stage"></small><small id="p_eta" style="margin-left:auto"></small></div></div></div>
         <div class="qhead" id="p_queue"></div>
         <ul class="stages" id="stages"></ul>
         <div class="bar"><i id="stage_bar"></i></div>
@@ -1634,7 +1641,7 @@ const FX_INFO = [
   ['ovl2', 'Свой оверлей 2', 'Custom overlay 2', 'ещё один свой mp4 с шумами', true],
   ['ovl3', 'Свой оверлей 3', 'Custom overlay 3', 'ещё один свой mp4 с шумами', true]];
 const FX_MODES = [['multiply', 'тёмные шумы на белом', 'dark on white'], ['screen', 'светлые шумы на чёрном', 'light on black'], ['overlay', 'на сером фоне', 'on grey'], ['chroma', 'на зелёном (хромакей)', 'green screen']];
-let FX_LIB = [];
+let FX_LIB = [], FXOVL_EDIT = new Set();
 let FXS = {}, FXW = {}, fxTimer = null, fxBusy = false, fxAgain = false;
 function fxDefault() { const o = {}; FX_INFO.forEach(([k]) => o[k] = {on: false, pw: k.startsWith('ovl') ? 100 : 50, sp: 50, tone: 'sepia', fl: 20, file: '', mode: 'multiply', clean: false, name: '', dur: 8}); return o; }
 const FX_OLD = {1: 25, 2: 50, 3: 80};
@@ -1709,6 +1716,7 @@ function s3Paint() {
   $('s3_pvt').textContent = pt('Предпросмотр', 'Preview'); $('s3_pvr').textContent = pt('обновить', 'refresh'); $('s3_pvb').textContent = pt('рисую…', 'rendering…');
   $('tr_cfg_btn').textContent = pt('Настроить', 'Set up'); $('sub_cfg_btn').textContent = pt('Настроить', 'Set up'); $('fx_btn').textContent = pt('Настроить', 'Set up'); $('hero_btn').textContent = (HEROES || []).length ? pt('Настроить', 'Set up') : pt('Добавить', 'Add');
   $('s3_run').style.display = jobRunning ? '' : 'none'; $('s3_runt').textContent = pt('Сейчас делается', 'In progress'); $('s3_runo').textContent = pt('открыть', 'open'); $('s3_runn').textContent = RUN ? `${RUN.title} · ${RUN.stage} ${RUN.pct}%` : '';
+  try { const bad = LOGL.filter(l => LOG_BAD.test(l)); $('s3_log').innerHTML = bad.length ? `<b style="color:var(--ink);font-weight:600">${pt('Журнал · замечаний: ', 'Log · issues: ')}${bad.length}</b>` + bad.slice(-3).map(l => `<span class="bad">${esc(l)}</span>`).join('') : `<span>${pt('Журнал: без замечаний', 'Log: no issues')}</span>`; } catch (e) {}
 }
 async function s3Forecast() {
   const none = pt('после выбора озвучки', 'after choosing the voice-over');
@@ -1777,7 +1785,9 @@ function fxRender() {
       + `<div class="fxc"><div class="fxl"><span>${pt('Сила', 'Strength')}</span>${fxSlider(k, 'pw', v.pw, pt('слабо', 'low'), pt('сильно', 'high'))}</div>`
       + (anim ? `<div class="fxl"><span>${pt('Скорость', 'Speed')}</span>${fxSlider(k, 'sp', v.sp, pt('медл.', 'slow'), pt('быстро', 'fast'))}</div>` : '')
       + (k === 'vintage' ? `<div class="fxl"><span>${pt('Мерцание', 'Flicker')}</span>${fxSlider(k, 'fl', v.fl, pt('нет', 'off'), pt('сильно', 'high'))}</div>` : '')
-      + (k.startsWith('ovl') ? `<div class="fxl"><span>${pt('Готовые', 'Built-in')}</span><select data-ovb="${k}"><option value="">${pt('— выбрать из готовых шумов —', '— built-in overlays —')}</option>${FX_LIB.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select></div>`
+      + (k.startsWith('ovl') && v.file && !FXOVL_EDIT.has(k) ? `<div class="fxl"><span>${pt('Шум', 'Overlay')}</span><span><span class="ovn">${esc(v.name || 'mp4')}</span><span class="lk" data-ovchg="${k}">${pt('сменить', 'change')}</span></span></div>`
+        + `<div class="fxl"><span></span><label><input type="checkbox" data-ovc="${k}"${v.clean ? ' checked' : ''}> ${pt('выровнять фон файла (если кадр слегка темнеет или светлеет)', 'flatten file background')}</label></div>` : '')
+      + (k.startsWith('ovl') && (!v.file || FXOVL_EDIT.has(k)) ? `<div class="fxl"><span>${pt('Готовые', 'Built-in')}</span><select data-ovb="${k}"><option value="">${pt('— выбрать из готовых шумов —', '— built-in overlays —')}</option>${FX_LIB.map(o => `<option value="${esc(o.id)}">${esc(o.name)}</option>`).join('')}</select></div>`
         + `<div class="fxl"><span>${pt('Свой файл', 'File')}</span><button class="ghost" data-ovf="${k}">${v.file ? esc(v.name || 'mp4') : pt('Выбрать mp4…', 'Choose mp4…')}</button></div>`
         + `<div class="fxl"><span>${pt('Фон файла', 'Background')}</span><select data-ovm="${k}" title="${pt('Чёрный, белый и зелёный фон программа определяет сама по файлу. Список меняет что-то только для серого фона.', 'Black, white and green backgrounds are detected from the file; this only matters for grey.')}">${FX_MODES.map(([m, r2, e2]) => `<option value="${m}"${v.mode === m ? ' selected' : ''}>${pt(r2, e2)}</option>`).join('')}</select></div>`
         + `<div class="fxl"><span></span><label><input type="checkbox" data-ovc="${k}"${v.clean ? ' checked' : ''}> ${pt('выровнять фон файла (если кадр слегка темнеет или светлеет)', 'flatten file background')}</label></div>` : '')
@@ -1790,20 +1800,21 @@ function fxRender() {
     r.onchange = () => { FXW[r.dataset.k][r.dataset.key] = +r.value; fxPreviewSoon(); };
   });
   $('fx_list').querySelectorAll('[data-tone]').forEach(sl => sl.onchange = () => { FXW.film.tone = sl.value; fxPreviewSoon(); });
+  $('fx_list').querySelectorAll('[data-ovchg]').forEach(a => a.onclick = () => { FXOVL_EDIT.add(a.dataset.ovchg); fxRender(); });
   $('fx_list').querySelectorAll('[data-ovm]').forEach(sl => sl.onchange = () => { FXW[sl.dataset.ovm].mode = sl.value; fxPreviewSoon(); });
   $('fx_list').querySelectorAll('[data-ovc]').forEach(c => c.onchange = () => { FXW[c.dataset.ovc].clean = c.checked; fxPreviewSoon(); });
   $('fx_list').querySelectorAll('[data-ovb]').forEach(sl => sl.onchange = async () => {
     if (!sl.value) return;
     const k = sl.dataset.ovb, r = await pywebview.api.fx_overlay_builtin(sl.value);
     if (!r.ok) { toast(r.error || pt('Не удалось открыть шум', 'Could not open'), 5000); return; }
-    Object.assign(FXW[k], {file: r.file, mode: r.mode, name: r.name, dur: r.dur, clean: !!r.clean, on: true});
+    Object.assign(FXW[k], {file: r.file, mode: r.mode, name: r.name, dur: r.dur, clean: !!r.clean, on: true}); FXOVL_EDIT.delete(k);
     fxRender(); fxPreviewSoon();
   });
   $('fx_list').querySelectorAll('[data-ovf]').forEach(b => b.onclick = async () => {
     const k = b.dataset.ovf, r = await pywebview.api.fx_overlay_pick();
     if (r.cancel) return;
     if (!r.ok) { toast(r.error || pt('Не удалось открыть файл', 'Could not open the file'), 5000); return; }
-    Object.assign(FXW[k], {file: r.file, mode: r.mode, name: r.name, dur: r.dur, on: true});
+    Object.assign(FXW[k], {file: r.file, mode: r.mode, name: r.name, dur: r.dur, on: true}); FXOVL_EDIT.delete(k);
     fxRender(); fxPreviewSoon();
   });
 }
@@ -1825,6 +1836,7 @@ async function openFx(tgt) {
   if (!FX_LIB.length) { try { const r = await pywebview.api.fx_overlay_list(); FX_LIB = Array.isArray(r) ? r : []; } catch (e) {} }
   FX_TGT = tgt && tgt.onSave ? tgt : null;
   FXW = fxNorm(FX_TGT ? FX_TGT.fx : FXS);
+  FXOVL_EDIT = new Set(); $('fxd_live').textContent = pt('обновляется сразу', 'updates live');
   $('fxd_t').textContent = pt('Эффекты', 'Effects'); $('fxd_busy').textContent = pt('рисую…', 'rendering…');
   $('fxd_x').textContent = pt('Отмена', 'Cancel'); $('fxd_save').textContent = pt('Сохранить', 'Save'); $('fxd_off').textContent = pt('Выключить все', 'All off');
   $('fxd_x').onclick = () => { $('fx_dlg').classList.remove('show'); $('fxd_v').removeAttribute('src'); };
@@ -2282,7 +2294,7 @@ function homeCard(r) {
   return `<div class="hcard${r.status === 'running' ? ' live' : ''}"><div class="cv"${cv} onclick="${(r.images || r.videos) ? `showFrames('${id}')` : ''}" title="${pt('Посмотреть кадры', 'View frames')}"><span class="chip ${chip[0]}">${chip[1]}</span></div>`
     + `<div class="bd"><div class="tt" title="${esc(r.title)}">${esc(r.title)}</div>`
     + (done ? '' : `<div class="pb${r.status === 'error' ? ' warn' : ''}"><i style="width:${pct}%"></i></div>`)
-    + `<div class="mt">${done && r.length ? `${Math.floor(r.length / 3600) ? Math.floor(r.length / 3600) + ':' + String(Math.floor(r.length % 3600 / 60)).padStart(2, '0') : Math.floor(r.length / 60)}:${String(r.length % 60).padStart(2, '0')} · ` : ''}${r.profile ? esc(r.profile) + ' · ' : ''}${done ? `${r.scenes || r.images} ${pt('кадров', 'frames')}` : `${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}`}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''} · ${ago(r.updated)}`
+    + `<div class="mt">${done && r.length ? `${Math.floor(r.length / 3600) ? Math.floor(r.length / 3600) + ':' + String(Math.floor(r.length % 3600 / 60)).padStart(2, '0') : Math.floor(r.length / 60)}:${String(r.length % 60).padStart(2, '0')} · ` : ''}${r.profile ? esc(r.profile) + ' · ' : ''}${done ? `1080p · ${r.scenes || r.images} ${pt('кадров', 'frames')}` : `${pt('картинки', 'images')} ${r.images}/${r.scenes || '?'}`}${r.videos ? ` · ${pt('видео', 'videos')} ${r.videos}` : ''} · ${ago(r.updated)}`
     + (kids ? ` · <span class="lk" onclick="showAllRecent()">${pt('озвучек', 're-voiced')}: ${kids}</span>` : '') + `</div>`
     + `<div class="ac">${main}<span class="sp"></span>${framesBtn(r)}<button class="ghost" title="${pt('Перезапуск с другой моделью, новая озвучка, удаление', 'Restart, re-voice, delete')}" onclick="jobMenu('${id}')">⋯</button></div></div></div>`;
 }
@@ -2535,8 +2547,8 @@ async function pollOnce(gen) {
     setTimeout(() => {
       const d = $('fr' + it.i); if (!d) return;
       d.classList.remove('redo');
-      if (!d.querySelector('img')) { d.classList.remove('pending', 'active'); d.classList.add('flash'); d.dataset.stock = it.stock ? '1' : '0'; d.innerHTML = `<span class="ph"></span><img src="${it.img}"><span class="n">${String(it.i + 1).padStart(2, '0')}</span>${it.stock ? '<span class="sk">' + pt('СТОК', 'STOCK') + '</span>' : ''}<span class="ck" onclick="fsToggle(${it.i}, event)">✓</span><button class="redo" title="${esc(t('redo_btn'))}" onclick="redoScene(${it.i})">&#8635;</button>`; setTimeout(() => d.classList.remove('flash'), 800); }
-      if (it.video && !d.querySelector('.live')) { const b = document.createElement('span'); b.className = 'live'; b.textContent = 'LIVE'; d.appendChild(b); }
+      if (!d.querySelector('img')) { d.classList.remove('pending', 'active'); d.classList.add('flash'); d.dataset.stock = it.stock ? '1' : '0'; d.innerHTML = `<span class="ph"></span><img src="${it.img}"><span class="n">${String(it.i + 1).padStart(2, '0')}</span>${it.stock ? '<span class="sk">' + pt('сток', 'stock') + '</span>' : ''}<span class="ck" onclick="fsToggle(${it.i}, event)">✓</span><button class="redo" title="${esc(t('redo_btn'))}" onclick="redoScene(${it.i})">&#8635;</button>`; setTimeout(() => d.classList.remove('flash'), 800); }
+      if (it.video && !d.querySelector('.live')) { const b = document.createElement('span'); b.className = 'live'; b.textContent = pt('видео', 'video'); d.appendChild(b); }
       d.classList.toggle('isvid', !!it.video); frFilter(); frFollow(d);
     }, k * 90);
   });
@@ -2599,6 +2611,7 @@ async function renderStats(st) {
   const row = (key, label, done, total, extra) => {
     if (!total) return;
     const pc = Math.min(100, Math.round(100 * done / total)), eta = st.running ? etaText(key, done, total) : '';
+    if (key === 'img' && $('p_eta')) $('p_eta').textContent = eta && done < total ? pt('ещё ', '') + String(eta).replace(/^[\s·~≈]+/, '≈ ') : '';
     rows.push(`<div class="psr${done >= total ? ' ok' : ''}"><span class="l">${label}</span><span class="v">${done} / ${total}</span><i><b style="width:${pc}%"></b></i><span class="e">${done >= total ? '✓' : eta}${extra || ''}</span></div>`);
   };
   if (S) {
@@ -3190,7 +3203,7 @@ async function moreFrames() {
       const num = String(it.i + 1).padStart(2, '0');
       d.className = 'gfr' + (it.img ? '' : ' empty') + (it.video ? ' hasv' : '') + (it.stock ? ' stk' : ''); d.dataset.i = it.i; FR.items[it.i] = it;
       d.title = [it.text, it.prompt].filter(Boolean).join('\n\n');
-      d.innerHTML = it.img ? `<img src="${it.img}" loading="lazy"><span class="n">${num}</span>${it.stock ? '<span class="sk">' + pt('СТОК', 'STOCK') + '</span>' : ''}<span class="ck">✓</span>${it.video ? '<span class="v">▶ ' + pt('ВИДЕО', 'VIDEO') + '</span><span class="im">' + pt('картинка', 'image') + '</span>' : ''}`
+      d.innerHTML = it.img ? `<img src="${it.img}" loading="lazy"><span class="n">${num}</span>${it.stock ? '<span class="sk">' + pt('сток', 'stock') + '</span>' : ''}<span class="ck">✓</span>${it.video ? '<span class="v">▶ ' + pt('ВИДЕО', 'VIDEO') + '</span><span class="im">' + pt('картинка', 'image') + '</span>' : ''}`
         : (it.video ? `<span>▶ ${num}</span>` : `<span>${num} · ${pt('нет', 'none')}</span>`);
       d.onclick = e => {
         if (FR.pick) { frToggle(it.i, d); return; }  // режим выбора: клик отмечает кадр
