@@ -884,7 +884,22 @@
   .aR .lrow { grid-template-columns:1fr !important; row-gap:10px; } .aR .lrow .lab { font-weight:600; } .aR .lrow .ctl { height:auto !important; flex-wrap:wrap; }
   .aL .lrow.tallrow { flex:1; align-items:stretch; } .aL .lrow.tallrow .ctl { height:100% !important; } .aL .lrow.tallrow textarea { height:100%; min-height:160px; }
   .aL .lrow.filerow { border-style:dashed; border-color:var(--ink2); padding:20px 18px; }
-  #screen4 .alist .qbox { display:none; }
+  #screen4 .alist .qbox { display:none; } #screen4 .topbar { align-items:flex-end; margin-bottom:2px; }
+  #s4_seg .vseg { display:inline-flex; padding:3px; border-radius:9px; background:var(--bg3); } #s4_seg .vseg button { border:0; border-radius:7px; padding:7px 16px; background:transparent; color:var(--ink2); font-size:13px !important; }
+  #s4_seg .vseg button.on { background:var(--bg2); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.25); }
+  .acard { border:1px solid var(--line); border-radius:12px; background:var(--bg2); padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .acard .ah { display:flex; justify-content:space-between; align-items:baseline; gap:10px; } .acard .ah b, .acard .ah label { font-weight:600; font-size:14px; } .acard .ah span:not(.lk) { color:var(--ink2); font-size:13px; }
+  .acard .lk { color:var(--acc2); cursor:pointer; font-size:13px; } .acard .lk2 { color:var(--ink2); cursor:pointer; font-size:13px; } .acard .lk2:hover { color:var(--ink); }
+  .acard input[type=text] { height:38px; padding:0 12px; font-size:13.5px; background:var(--bg); border-radius:8px; } .acard .apath { font-size:13.5px; overflow-wrap:anywhere; }
+  .acard .osub { display:flex; align-items:center; gap:8px; color:var(--ink2); font-size:13px; cursor:pointer; } .acard .osub input { margin:0; width:16px; height:16px; }
+  .acard .pfnote { color:var(--ok); font-size:13px; line-height:1.5; } .acard .pfnote .warn { color:var(--warn); } .acard .vsum { font-size:13.5px; }
+  .acard.adrop { flex-direction:row; align-items:center; gap:18px; padding:22px; border-style:dashed; border-color:var(--ink2); }
+  .acard.adrop .aic { width:34px; height:34px; flex:none; fill:none; stroke:var(--ink2); stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .acard.adrop .dt { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; } .acard.adrop .dt b { font-weight:600; font-size:15px; overflow-wrap:anywhere; } .acard.adrop .dt span { color:var(--ink2); font-size:13px; }
+  .acard.adrop button { flex:none; padding:9px 16px; } .alist.over .acard.adrop { border-color:var(--acc); background:var(--bg3); }
+  .acard textarea, .acard input { font-family:Inter, "Segoe UI", system-ui, sans-serif !important; } .acard label.ah b { color:var(--ink); }
+  .acard .ah label, .acard label.ah, .acard label.ah b { color:var(--ink) !important; font-size:14px !important; font-weight:600; }
+  .acard.agrow { flex:1; min-height:240px; } .acard.agrow textarea { flex:1; min-height:200px; resize:none; padding:12px 14px; border-radius:8px; background:var(--bg); font-size:13.5px; line-height:1.5; }
   /* шаг 5 «Проверка»: слева всё выбранное, справа прогноз и предупреждения */
   #screen5 { max-width:none; } #screen5 .review { display:flex !important; gap:22px; flex:1; min-height:0; }
   .rvmain { flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; min-height:0; }
@@ -894,6 +909,11 @@
   .rvlist > div > span:first-child { width:170px; flex:none; color:var(--ink2); } .rvlist > div > span:nth-child(2) { flex:1; min-width:0; } .rvlist .rvgo { color:var(--acc2); cursor:pointer; font-size:13px; white-space:nowrap; }
   #rv_side { width:420px; flex:none; display:flex; flex-direction:column; gap:14px; } #rv_side .s3card .fc { display:block !important; border:0; padding:0; margin:0; background:transparent; }
   #rv_side #fc .lbl { display:none; } #rv_side #fc .big { font-size:30px !important; font-weight:700; } #rv_side #fc .sub, #rv_side #fc .alt { font-size:13px; color:var(--ink2); line-height:1.5; margin-top:6px; }
+  .rvlist > .rvg { display:block !important; padding:9px 18px 7px !important; font-size:12px; color:var(--ink2); background:var(--bg); }
+  #screen5 .rvmain > .panel > h3 { display:none; }
+  #rv_tiles { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; margin-top:12px; } #rv_tiles > div { padding:10px 12px; border-radius:8px; background:var(--bg3); }
+  #rv_tiles small { display:block; color:var(--ink2); font-size:12px; } #rv_tiles b { display:block; margin-top:3px; font-weight:600; }
+  .rvlist > div { min-height:0 !important; height:auto !important; padding:11px 18px !important; } .rvlist > .rvg { padding:8px 18px 6px !important; }
   #rv_warn { border-color:var(--warn) !important; } #rv_warn .wi { font-size:13px; line-height:1.5; } #rv_warn .wi .lk { color:var(--acc2); cursor:pointer; margin-left:6px; }
   @media (max-width:1250px) { #rv_side { width:340px; } }
   /* просмотр кадра: кадр слева, справа панель «Что с кадром» */
@@ -1344,7 +1364,8 @@
   </div>
 
   <div class="screen" id="screen4">
-    <div class="topbar"><div class="logo"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div><div class="stepname"><span data-i18n="step"></span> <b>04</b> · <span data-i18n="s4"></span></div></div>
+    <div class="topbar"><div class="logo"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div><div class="stepname"><span data-i18n="step"></span> <b>04</b> · <span data-i18n="s4"></span></div><div class="hm_tools" id="s4_seg"></div></div>
+    <div class="pgsub" id="s4_sub"></div>
     <div class="alist" id="dropzone"></div>
     <datalist id="voice_list"></datalist>
     <datalist id="lang_list"><option value="русском"><option value="польском"><option value="английском"><option value="украинском"><option value="немецком"><option value="испанском"><option value="французском"><option value="португальском"><option value="итальянском"><option value="турецком"></datalist>
@@ -1856,10 +1877,10 @@ function accessCols() {
   const cols = document.createElement('div'); cols.className = 'acols'; cols.innerHTML = '<div class="aL"></div><div class="aR"></div>';
   const kids = [...box.children]; box.appendChild(cols);
   kids.forEach(e => { if (e.classList.contains('qbox')) return;
-    const right = e.querySelector('#video_name, #out_dir, #pf_name, .pfnote');
+    const right = e.dataset.col === 'R' || e.querySelector('#video_name, #out_dir, #pf_name, .pfnote');
     if (e.querySelector('textarea')) e.classList.add('tallrow'); if (e.querySelector('#file_name')) e.classList.add('filerow');
     cols.querySelector(right ? '.aR' : '.aL').appendChild(e); });
-  if ($('s4_q')) $('s4_q').textContent = pt('В очередь', 'To the queue');
+  if ($('s4_q')) $('s4_q').textContent = pt('В очередь', 'To the queue'); if ($('s4_sub')) $('s4_sub').textContent = pt('Из чего делаем ролик и куда его положить', 'What the video is made from and where it goes');
 }
 // ===== шаг 5: «изменить», предупреждения, памятка =====
 async function rvSide() {
@@ -1874,10 +1895,18 @@ async function rvSide() {
   if (source !== 'script' && !audioPath && !rwOn()) W.push(pt('Не выбран файл озвучки.', 'No voice-over file.') + `<span class="lk" onclick="go(4)">${pt('Выбрать', 'Choose')}</span>`);
   $('rv_wl').innerHTML = W.map(w => `<div class="wi">${w}</div>`).join(''); $('rv_warn').style.display = W.length ? '' : 'none';
 }
-function rvLinks() {
-  const map = [[t('rv_services'), 1], [t('rv_vf'), 2], [t('o_rw'), 3], [t('o_tts'), 4], [t('file_lbl'), 4], [t('regime'), 2], [t('style_lbl'), 2]];
-  document.querySelectorAll('#rv_sum > div').forEach(d => { const k = (d.querySelector('span') || {}).textContent || '', m = map.find(([l]) => l === k);
-    if (m && !d.querySelector('.rvgo')) { const a = document.createElement('span'); a.className = 'rvgo'; a.textContent = pt('изменить', 'change'); a.onclick = () => go(m[1]); d.appendChild(a); } });
+function rvLinks() {  // строки «Проверки» — по разделам, у каждой «изменить» ведёт на свой шаг
+  const L = $('rv_sum'); if (!L) return;
+  const G = [[pt('Из чего', 'Source'), [[t('file_lbl'), 4], [t('o_tts'), 4], [t('o_rw'), 3]]],
+    [pt('Чем и как', 'How'), [[t('rv_services'), 1], [t('regime'), 2], [t('speed') + ' / ' + t('quality'), 2], [t('style_lbl'), 2], [t('rv_vf'), 2]]],
+    [pt('Оформление', 'Look'), [[t('o_motion'), 3], [t('o_subs'), 3], [pt('Эффекты', 'Effects'), 3], [t('o_hd'), 3], [t('o_qa'), 3], [t('o_speed'), 3]]]];
+  const rows = [...L.children].filter(d => d.tagName === 'DIV' && !d.classList.contains('rvg')), byK = new Map(rows.map(d => [((d.querySelector('span') || {}).textContent || '').trim(), d]));
+  const rest = rows.filter(d => !G.some(([, it]) => it.some(([k]) => k === ((d.querySelector('span') || {}).textContent || '').trim())));
+  L.innerHTML = '';
+  G.forEach(([title, items]) => { const got = items.filter(([k]) => byK.has(k)); if (!got.length) return;
+    const h = document.createElement('div'); h.className = 'rvg'; h.textContent = title; L.appendChild(h);
+    got.forEach(([k, step]) => { const d = byK.get(k); if (!d.querySelector('.rvgo')) { const a = document.createElement('span'); a.className = 'rvgo'; a.textContent = pt('изменить', 'change'); a.onclick = () => go(step); d.appendChild(a); } L.appendChild(d); }); });
+  rest.forEach(d => L.appendChild(d));
 }
 // ===== просмотр кадра: панель справа =====
 (() => {
@@ -2202,6 +2231,9 @@ function promptsNote(r) {
 }
 function promptsRows() {
   const name = promptsFile ? promptsFile.split(/[\\/]/).pop() : '';
+  return `<div class="acard" data-col="R"><div class="ah"><b>${pt('Готовые промпты', 'Ready prompts')}</b><span class="lk" onclick="pickPrompts()">${pt('выбрать .txt', 'pick .txt')}</span></div>`
+    + `<input type="text" id="pf_name" readonly value="${esc(name)}" hidden><div class="apath">${name ? esc(name) : pt('не выбраны — промпты напишет программа', 'none — the app writes the prompts')}</div>`
+    + (promptsInfo ? `<div class="pfnote ok">${promptsNote(promptsInfo)}</div>` : '') + (promptsFile ? `<span class="lk2" onclick="clearPrompts()">${pt('убрать — промпты напишет программа', 'remove — the app writes the prompts')}</span>` : '') + `</div>`;
   return row(pt('Готовые промпты', 'Ready prompts'), '', `<input type="text" id="pf_name" readonly value="${esc(name)}" placeholder="${esc(pt('не выбраны — промпты напишет программа', 'none — the app writes prompts'))}">`
       + `<button onclick="pickPrompts()">${pt('Выбрать .txt', 'Pick .txt')}</button>${promptsFile ? `<button class="ghost" onclick="clearPrompts()">×</button>` : ''}`)
     + (promptsInfo ? `<div class="lrow"><div class="lab"></div><div class="ctl"><span class="note pfnote">${promptsNote(promptsInfo)}</span></div></div>` : '');
@@ -2309,6 +2341,9 @@ async function refreshForecast() {
   const parts = [`${plural(e.scenes, t('fc_scenes'))}`, dur];
   if (e.fastgen) { parts.push(plural(e.credits, t('fc_credits'))); if (e.limit) parts.push(t('fc_limit').replace('{l}', e.limit)); }
   $('fc_sub').textContent = parts.join(' · ');
+  try { let tl = $('rv_tiles'); if (!tl) { tl = document.createElement('div'); tl.id = 'rv_tiles'; $('fc').appendChild(tl); }
+    const sh = ($('use_stock') && $('use_stock').checked && typeof STK !== 'undefined') ? Math.round(e.scenes * (STK.share || 0) / 100) : 0;
+    tl.innerHTML = `<div><small>${pt('Кадров', 'Frames')}</small><b>${e.scenes}</b></div><div><small>${pt('Кредитов', 'Credits')}</small><b>${e.fastgen ? '≈ ' + e.credits : '—'}</b></div><div><small>${pt('Со стоков', 'From stock')}</small><b>${sh ? pt('до ', 'up to ') + sh : '—'}</b></div>`; } catch (x) {}
   box.classList.toggle('warn', e.wait_hours > 0);
   let alt = '';
   if (e.wait_hours > 0 && e.quality === 'quality' && e.alt_minutes < e.minutes) alt = t('fc_wait').replace('{h}', plural(e.wait_hours, t('hours'))).replace('{m}', fmtMin(e.alt_minutes));
@@ -2821,14 +2856,14 @@ async function retryJob() {
 const pt = (ru, en) => L === 'ru' ? ru : en;
 const partsOpen = new Set(), partsCache = {};
 function plurN(n, f) { return plural(n, f).replace(/^\d+ /, ''); }
-function fmtMin(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} ${pt('мин', 'min')}` : `${s} ${pt('с', 's')}`; }
+function fmtSecs(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m ? `${m} ${pt('мин', 'min')}` : `${s} ${pt('с', 's')}`; }
 function partStatus(p) {
   const pr = n => `${n} ${pt(plurN(n, ['промпт', 'промпта', 'промптов']), n === 1 ? 'prompt' : 'prompts')}`;
   if (p.status === 'done') return '✓ ' + pr(p.count) + (p.note === 'из кэша' ? pt(' · из кэша', ' · cached') : (p.note === 'свои промпты' ? pt(' · свои', ' · yours') : ''));
   if (p.status === 'warn') return pr(p.count) + pt(' · есть замечания', ' · with remarks');
   if (p.status === 'error') return pt('ошибка', 'error');
   if (p.status === 'manual') return pt('ждёт ваш ответ из чата', 'waiting for your chat answer');
-  if (p.status === 'writing') return (p.count ? pr(p.count) + ` ${pt('из', 'of')} ${p.per}` : pt('модель думает', 'model is thinking')) + ' · ' + fmtMin(p.elapsed) + (p.attempt > 1 ? ` · ${pt('попытка', 'try')} ${p.attempt}` : '');
+  if (p.status === 'writing') return (p.count ? pr(p.count) + ` ${pt('из', 'of')} ${p.per}` : pt('модель думает', 'model is thinking')) + ' · ' + fmtSecs(p.elapsed) + (p.attempt > 1 ? ` · ${pt('попытка', 'try')} ${p.attempt}` : '');
   return pt('ждёт', 'waiting');
 }
 async function updateParts() {
@@ -3033,9 +3068,8 @@ function renderAccess() {
     H.push(row(t('rw_llm'), RW_LINKS[rwEngine], sel('rw_eng', [['fastgen','fast-gen'],['openai','ChatGPT'],['anthropic','Claude'],['gemini','Gemini']], rwEngine) + rk, 's_rw'));
   }
   // озвучка: либо готовый файл, либо озвучить программой (сервис, ключ и голос — в отдельном окне)
-  if (!rwOn()) H.push(row(pt('Озвучка', 'Voice-over'), '', `<div class="vseg"><button type="button" class="${source !== 'script' ? 'on' : ''}" onclick="syncAll(); setSource('mp3')">${pt('Готовый файл', 'Ready file')}</button>`
-    + `<button type="button" class="${source === 'script' ? 'on' : ''}" onclick="syncAll(); setSource('script')">${pt('Озвучить программой', 'Synthesize')}</button></div>`
-    + `<span class="note">${source === 'script' ? pt('голос и ключ — кнопкой «Настроить голос» ниже', 'voice and key — “Voice settings” below') : pt('озвучка уже записана (mp3, wav…) — программа её не трогает', 'you already have the audio file')}</span>`));
+  if ($('s4_seg')) $('s4_seg').innerHTML = rwOn() ? '' : `<div class="vseg"><button type="button" class="${source !== 'script' ? 'on' : ''}" onclick="syncAll(); setSource('mp3')">${pt('Готовая озвучка', 'Ready voice-over')}</button>`
+    + `<button type="button" class="${source === 'script' ? 'on' : ''}" onclick="syncAll(); setSource('script')">${pt('Озвучить сценарий программой', 'Voice the script with the app')}</button></div>`;
   const TH = [];
   if (source === 'script') {
     const ttsSel = sel('tts_sel', [['edge', t('tts_edge')],['fastgen','fast-gen · Gemini'],['royal','royaltechno · ElevenLabs'],['voicegen','VoiceGen'],['voicer','Voicer'],['lumean','Lumean']], tts);
@@ -3043,16 +3077,20 @@ function renderAccess() {
     const ttsCtl = tts === 'edge' ? `<span class="note">${t('tts_edge_note')}</span>` : tts === 'fastgen' ? `<span class="note">${fg ? t('tts_fg_note') : t('tts_fg_nokey')}</span>` : tts === 'royal' ? `<span class="note">${hasRoyal ? t('tts_royal_note') : t('tts_royal_nokey')}</span>` : keyIn('k_tts', tts, 0, ttsKeys[tts] || '', TTS_PH[tts]) + eye('k_tts');
     TH.push(row(t('ttskey'), LINKS[tts] || SVC_LINKS[tts] || '', ttsSel + ttsCtl + chk(tts, 0, 's_tts'), 's_tts'));
     TH.push(row(t('voiceid'), 'https://elevenlabs.io/voice-library', `<input type="text" id="tts_voice" list="voice_list" value="${esc(F.voice)}" placeholder="${esc(t('ph_voice'))}" spellcheck="false" autocomplete="off"><button class="ghost" onclick="loadVoices()">${t('list')}</button>`, 's_voice'));
-    H.push(row(pt('Голос', 'Voice'), '', `<span class="vsum" id="vsum">${esc(voiceSummary())}</span><button class="ghost" onclick="openTts()">${pt('Настроить голос', 'Voice settings')}</button>`, 's_vsum'));
-    if (!rwOn()) H.push(row(t('script'), '', `<textarea id="script" spellcheck="false" placeholder="${esc(t('ph_script'))}">${esc(F.script)}</textarea>`));
+    H.push(`<div class="acard" data-col="L"><div class="ah"><b>${pt('Голос', 'Voice')}</b><span class="lk" onclick="openTts()">${pt('настроить', 'set up')}</span></div><div class="vsum" id="vsum">${esc(voiceSummary())}</div><div class="status st" id="s_vsum"></div></div>`);
+    if (!rwOn()) H.push(`<div class="acard agrow" data-col="L"><div class="ah"><label for="script">${pt('Сценарий', 'Script')}</label><span>${pt('его программа озвучит', 'the app voices it')}</span></div><textarea id="script" spellcheck="false" placeholder="${esc(t('ph_script'))}">${esc(F.script)}</textarea></div>`);
   } else {
-    H.push(row(t('file_lbl'), '', `<input type="text" id="file_name" readonly value="${esc(audioPath)}" placeholder="${esc(t('drop_hint'))}"><button onclick="pick()">${t('pick')}</button>`));
-    H.push(row(pt('Сценарий <small>(необязательно)</small>', 'Script <small>(optional)</small>'), '', `<textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it and parts/prompts follow it exactly. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea>`));
+    const fnm = audioPath ? audioPath.split(/[\\/]/).pop() : '';
+    H.push(`<div class="acard adrop" data-col="L"><svg class="aic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg><div class="dt"><b>${fnm ? esc(fnm) : pt('Перетащите файл озвучки в окно', 'Drop the voice-over file into the window')}</b><span title="${esc(audioPath)}">${fnm ? pt('перетащите другой файл в окно, чтобы заменить', 'drop another file to replace it') : pt('или нажмите «Выбрать файл» · mp3, wav, m4a, ogg', 'or click Choose file · mp3, wav, m4a, ogg')}</span></div>`
+      + `<input type="text" id="file_name" readonly value="${esc(audioPath)}" hidden><button onclick="pick()">${pt('Выбрать файл', 'Choose file')}</button></div>`);
+    H.push(`<div class="acard agrow" data-col="L"><div class="ah"><label for="script">${pt('Сценарий', 'Script')}</label><span>${pt('необязательно', 'optional')}</span></div><textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему, субтитры будут без ошибок распознавания. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea></div>`);
   }
   $('tts_body').innerHTML = TH.join('');
-  H.push(row(pt('Куда сохранить', 'Save to'), '', `<input type="text" id="out_dir" readonly value="${esc(OUTDIR.dir)}" placeholder="${esc(pt('папка output программы', 'program output folder') + (OUTDIR.def ? ' — ' + OUTDIR.def : ''))}" title="${esc(OUTDIR.dir || OUTDIR.def)}"><button onclick="pickOutDir()">${pt('Выбрать', 'Choose')}</button>${OUTDIR.dir ? `<button class="ghost eye" title="${esc(pt('Вернуть папку output', 'Back to output'))}" onclick="clearOutDir()">×</button>` : ''}`
-    + `<label class="osub" title="${esc(pt('Папка\\Название ролика\\Название ролика.mp4 — рядом с превью, если такая папка уже есть', 'Folder\\Video name\\video.mp4'))}"><input type="checkbox" id="out_sub"${OUTDIR.sub ? ' checked' : ''} onchange="OUTDIR.sub = this.checked; pywebview.api.save_config({out_sub: this.checked})">${pt('в подпапку с названием ролика', 'into a subfolder named after the video')}</label>`));
-  H.push(row(pt('Название ролика', 'Video name'), '', `<input type="text" id="video_name" value="${esc(F.name)}" maxlength="120" placeholder="${esc(pt('необязательно — так будет назван готовый файл (например: Пани Барбара)', 'optional — the finished file gets this name'))}" spellcheck="false" autocomplete="off">`));
+  H.push(`<div class="acard" data-col="R"><label class="ah" for="video_name"><b>${pt('Название ролика', 'Video name')}</b></label><input type="text" id="video_name" value="${esc(F.name)}" maxlength="120" placeholder="${esc(pt('необязательно — так будет назван готовый файл', 'optional — the finished file gets this name'))}" spellcheck="false" autocomplete="off"></div>`);
+  H.push(`<div class="acard" data-col="R"><div class="ah"><b>${pt('Куда сохранить', 'Save to')}</b><span class="lk" onclick="pickOutDir()">${pt('изменить', 'change')}</span></div>`
+    + `<div class="apath" title="${esc(OUTDIR.dir || OUTDIR.def)}">${esc(OUTDIR.dir || (pt('папка output программы', 'program output folder') + (OUTDIR.def ? ' — ' + OUTDIR.def : '')))}</div><input type="text" id="out_dir" readonly value="${esc(OUTDIR.dir)}" hidden>`
+    + (OUTDIR.dir ? `<span class="lk2" onclick="clearOutDir()">${pt('вернуть папку output', 'back to output')}</span>` : '')
+    + `<label class="osub"><input type="checkbox" id="out_sub"${OUTDIR.sub ? ' checked' : ''} onchange="OUTDIR.sub = this.checked; pywebview.api.save_config({out_sub: this.checked})">${pt('в подпапку с названием ролика', 'into a subfolder named after the video')}</label></div>`);
   if (!rwOn()) H.push(promptsRows());
   H.push(queueHtml());
   $('dropzone').innerHTML = `<div class="alist-in">${H.join('')}</div>`;
@@ -3187,7 +3225,7 @@ async function checkRow(k, i, sid) {
 }
 function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(); pywebview.api.save_config({source: v}); if (cur === 4) renderAccess(); }
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
-window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (p) autoFindPrompts(p); };
+window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (cur === 4) renderAccess(); if (p) autoFindPrompts(p); };
 function applyLang() {
   if (typeof homeLabels === 'function') { homeLabels(); subBtnLabel(); trLabel(); pfLabel(); lbEditLabels(); vqLabels(); fxLabels(); heroLabels(); sideRender(); lookRender(); styleHint(); stockLabels(); }
   document.documentElement.lang = L; $('langbtn').textContent = L === 'ru' ? 'EN' : 'RU';
