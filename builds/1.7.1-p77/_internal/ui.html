@@ -840,6 +840,48 @@
   #fsel .hint { width:auto; order:9; margin-left:8px; }
   .psum { margin-top:12px; padding:10px 12px; border-radius:var(--r); background:var(--bg3); color:var(--ink2); font-size:12.5px; line-height:1.5; } .psum:empty { display:none; }
   #screen6 .plog pre#log { border-radius:var(--r); font-size:12px; }
+  /* окна по центру и блоки промптов: скругления всему, у чего своего радиуса нет */
+  :where(.box, #parts_panel, #lb, .alist, .cols, .proc) :where(div, label, span, a, button, textarea, select, input[type=text], input[type=number], input[type=password], pre, video, img, li) { border-radius:8px; }
+  .frsel { border:0 !important; background:var(--bg3); border-radius:var(--r); padding:6px 8px 6px 12px; } .frsel .lk { color:var(--ink2); } .frsel button { padding:6px 11px; font-size:12px !important; }
+  #fr_grid > * { overflow:hidden; } #pf_dlg .box, #fr_dlg .box, #job_dlg .box, #rx_dlg .box, #rec_dlg .box, #paste_dlg .box, #vo_dlg .box, #tts_dlg .box, #pfv_dlg .box { background:var(--side); }
+  #parts_panel { padding:10px 12px !important; } #parts .pp { border:1px solid var(--line); background:var(--bg2); margin:0 0 6px; } #parts .pp:last-child { margin-bottom:0; }
+  /* настройки, очередь — панели справа */
+  #set_dlg, #queue_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:stretch end; grid-template-rows:minmax(0, 1fr); background:rgba(0,0,0,.3); } #set_dlg.show, #queue_dlg.show { display:grid; }
+  #set_dlg .box, #queue_dlg .box { min-height:0; border-radius:0 !important; border-width:0 0 0 1px !important; padding:20px 24px 16px; background:var(--side); display:flex; flex-direction:column; gap:14px; animation:panelin .22s ease; box-shadow:-18px 0 50px rgba(0,0,0,.35); overflow-y:auto; }
+  #set_dlg .box { width:min(560px, 100%) !important; } #queue_dlg .box { width:min(860px, 100%) !important; }
+  #set_dlg h3, #queue_dlg h3 { margin:0; font-size:18px !important; font-weight:700; }
+  .setg { display:flex; flex-direction:column; gap:8px; padding:14px 16px; border:1px solid var(--line); border-radius:var(--r); background:var(--bg2); } .setg .sl { font-weight:600; } .setg .sn { color:var(--ink2); font-size:12.5px; line-height:1.5; }
+  .seg2 { display:inline-flex; padding:3px; border-radius:9px; background:var(--bg3); align-self:flex-start; } .seg2 button { border:0; background:transparent; padding:6px 16px; border-radius:7px; font-size:13px !important; color:var(--ink2); }
+  .seg2 button.on { background:var(--bg2); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.25); } .seg2 button:hover { background:var(--bg2); }
+  #set_dlg .store { font-size:13px; color:var(--ink); text-align:left; margin:0; } #set_dlg .store .lk { color:var(--acc2); cursor:pointer; }
+  #queue_dlg .qbox { margin:0; border:0; padding:0; } #queue_dlg .qbox .qh b, #queue_dlg .qbox button[onclick="queueAdd()"] { display:none; } #queue_dlg .qqlist { max-height:none; border:1px solid var(--line); border-radius:var(--r); background:var(--bg2); }
+  #queue_dlg .qline { padding:9px 12px; } #queue_dlg .qitem:last-child { border-bottom:0; } #queue_dlg #qp_body { flex:1; min-height:0; overflow-y:auto; }
+  .qline .qs { font-size:12px !important; } .qbox .qh button.qi, .qline button.qi { padding:4px 9px; }
+  @media (min-width:1900px) { #set_dlg, #queue_dlg { zoom:1.1; } } @media (min-width:2300px) { #set_dlg, #queue_dlg { zoom:1.2; } } @media (min-width:3200px) { #set_dlg, #queue_dlg { zoom:1.6; } }
+  .topctl { display:none !important; }
+  /* шаг «Сервисы» — список вместо плиток */
+  #screen1 #providers { display:flex; flex-direction:column; gap:8px; max-width:760px; margin:0 !important; flex:none; }
+  #screen1 .tile > * { order:4; } #screen1 .tile svg { order:1; } #screen1 .tile .t { order:2; } #screen1 .tile .tk { order:3; } #screen1 .tile .dot { position:relative !important; top:auto; right:auto; }
+  #screen1 #update { max-width:760px; margin:0 0 14px; } #screen1 .nav { margin-top:auto; }
+  #screen1 .tile { flex-direction:row; justify-content:flex-start; align-items:center; gap:14px; aspect-ratio:auto; height:auto; max-height:none; padding:12px 16px; border-radius:var(--r); }
+  #screen1 .tile svg { width:28px; height:28px; flex:none; } #screen1 .tile .t { text-align:left; font-size:14.5px !important; min-width:130px; }
+  #screen1 .tile .q { position:static; order:5; } #screen1 .tile .dot { position:static; order:9; flex:none; } #screen1 .tile.sel { box-shadow:none; }
+  #screen1 .tile .tk { flex:1; font-size:12.5px; color:var(--ink2); } #screen1 .tile .tk.ok { color:var(--ok); } #screen1 .tile .tk .lk { color:var(--acc2); cursor:pointer; }
+  #screen1 .hint { text-align:left; max-width:760px; margin:12px 0 0; } #screen1 .hint::before { display:none; } #screen1 .store { display:none; }
+  /* главная: поиск */
+  #hm_q { width:240px; padding:8px 12px; font-size:13px; }
+  /* развернуть предпросмотр */
+  .pvx { position:absolute; left:8px; top:8px; z-index:3; padding:4px 9px !important; font-size:11.5px !important; border:0 !important; border-radius:7px; background:rgba(0,0,0,.6) !important; color:#fff !important; cursor:pointer; }
+  .pvx:hover { background:rgba(0,0,0,.8) !important; } #fx_dlg .fxpv { position:relative; }
+  #fx_dlg.wide .box, #sub_dlg.wide .box, #tr_dlg.wide .box { width:min(1560px, 100%) !important; }
+  #fx_dlg.wide .fxbody, #sub_dlg.wide .sbody, #tr_dlg.wide .tbody { grid-template-columns:minmax(0, 1.7fr) minmax(380px, 1fr); overflow:hidden; }
+  #fx_dlg.wide .fxbody > :first-child, #sub_dlg.wide .sbody > :first-child, #tr_dlg.wide .tbody > :first-child { position:static; }
+  #fx_dlg.wide .fxpv, #sub_dlg.wide #sub_pv, #tr_dlg.wide #tr_pv { width:100%; }
+  #fx_dlg.wide .fxlist, #sub_dlg.wide .sform, #tr_dlg.wide .tform { overflow-y:auto; padding-right:6px; }
+  /* ключи: ввод в таблице */
+  .ktr .ki { grid-column:1 / -1; display:flex; gap:8px; align-items:center; margin-top:6px; } .ktr .ki input[type=text] { flex:1; min-width:0; padding:7px 10px; font-size:12.5px; }
+  .ktr .ki label { display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink2); white-space:nowrap; } .ktr .ki .lk { color:var(--acc2); cursor:pointer; font-size:12.5px; white-space:nowrap; }
+  .ktr.nokey { opacity:1; } .ktr.nokey .nm { color:var(--ink2); }
   /* ключи и сервисы: таблица */
   #keys_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:stretch end; grid-template-rows:minmax(0, 1fr); background:rgba(0,0,0,.3); } #keys_dlg.show { display:grid; }
   #keys_dlg .box { width:min(820px, 100%) !important; min-height:0; border-radius:0 !important; border-width:0 0 0 1px !important; padding:20px 24px 16px; background:var(--side); display:flex; flex-direction:column; gap:12px; animation:panelin .22s ease; box-shadow:-18px 0 50px rgba(0,0,0,.35); }
@@ -852,8 +894,8 @@
   @media (min-width:1900px) { #keys_dlg { zoom:1.1; } } @media (min-width:2300px) { #keys_dlg { zoom:1.2; } } @media (min-width:3200px) { #keys_dlg { zoom:1.6; } }
   #side .sd_it .cnt { margin-left:auto; color:var(--ink2); font-size:12px; font-weight:400; }
   /* выбор цвета, экран «Готово», карточка ошибки */
-  #side .sd_pal { display:flex; gap:8px; padding:0 4px; } #side .sd_pal button { width:20px; height:20px; padding:0; border-radius:50%; border:2px solid var(--side); box-shadow:0 0 0 1px var(--line); cursor:pointer; }
-  #side .sd_pal button.on { box-shadow:0 0 0 2px var(--ink); } #side .sd_pal button:hover { filter:brightness(1.1); }
+  .sd_pal { display:flex; gap:8px; padding:0 4px; } .sd_pal button { width:20px; height:20px; padding:0; border-radius:50%; border:2px solid var(--side); box-shadow:0 0 0 1px var(--line); cursor:pointer; }
+  .sd_pal button.on { box-shadow:0 0 0 2px var(--ink); } .sd_pal button:hover { filter:brightness(1.1); background:inherit; } .sd_pal button { width:24px !important; height:24px !important; border-color:var(--bg2) !important; }
   #result.result { margin:0 0 12px; padding:14px 16px; border:1px solid var(--ok); background:transparent; border-radius:var(--r); } #result.result b { font-size:16px !important; font-weight:700; color:var(--ok); display:block; }
   #result .rinfo { margin:6px 0 2px; font-size:13px; color:var(--ink); } #result .path { font-size:12px; color:var(--ink2); overflow-wrap:anywhere; margin-bottom:10px; }
   #result button { padding:8px 14px; font-size:13px !important; margin:0 6px 6px 0; }
@@ -1032,12 +1074,22 @@
   <div class="fxbody"><div><div class="fxpv"><video id="fxd_v" autoplay loop muted playsinline></video><span class="busy" id="fxd_busy"></span></div><div class="note" id="fxd_n"></div><div class="pvset"></div></div>
   <div class="fxlist" id="fx_list"></div></div>
   <div class="row2"><button class="ghost" id="fxd_off"></button><span style="flex:1"></span><button class="ghost" id="fxd_x"></button><button class="primary" id="fxd_save"></button></div></div></div>
-<div id="hero_dlg"><div class="box"><h3 id="hd_t"></h3><div class="note" id="hd_n"></div>
+<div id="hero_dlg"><div class="box"><h3 id="hd_t"></h3><div class="note" id="hd_n"></div><div class="note" id="hd_cnt"></div>
   <textarea id="hd_text" spellcheck="false"></textarea>
   <div style="display:flex;gap:10px;align-items:center"><button class="primary" id="hd_add"></button><span class="note" id="hd_msg"></span><span style="flex:1"></span><button class="ghost" id="hd_all"></button></div>
   <div style="display:flex;gap:10px;align-items:center"><button class="ghost" id="hd_sel"></button><button class="ghost" id="hd_del"></button></div>
   <div id="hero_list"></div>
   <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="primary" id="hd_close"></button></div></div></div>
+<div id="set_dlg"><div class="box"><h3 id="st_t"></h3>
+  <div class="setg"><div class="sl" id="st_l_theme"></div><div class="seg2" id="st_theme"></div></div>
+  <div class="setg"><div class="sl" id="st_l_col"></div><div class="sd_pal" id="sd_pal"></div></div>
+  <div class="setg"><div class="sl" id="st_l_lang"></div><div class="seg2" id="st_lang"></div></div>
+  <div class="setg"><div class="sl" id="st_l_store"></div><div id="st_store"></div><div class="sn" id="st_n_store"></div></div>
+  <div class="setg"><div class="sl" id="st_l_help"></div><div><button class="ghost" id="st_help" onclick="pywebview.api.open_help()"></button></div><div class="sn" id="st_ver"></div></div>
+  <div style="display:flex;margin-top:auto"><span style="flex:1"></span><button class="primary" id="st_close"></button></div></div></div>
+<div id="queue_dlg"><div class="box"><div style="display:flex;align-items:center;gap:10px"><h3 id="qp_t"></h3><span style="flex:1"></span><button class="ghost" id="qp_add"></button></div>
+  <div class="sn" id="qp_n" style="color:var(--ink2);font-size:12.5px"></div><div id="qp_body"></div>
+  <div style="display:flex"><span style="flex:1"></span><button class="primary" id="qp_close"></button></div></div></div>
 <div id="keys_dlg"><div class="box"><div style="display:flex;align-items:center;gap:10px"><h3 id="kt_t"></h3><span style="flex:1"></span><button class="ghost" id="kt_all"></button><button class="ghost" id="kt_edit"></button></div>
   <div class="note" id="kt_n"></div><div id="kt_list"></div>
   <div style="display:flex"><span style="flex:1"></span><button class="primary" id="kt_close"></button></div></div></div>
@@ -1046,11 +1098,11 @@
   <button type="button" class="sd_new" id="sd_new" onclick="go(1)"></button>
   <div id="sd_nav"></div>
   <div><div class="sd_cap" id="sd_cap"></div><div id="sd_steps"></div></div>
-  <div class="sd_bot"><div class="sd_pal" id="sd_pal"></div></div></aside>
+  <div class="sd_bot"><div id="sd_set"></div></div></aside>
 <div class="wrap">
 
   <div class="screen active" id="screen0">
-    <div class="topbar"><div class="stepname"><span></span><span id="pg0_t"></span></div><div class="hm_tools"><span class="mt" id="hm_store" style="color:var(--ink2);font-size:12.5px"></span><button class="ghost" id="hm_folder" onclick="pywebview.api.open_jobs()"></button></div></div>
+    <div class="topbar"><div class="stepname"><span></span><span id="pg0_t"></span></div><div class="hm_tools"><input type="text" id="hm_q" spellcheck="false" autocomplete="off" oninput="homeRender()"><button class="ghost" id="hm_folder" onclick="pywebview.api.open_jobs()"></button></div></div>
     <div id="hm_grid"></div>
   </div>
   <div class="screen" id="screen1">
@@ -1271,6 +1323,7 @@ function go(n) {
     for (let i = 0; i <= 6; i++) $('screen' + i).classList.toggle('active', i === n);
     if (n === 4) renderAccess();
     if (n === 0) refreshRecent();
+    if (n === 1) svcKeys();
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
@@ -1278,11 +1331,28 @@ function go(n) {
 (() => { const pb = document.querySelector('#screen6 .pbtns'), r = $('result'); if (pb && r) pb.parentNode.insertBefore(r, pb); })();
 const sdN = f => { let n = 0; try { n = f() || 0; } catch (e) {} return n ? `<span class="cnt">${n}</span>` : ''; };
 let KT = [], KST = {};
+const KT_IMG = ['fastgen', 'nonstop', 'yougen', 'royal', 'slider', 'google'];
 function ktRender() {
-  $('kt_list').innerHTML = KT.map(r => { const st = KST[r.id];
-    return `<div class="ktr${r.count ? '' : ' nokey'}"><div><div class="nm">${esc(r.name)}${r.selected ? ' ✓' : ''}</div><div class="rl">${esc(r.role)}</div></div>`
+  $('kt_list').innerHTML = KT.map(r => { const st = KST[r.id], img = KT_IMG.includes(r.id), on = img && provs().includes(r.id);
+    return `<div class="ktr${r.count ? '' : ' nokey'}" data-id="${r.id}"><div><div class="nm">${esc(r.name)}</div><div class="rl">${esc(r.role)}</div></div>`
       + `<div class="ks ${st ? (st.busy ? '' : st.ok ? 'ok' : 'err') : ''}">${st ? (st.busy ? pt('проверяю…', 'checking…') : esc(st.text)) : (r.count ? `<span class="mk">${esc(r.mask)}${r.count > 1 ? pt(` · ключей: ${r.count}`, ` · keys: ${r.count}`) : ''} · ${pt('не проверялся', 'not checked')}</span>` : pt('ключ не введён', 'no key'))}</div>`
-      + (r.count ? `<button class="ghost" onclick="ktCheck('${r.id}')"${st && st.busy ? ' disabled' : ''}>${pt('Проверить', 'Check')}</button>` : `<button class="ghost" onclick="ktEdit()">${pt('Ввести', 'Add')}</button>`) + `</div>`; }).join('');
+      + `<button class="ghost" onclick="ktCheck('${r.id}')"${!r.count || (st && st.busy) ? ' disabled' : ''}>${pt('Проверить', 'Check')}</button>`
+      + `<div class="ki">` + (r.count > 1 ? `<span class="sn" style="flex:1;color:var(--ink2);font-size:12.5px">${pt(`Введено несколько ключей (${r.count}) — они меняются на шаге «Доступ».`, `${r.count} keys — edit them on the Access step.`)}</span><span class="lk" onclick="ktEdit()">${pt('Изменить', 'Edit')}</span>`
+        : `<input type="text" data-kin="${r.id}" spellcheck="false" autocomplete="off" placeholder="${r.count ? pt('новый ключ — вместо текущего', 'new key — replaces the current one') : pt('вставьте ключ', 'paste the key')}"><button class="ghost" onclick="ktSave('${r.id}')">${pt('Сохранить', 'Save')}</button>`
+          + (r.count ? `<span class="lk" onclick="ktSave('${r.id}', true)">${pt('удалить', 'remove')}</span>` : ''))
+      + (img ? `<label title="${pt('Использовать этот сервис для картинок и видео нового ролика', 'Use for images and video')}"><input type="checkbox" data-kon="${r.id}"${on ? ' checked' : ''}${r.count ? '' : ' disabled'}>${pt('для картинок', 'for images')}</label>` : '') + `</div></div>`; }).join('');
+  $('kt_list').querySelectorAll('[data-kon]').forEach(c => c.onchange = () => { const x = document.querySelector(`input[name=prov][value="${c.dataset.kon}"]`); if (x && x.checked !== c.checked) x.click(); if (typeof svcKeys === 'function') svcKeys(); });
+  $('kt_list').querySelectorAll('[data-kin]').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') ktSave(i.dataset.kin); }));
+}
+async function ktLoad() { try { const r = await pywebview.api.keys_table(); KT = Array.isArray(r) ? r : []; } catch (e) { KT = []; } }
+async function ktSave(id, remove) {
+  const inp = $('kt_list').querySelector(`[data-kin="${id}"]`), v = remove ? '' : ((inp && inp.value) || '').trim();
+  if (!remove && !v) { toast(pt('Вставьте ключ в поле.', 'Paste the key first.'), 3000); return; }
+  if (remove && !confirm(pt('Удалить ключ этого сервиса?', 'Remove this key?'))) return;
+  await pywebview.api.save_config({[id]: v});
+  delete KST[id]; await ktLoad(); ktRender(); if (typeof svcKeys === 'function') svcKeys();
+  try { await loadConfig(true); if (cur === 4) renderAccess(); } catch (e) {}
+  if (!remove) ktCheck(id);
 }
 async function ktCheck(id) {
   KST[id] = {busy: true}; ktRender();
@@ -1291,15 +1361,45 @@ async function ktCheck(id) {
 }
 function ktEdit() { $('keys_dlg').classList.remove('show'); openKeys(); }
 async function openKeysTable() {
-  $('kt_t').textContent = pt('Ключи и сервисы', 'Keys & services'); $('kt_all').textContent = pt('Проверить все', 'Check all'); $('kt_edit').textContent = pt('Изменить ключи', 'Edit keys'); $('kt_close').textContent = pt('Готово', 'Done');
-  $('kt_n').textContent = pt('Все сервисы программы. Галочка у названия — сервис выбран для картинок. «Проверить» делает пробный запрос: у fast-gen покажет лимиты в час, у остальных — баланс или тариф, если сервис их отдаёт. Сами ключи вводятся на шаге «Доступ».',
-    'All services. “Check” makes a test request and shows limits or balance where the service reports them.');
+  $('kt_t').textContent = pt('Ключи и сервисы', 'Keys & services'); $('kt_all').textContent = pt('Проверить все', 'Check all'); $('kt_edit').textContent = pt('Модели и несколько ключей', 'Models & multiple keys'); $('kt_close').textContent = pt('Готово', 'Done');
+  $('kt_n').textContent = pt('Все сервисы программы. Вставьте ключ и нажмите «Сохранить» — он сразу проверится. «Проверить» делает пробный запрос: у fast-gen покажет лимиты в час, у остальных — баланс или тариф, если сервис их сообщает. Галочка «для картинок» выбирает сервис для нового ролика.',
+    'All services. Paste a key and Save — it is checked right away.');
   $('kt_close').onclick = () => $('keys_dlg').classList.remove('show'); $('kt_edit').onclick = ktEdit;
   $('kt_all').onclick = async () => { for (const r of KT.filter(x => x.count)) await ktCheck(r.id); };
-  try { const r = await pywebview.api.keys_table(); KT = Array.isArray(r) ? r : []; } catch (e) { KT = []; }
-  ktRender(); $('keys_dlg').classList.add('show');
+  await ktLoad(); ktRender(); $('keys_dlg').classList.add('show');
 }
-function openQueue() { const go4 = () => { const q = document.querySelector('.qbox'); if (q) q.scrollIntoView({block: 'center'}); }; if (cur === 4) go4(); else { go(4); setTimeout(go4, 600); } }
+// шаг «Сервисы»: у каждой строки — введён ли ключ
+async function svcKeys() {
+  await ktLoad();
+  document.querySelectorAll('#providers .tile').forEach(tl => { const inp = tl.querySelector('input[name=prov]'); if (!inp) return; const r = KT.find(x => x.id === inp.value);
+    let k = tl.querySelector('.tk'); if (!k) { k = document.createElement('span'); k.className = 'tk'; tl.insertBefore(k, tl.querySelector('.dot')); }
+    k.className = 'tk' + (r && r.count ? ' ok' : ''); k.innerHTML = r && r.count ? pt('ключ введён', 'key set') + (r.count > 1 ? ` · ${r.count}` : '') : `${pt('ключа нет', 'no key')} · <span class="lk" onclick="event.preventDefault(); event.stopPropagation(); openKeysTable()">${pt('ввести', 'add')}</span>`; });
+}
+// настройки
+function setTheme(th) { if (document.documentElement.dataset.theme !== th) { document.documentElement.dataset.theme = th; pywebview.api.save_config({theme: th}); } accentApply(ACCENT); setRender(); }
+function setLang(l) { if (L !== l) $('langbtn').click(); setRender(); }
+function setRender() {
+  if (!$('st_t')) return; const dark = document.documentElement.dataset.theme !== 'light';
+  $('st_t').textContent = pt('Настройки', 'Settings'); $('st_l_theme').textContent = pt('Тема', 'Theme'); $('st_l_col').textContent = pt('Цвет', 'Colour'); $('st_l_lang').textContent = pt('Язык', 'Language');
+  $('st_l_store').textContent = pt('Рабочие файлы', 'Work files'); $('st_n_store').textContent = pt('Заготовки — это картинки, клипы, промпты и озвучка ваших роликов. Готовые видео лежат отдельно и при очистке не удаляются.', 'Work files are images, clips, prompts and voice-overs. Finished videos are kept.');
+  $('st_l_help').textContent = pt('Справка', 'Help'); $('st_help').textContent = pt('Открыть инструкцию', 'Open the manual'); $('st_close').textContent = pt('Готово', 'Done');
+  $('st_ver').textContent = ($('credit') && $('credit').textContent) || '';
+  $('st_theme').innerHTML = `<button type="button" class="${dark ? 'on' : ''}" onclick="setTheme('dark')">${pt('Тёмная', 'Dark')}</button><button type="button" class="${dark ? '' : 'on'}" onclick="setTheme('light')">${pt('Светлая', 'Light')}</button>`;
+  $('st_lang').innerHTML = `<button type="button" class="${L === 'ru' ? 'on' : ''}" onclick="setLang('ru')">Русский</button><button type="button" class="${L === 'ru' ? '' : 'on'}" onclick="setLang('en')">English</button>`;
+}
+function openSettings() { const st = $('store'); if (st && st.parentNode !== $('st_store')) $('st_store').appendChild(st); setRender(); refreshStore(); $('st_close').onclick = () => $('set_dlg').classList.remove('show'); $('set_dlg').classList.add('show'); }
+// очередь — своя панель
+let qpTimer = null;
+window.addEventListener('load', () => { const ra0 = renderAccess; renderAccess = function () { const r = ra0.apply(this, arguments); try { if ($('queue_dlg').classList.contains('show')) qpRender(); sideNav(); } catch (e) {} return r; }; });
+function qpRender() { if (!$('qp_body')) return; $('qp_body').innerHTML = queueHtml(); bindQueue(); try { sideNav(); } catch (e) {} }
+function qpClose() { $('queue_dlg').classList.remove('show'); clearInterval(qpTimer); qpTimer = null; }
+async function openQueue() {
+  $('qp_t').textContent = pt('Очередь', 'Queue'); $('qp_close').textContent = pt('Готово', 'Done'); $('qp_add').textContent = pt('Добавить ролик', 'Add a video');
+  $('qp_n').textContent = pt('Ролики делаются по порядку. У ждущих можно поменять название и голос (✎), порядок (↑ ↓) или убрать (×). Чтобы добавить ролик, пройдите шаги до «Доступ» и нажмите там «+ В очередь».', 'Videos run in order. Add a video from the Access step.');
+  $('qp_close').onclick = qpClose; $('qp_add').onclick = () => { qpClose(); if (cur === 6 || cur === 0) go(1); else go(4); };
+  await queueRefresh(); qpRender(); $('queue_dlg').classList.add('show');
+  clearInterval(qpTimer); qpTimer = setInterval(async () => { if (!$('queue_dlg').classList.contains('show')) { clearInterval(qpTimer); return; } if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#qp_body input, #qp_body select')) return; await queueRefresh(); qpRender(); }, 3000);
+}
 function openKeys() {  // ключи живут на шаге «Доступ»: открываем его и разворачиваем блок ключей
   const open = () => { const k = document.querySelector('.keysbox .khead'); if (k && !k.parentNode.classList.contains('open')) k.click(); };
   if (cur === 4) { open(); return; }
@@ -1313,12 +1413,17 @@ function sideRender() {
   $('sd_cap').textContent = pt('Шаги нового ролика', 'New video steps'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
   $('pg0_t').textContent = pt('Ролики', 'Videos'); $('sd_new').textContent = pt('Новый ролик', 'New video'); $('hm_folder').textContent = pt('Рабочая папка', 'Work folder');
   if (typeof homeRender === 'function') homeRender();
-  accentApply(ACCENT);
+  accentApply(ACCENT); try { pvxInit(); setRender(); } catch (e) {}
+  sideNav();
+}
+function sideNav() {
+  $('sd_set').innerHTML = `<div class="sd_it can" onclick="openSettings()">${pt('Настройки', 'Settings')}</div>`;
   $('sd_nav').innerHTML = `<div class="sd_it${cur === 0 ? ' cur' : ' can'}"${cur === 0 ? '' : ' onclick="goHome()"'}>${pt('Ролики', 'Videos')}</div>`
     + (cur === 6 ? '' : `<div class="sd_it can" onclick="openQueue()">${pt('Очередь', 'Queue')}${sdN(() => queueItems.length)}</div>`)
     + `<div class="sd_it can" onclick="openProfiles()">${pt('Профили', 'Profiles')}</div>`
     + `<div class="sd_it can" onclick="openHeroes()">${pt('Герои', 'Heroes')}${sdN(() => HEROES.length)}</div>`
     + `<div class="sd_it can" onclick="openKeysTable()">${pt('Ключи и сервисы', 'Keys & services')}</div>`;
+  const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Доступ', 'Access'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
   $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
     return `<div class="sd_it${n === cur ? ' cur' : ''}${n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
 }
@@ -1420,6 +1525,7 @@ async function heroesLoad() { try { const r = await pywebview.api.heroes_list();
 function heroRender() {
   $('hero_list').innerHTML = HEROES.length ? HEROES.map(h => `<div class="hero${h.on ? '' : ' off'}" data-n="${esc(h.name)}"><div class="pic">${h.img ? `<img src="${h.img}">` : pt('нет портрета', 'no portrait')}</div>`
     + `<div><div class="nm"><label title="${pt('отметить для удаления', 'select')}"><input type="checkbox" data-hsel="${esc(h.name)}"${HSEL.has(h.name) ? ' checked' : ''}> ${esc(h.name)}</label><label class="note" style="margin-left:auto"><input type="checkbox" data-hon="${esc(h.name)}"${h.on ? ' checked' : ''}> ${pt('использовать', 'use')}</label></div><div class="ds">${esc(h.desc || '')}</div>`
+    + (HCNT ? `<div class="note" style="color:${HCNT.counts[h.name] ? 'var(--ok)' : 'var(--warn)'}">${HCNT.counts[h.name] ? pt(`в ${HCNT.counts[h.name]} кадрах из ${HCNT.total}`, `in ${HCNT.counts[h.name]} of ${HCNT.total} frames`) : pt('имени нет ни в одном кадре выбранных промптов', 'the name is in no frame of the chosen prompts')}</div>` : '')
     + `<div class="note">${h.portrait ? pt('запрос на портрет есть', 'portrait prompt set') : pt('PORTRAIT: none — портрет рисуется по описанию или загрузите свой', 'no portrait prompt')}</div></div>`
     + `<div class="bt"><button class="ghost" data-hmk="${esc(h.name)}">${h.img ? pt('Перерисовать', 'Redraw') : pt('Нарисовать портрет', 'Draw portrait')}</button><button class="ghost" data-hup="${esc(h.name)}">${pt('Свой файл…', 'Own file…')}</button><button class="ghost" data-hdel="${esc(h.name)}">${pt('Удалить', 'Delete')}</button></div></div>`).join('')
     : `<div class="note">${pt('Героев пока нет. Вставьте карточки из чата выше и нажмите «Добавить».', 'No heroes yet.')}</div>`;
@@ -1442,10 +1548,19 @@ function heroSelUi() {
   $('hd_sel').textContent = all ? pt('Снять выбор', 'Clear selection') : pt('Выбрать всех', 'Select all');
   $('hd_del').textContent = pt('Удалить выбранных', 'Delete selected') + (n ? ` (${n})` : ''); $('hd_del').disabled = !n; $('hd_sel').disabled = !HEROES.length;
 }
+function pvxInit() {
+  [['fx_dlg', '.fxpv'], ['sub_dlg', '#sub_pv'], ['tr_dlg', '#tr_pv']].forEach(([dlg, sel]) => { const box = document.querySelector(`#${dlg} ${sel}`); if (!box || box.querySelector('.pvx')) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pvx'; const lab = () => { const w = $(dlg).classList.contains('wide'); b.textContent = w ? pt('Свернуть', 'Collapse') : pt('Развернуть', 'Expand'); b.title = w ? pt('Вернуть узкую панель', 'Back to the narrow panel') : pt('Крупный предпросмотр на всю ширину окна', 'Large preview'); };
+    b.onclick = e => { e.stopPropagation(); $(dlg).classList.toggle('wide'); lab(); }; box.appendChild(b); b._lab = lab; lab(); });
+  document.querySelectorAll('.pvx').forEach(b => b._lab && b._lab());
+}
+let HCNT = null;
 async function openHeroes() {
-  HSEL = new Set();
+  HSEL = new Set(); HCNT = null;
+  try { if (typeof promptsFile !== 'undefined' && promptsFile) { const c = await pywebview.api.hero_counts(promptsFile); if (c && c.ok) HCNT = c; } } catch (e) {}
   await heroesLoad();
   $('hd_t').textContent = pt('Герои', 'Heroes');
+  $('hd_cnt').textContent = HCNT ? '' : pt('Чтобы увидеть, в скольких кадрах встречается каждый герой, выберите файл готовых промптов на шаге «Доступ».', 'Choose a ready-prompts file on the Access step to see frame counts.');
   $('hd_n').textContent = pt('Вставьте карточки из чата (HERO / DESCRIPTION / PORTRAIT). Для кадров из готовых промптов и профиля программа найдёт имя героя в тексте кадра (точно, заглавными, например MIGUEL) и приложит его портрет как референс. Портрет можно нарисовать или загрузить свой. Работает на моделях, которые принимают референсы.',
     'Paste hero cards from the chat. The portrait is attached to every frame whose prompt contains the hero name.');
   $('hd_text').placeholder = 'HERO: MIGUEL\nDESCRIPTION: MIGUEL: 29-year-old ranch hand …\nPORTRAIT: Waist-up portrait of MIGUEL …\n\nHERO: DON_AUGUSTO\nDESCRIPTION: …\nPORTRAIT: none';
@@ -1951,13 +2066,13 @@ function errCard(msg) {
 async function runSum() {
   if (!$('p_sum')) return;
   let j = null; try { j = await pywebview.api.job_summary(); } catch (e) {}
-  if (j && j.ok) {
+  if (j && j.ok && typeof j.mode === 'string') {
     const a = [], n = document.querySelectorAll('#frames .frame').length, fxn = Object.fromEntries(FX_INFO.map(([k, r, e]) => [k, pt(r, e)]));
     if (n) a.push(`${n} ${pt('кадров', 'frames')}`);
     a.push(j.remix ? pt('новая озвучка', 're-voice') : j.ready ? pt('готовые промпты', 'ready prompts') : j.profile ? pt('профиль ', 'profile ') + j.profile : '');
     a.push({images: pt('только картинки', 'images only'), mixed: pt('50 на 50', '50/50'), video: pt('только видео', 'video only')}[j.mode] || '');
     if (j.subtitles) a.push(pt('субтитры', 'subtitles')); if (j.motion) a.push(pt('движение и переходы', 'motion'));
-    if (j.fx.length) a.push(j.fx.map(k => fxn[k] || k).join(', ')); if (j.stock) a.push(pt('стоки ', 'stock ') + j.stock + '%'); if (j.heroes) a.push(pt('герои: ', 'heroes: ') + j.heroes);
+    const jfx = Array.isArray(j.fx) ? j.fx : []; if (jfx.length) a.push(jfx.map(k => fxn[k] || k).join(', ')); if (j.stock) a.push(pt('стоки ', 'stock ') + j.stock + '%'); if (j.heroes) a.push(pt('герои: ', 'heroes: ') + j.heroes);
     $('p_sum').textContent = a.filter(Boolean).join(' · '); return;
   }
   runSumLocal();
@@ -1992,14 +2107,17 @@ function homeCard(r) {
 function homeRender() {
   const g = $('hm_grid'); if (!g) return;
   const plus = '<svg viewBox="0 0 28 28" aria-hidden="true"><path d="M14 6v16M6 14h16"/></svg>';
-  const list = RECENT || [];
-  g.innerHTML = list.map(homeCard).join('') + `<button type="button" class="hnew" onclick="go(1)">${plus}<b>${pt('Новый ролик', 'New video')}</b><span>${list.length ? pt('из озвучки, сценария или готовых промптов', 'from a voice-over, script or ready prompts')
+  const all = RECENT || [], q = (($('hm_q') && $('hm_q').value) || '').trim().toLowerCase();
+  if ($('hm_q')) { $('hm_q').placeholder = pt(`Найти ролик (всего ${all.length})`, `Find a video (${all.length})`); $('hm_q').style.display = all.length ? '' : 'none'; }
+  const list = q ? all.filter(r => (r.title + ' ' + (r.profile || '') + ' ' + (r.children || []).map(k => k.title).join(' ')).toLowerCase().includes(q)) : all;
+  if (q && !list.length) { g.innerHTML = `<div class="hnew" style="cursor:default"><b>${pt('Ничего не найдено', 'Nothing found')}</b><span>${pt('Попробуйте другое слово из названия ролика или профиля.', 'Try another word.')}</span></div>`; return; }
+  g.innerHTML = list.map(homeCard).join('') + `<button type="button" class="hnew" onclick="go(1)">${plus}<b>${pt('Новый ролик', 'New video')}</b><span>${all.length ? pt('из озвучки, сценария или готовых промптов', 'from a voice-over, script or ready prompts')
     : pt('Роликов пока нет. Начните с озвучки, сценария или готовых промптов — программа проведёт по шагам.', 'No videos yet. Start from a voice-over, a script or ready prompts.')}</span></button>`;
 }
 async function recentReveal(id) { const r = await pywebview.api.reveal_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function recentPlay(id) { const r = await pywebview.api.play_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
 async function refreshRecent() {
-  try { RECENT = await pywebview.api.recent_jobs(); } catch (e) { return; }
+  try { RECENT = await pywebview.api.recent_jobs(300); } catch (e) { return; }
   homeRender();
   const box = $('recent');
   if (!RECENT || !RECENT.length) { box.innerHTML = ''; return; }
@@ -3155,7 +3273,9 @@ document.addEventListener('keydown', e => {  // Esc закрывает откр�
   if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
   for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])
     if ($(dlg) && $(dlg).classList.contains('show') && $(btn)) { $(btn).click(); e.preventDefault(); return; }
-  if ($('keys_dlg').classList.contains('show')) $('keys_dlg').classList.remove('show');
+  if ($('keys_dlg').classList.contains('show')) { $('keys_dlg').classList.remove('show'); return; }
+  if ($('set_dlg').classList.contains('show')) { $('set_dlg').classList.remove('show'); return; }
+  if ($('queue_dlg').classList.contains('show')) qpClose();
 });
 document.addEventListener('keydown', e => {
   if (!$('lb').classList.contains('show') || (e.target.closest && e.target.closest('textarea, input'))) return;

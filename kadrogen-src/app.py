@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p76"
+VERSION = "1.7.1-p77"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2189,6 +2189,24 @@ class Api:
             return {"ok": ok, "text": " | ".join(vals) if vals else "нет ответа"}
         except Exception as e:
             return {"ok": False, "text": str(e)[:200]}
+
+    def hero_counts(self, prompts_file):
+        """В скольких кадрах файла готовых промптов встречается имя каждого героя. → {"ok", "total", "counts": {имя: N}}"""
+        path = str(prompts_file or "").strip().strip('"')
+        if not path or not os.path.isfile(path):
+            return {"ok": False}
+        try:
+            blocks = pipeline.read_prompts_file(path)
+            prompts = [t for b in blocks for t in b["prompts"]]
+            counts = {}
+            for h in (load_cfg().get("heroes") or []):
+                n = h.get("name") or ""
+                if n:
+                    rx = pipeline.hero_name_re(n)
+                    counts[n] = sum(1 for t in prompts if rx.search(t))
+            return {"ok": True, "total": len(prompts), "counts": counts}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:200]}
 
     def job_summary(self):
         """Что делается на экране создания — по записи самого ролика (job.json), а не по текущим настройкам шагов."""
