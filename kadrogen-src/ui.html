@@ -845,6 +845,12 @@
   .frsel { border:0 !important; background:var(--bg3); border-radius:var(--r); padding:6px 8px 6px 12px; } .frsel .lk { color:var(--ink2); } .frsel button { padding:6px 11px; font-size:12px !important; }
   #fr_grid > * { overflow:hidden; } #pf_dlg .box, #fr_dlg .box, #job_dlg .box, #rx_dlg .box, #rec_dlg .box, #paste_dlg .box, #vo_dlg .box, #tts_dlg .box, #pfv_dlg .box { background:var(--side); }
   #parts_panel { padding:10px 12px !important; } #parts .pp { border:1px solid var(--line); background:var(--bg2); margin:0 0 6px; } #parts .pp:last-child { margin-bottom:0; }
+  /* лимиты fast-gen в левой колонке: карточка с полосками */
+  #credit .lim { padding:10px 12px; border-radius:var(--r); background:var(--bg2); display:flex; flex-direction:column; gap:5px; margin-bottom:8px; }
+  #credit .lh { font-size:11.5px; color:var(--ink2); margin-bottom:2px; } #credit .lr { display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--ink2); } #credit .lr b { color:var(--ink); font-weight:600; }
+  #credit .lb { height:4px; border-radius:2px !important; background:var(--line); margin-bottom:3px; } #credit .lb i { display:block; height:4px; border-radius:2px; background:var(--acc); } #credit .lb.low i { background:var(--warn); }
+  #credit .ld { font-size:11.5px; color:var(--ink2); } #credit .ver { padding:0 4px; font-size:11px; color:var(--ink2); }
+  #credit { padding:0 !important; }
   /* настройки, очередь — панели справа */
   #set_dlg, #queue_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:stretch end; grid-template-rows:minmax(0, 1fr); background:rgba(0,0,0,.3); } #set_dlg.show, #queue_dlg.show { display:grid; }
   #set_dlg .box, #queue_dlg .box { min-height:0; border-radius:0 !important; border-width:0 0 0 1px !important; padding:20px 24px 16px; background:var(--side); display:flex; flex-direction:column; gap:14px; animation:panelin .22s ease; box-shadow:-18px 0 50px rgba(0,0,0,.35); overflow-y:auto; }
@@ -1383,7 +1389,7 @@ function setRender() {
   $('st_t').textContent = pt('Настройки', 'Settings'); $('st_l_theme').textContent = pt('Тема', 'Theme'); $('st_l_col').textContent = pt('Цвет', 'Colour'); $('st_l_lang').textContent = pt('Язык', 'Language');
   $('st_l_store').textContent = pt('Рабочие файлы', 'Work files'); $('st_n_store').textContent = pt('Заготовки — это картинки, клипы, промпты и озвучка ваших роликов. Готовые видео лежат отдельно и при очистке не удаляются.', 'Work files are images, clips, prompts and voice-overs. Finished videos are kept.');
   $('st_l_help').textContent = pt('Справка', 'Help'); $('st_help').textContent = pt('Открыть инструкцию', 'Open the manual'); $('st_close').textContent = pt('Готово', 'Done');
-  $('st_ver').textContent = ($('credit') && $('credit').textContent) || '';
+  $('st_ver').textContent = [APP_VERSION ? `v${APP_VERSION}` : '', LIMTXT].filter(Boolean).join(' · ');
   $('st_theme').innerHTML = `<button type="button" class="${dark ? 'on' : ''}" onclick="setTheme('dark')">${pt('Тёмная', 'Dark')}</button><button type="button" class="${dark ? '' : 'on'}" onclick="setTheme('light')">${pt('Светлая', 'Light')}</button>`;
   $('st_lang').innerHTML = `<button type="button" class="${L === 'ru' ? 'on' : ''}" onclick="setLang('ru')">Русский</button><button type="button" class="${L === 'ru' ? '' : 'on'}" onclick="setLang('en')">English</button>`;
 }
@@ -1440,12 +1446,24 @@ const styleName = k => k === 'custom' ? t('custom_name') : ((STYLES.find(s => s.
 const styleOpts = common => (common ? [['', t('q_style_common')]] : []).concat(STYLES.map(s => [s.key, styleName(s.key)]), [['custom', t('custom_name')]]);
 const customStyle = () => $('custom_style').value.trim();
 let LIMTXT = '', limTimer = null;
-function renderCredit() { $('credit').innerHTML = [t('credit'), APP_VERSION ? `v${APP_VERSION}` : '', LIMTXT].filter(Boolean).join(' · '); }
+let LIMS = null;
+function renderCredit() {
+  const ver = [t('credit'), APP_VERSION ? `v${APP_VERSION}` : ''].filter(Boolean).join(' · ');
+  let card = '';
+  if (LIMS && (LIMS.items || []).length) {
+    card = `<div class="lim"><div class="lh">${pt('fast-gen · осталось в этом часе', 'fast-gen · left this hour')}</div>` + LIMS.items.map(i => {
+      const known = i.left !== null && i.left !== undefined, pct = known && i.limit ? Math.max(0, Math.min(100, Math.round(i.left / i.limit * 100))) : 100;
+      return `<div class="lr"><span>${esc(i.label)}</span><b>${known ? fmtN(i.left) + ' / ' + fmtN(i.limit) : fmtN(i.limit)}</b></div><div class="lb${pct < 15 ? ' low' : ''}" title="${known ? pct + '%' : ''}"><i style="width:${pct}%"></i></div>`; }).join('')
+      + (LIMS.days !== null && LIMS.days !== undefined ? `<div class="ld">${pt('подписка: ещё ', 'plan: ')}${LIMS.days} ${pt('дн.', 'd')}</div>` : '') + `</div>`;
+  }
+  $('credit').innerHTML = card + `<div class="ver">${ver}</div>`;
+}
 const fmtN = n => n >= 10000 ? Math.round(n / 1000) + 'k' : String(n);
 async function updLimits() {
   clearTimeout(limTimer); limTimer = setTimeout(updLimits, 60000);
   let r; try { r = await pywebview.api.fg_usage(); } catch (e) { return; }
-  if (!r || !r.ok) { LIMTXT = ''; renderCredit(); return; }
+  if (!r || !r.ok) { LIMTXT = ''; LIMS = null; renderCredit(); return; }
+  LIMS = {items: r.items || [], days: r.days};
   const parts = (r.items || []).map(i => `${i.label} ${fmtN(i.left !== null && i.left !== undefined ? i.left : i.limit)}${i.left !== null && i.left !== undefined ? '/' + fmtN(i.limit) : ''}`);
   if (r.days !== null && r.days !== undefined) parts.push(`${r.days} ${pt('дн.', 'd')}`);
   LIMTXT = parts.length ? `fast-gen: ${parts.join(' · ')}` : ''; renderCredit();
