@@ -976,6 +976,7 @@
   #set_dlg .box, #queue_dlg .box { min-height:0; border-radius:0 !important; border-width:0 0 0 1px !important; padding:20px 24px 16px; background:var(--side); display:flex; flex-direction:column; gap:14px; animation:panelin .22s ease; box-shadow:-18px 0 50px rgba(0,0,0,.35); overflow-y:auto; }
   #set_dlg .box { width:min(560px, 100%) !important; } #queue_dlg .box { width:min(860px, 100%) !important; }
   #set_dlg h3, #queue_dlg h3 { margin:0; font-size:18px !important; font-weight:700; }
+  .hwrow { display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; } .hwrow input { width:16px; height:16px; margin:0; }
   .setg { display:flex; flex-direction:column; gap:8px; padding:14px 16px; border:1px solid var(--line); border-radius:var(--r); background:var(--bg2); } .setg .sl { font-weight:600; } .setg .sn { color:var(--ink2); font-size:12.5px; line-height:1.5; }
   .seg2 { display:inline-flex; padding:3px; border-radius:9px; background:var(--bg3); align-self:flex-start; } .seg2 button { border:0; background:transparent; padding:6px 16px; border-radius:7px; font-size:13px !important; color:var(--ink2); }
   .seg2 button.on { background:var(--bg2); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.25); } .seg2 button:hover { background:var(--bg2); }
@@ -1261,6 +1262,7 @@
   <div class="setg"><div class="sl" id="st_l_col"></div><div class="sd_pal" id="sd_pal"></div></div>
   <div class="setg"><div class="sl" id="st_l_lang"></div><div class="seg2" id="st_lang"></div></div>
   <div class="setg"><div class="sl" id="st_l_store"></div><div id="st_store"></div><div class="sn" id="st_n_store"></div></div>
+  <div class="setg"><div class="sl" id="st_l_hw"></div><label class="hwrow"><input type="checkbox" id="st_hw" onchange="hwToggle()"><span id="st_hw_t"></span></label><div class="sn" id="st_hw_s"></div></div>
   <div class="setg"><div class="sl" id="st_l_keys"></div><div><button class="ghost" id="st_keys" onclick="$('set_dlg').classList.remove('show'); openKeysTable()"></button></div><div class="sn" id="st_n_keys"></div></div>
   <div class="setg"><div class="sl" id="st_l_help"></div><div><button class="ghost" id="st_help" onclick="pywebview.api.open_help()"></button></div><div class="sn" id="st_ver"></div></div>
   <div style="display:flex;margin-top:auto"><span style="flex:1"></span><button class="primary" id="st_close"></button></div></div></div>
@@ -1569,12 +1571,23 @@ async function svcKeys() {
     k.className = 'tk' + (r && r.count ? ' ok' : ''); k.innerHTML = r && r.count ? pt('ключ введён', 'key set') + (r.count > 1 ? ` · ${r.count}` : '') : `${pt('ключа нет', 'no key')} · <span class="lk" onclick="event.preventDefault(); event.stopPropagation(); openKeysTable()">${pt('ввести', 'add')}</span>`; });
 }
 // настройки
+let HWON = false;
+async function hwToggle() {
+  const on = $('st_hw').checked, sn = $('st_hw_s'); HWON = on; pywebview.api.save_config({hw_encode: on});
+  if (!on) { sn.textContent = pt('Выключено: монтаж на процессоре.', 'Off: CPU encoding.'); return; }
+  sn.textContent = pt('Проверяю видеокарту…', 'Checking the graphics card…');
+  let r = {}; try { r = await pywebview.api.hw_check(); } catch (e) {}
+  sn.textContent = r && r.found ? pt(`Найдена: ${r.label}. Со следующего ролика монтаж пойдёт на ней; в журнале будет видно «кодирование: видеокарта».`, `Found: ${r.label}.`)
+    : pt('Подходящей видеокарты не нашлось (или в программе нет нужного кодека) — монтаж останется на процессоре.', 'No suitable GPU found — the CPU is used.');
+}
 function setTheme(th) { if (document.documentElement.dataset.theme !== th) { document.documentElement.dataset.theme = th; pywebview.api.save_config({theme: th}); } accentApply(ACCENT); setRender(); }
 function setLang(l) { if (L !== l) $('langbtn').click(); setRender(); }
 function setRender() {
   if (!$('st_t')) return; const dark = document.documentElement.dataset.theme !== 'light';
   $('st_t').textContent = pt('Настройки', 'Settings'); $('st_l_theme').textContent = pt('Тема', 'Theme'); $('st_l_col').textContent = pt('Цвет', 'Colour'); $('st_l_lang').textContent = pt('Язык', 'Language');
   $('st_l_store').textContent = pt('Рабочие файлы', 'Work files'); $('st_n_store').textContent = pt('Заготовки — это картинки, клипы, промпты и озвучка ваших роликов. Готовые видео лежат отдельно и при очистке не удаляются.', 'Work files are images, clips, prompts and voice-overs. Finished videos are kept.');
+  $('st_l_hw').textContent = pt('Скорость монтажа', 'Assembly speed'); $('st_hw_t').textContent = pt('Кодировать на видеокарте (быстрее)', 'Encode on the graphics card (faster)');
+  if ($('st_hw')) $('st_hw').checked = HWON; if ($('st_hw_s') && !$('st_hw_s').textContent) $('st_hw_s').textContent = pt('Видеокарта NVIDIA, AMD или Intel кодирует видео в несколько раз быстрее процессора. Файл получается чуть больше при том же виде. Если карта не подойдёт, программа сама вернётся к процессору. Включается со следующего ролика.', 'GPU encoding is several times faster; falls back to the CPU on any problem.');
   $('st_l_keys').textContent = pt('Ключи и сервисы', 'Keys & services'); $('st_keys').textContent = pt('Открыть таблицу ключей', 'Open the keys table'); $('st_n_keys').textContent = pt('Ключи сервисов картинок, текстов, озвучки и стоков, проверка и выбор движков. То же открывается кнопкой «Ключи» на шаге «Сервисы».', 'Keys for all services.');
   $('st_l_help').textContent = pt('Справка', 'Help'); $('st_help').textContent = pt('Открыть инструкцию', 'Open the manual'); $('st_close').textContent = pt('Готово', 'Done');
   $('st_ver').textContent = [APP_VERSION ? `v${APP_VERSION}` : '', LIMTXT].filter(Boolean).join(' · ');
@@ -2973,7 +2986,7 @@ function pasteDlg(n, readonlyText) {
 }
 async function loadConfig(keepScreen) {
   const st = await pywebview.api.get_state(); const c = st.config;
-  document.documentElement.dataset.theme = c.theme || 'dark'; L = c.lang || 'ru'; ACCENT = c.accent || 'blue';
+  document.documentElement.dataset.theme = c.theme || 'dark'; L = c.lang || 'ru'; ACCENT = c.accent || 'blue'; HWON = !!c.hw_encode;
   if (!keepScreen) { setTracks(c.tracks); $('vol').value = (c.music === undefined || c.music === null) ? 50 : c.music; applyMusic(+$('vol').value); }
   for (const k of ['openai','anthropic','gemini','assemblyai','openrouter']) single[k] = c['has_' + k] ? c[k] : '';
   setKeysFromConfig(c);

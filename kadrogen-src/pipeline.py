@@ -401,9 +401,53 @@ def write_json(path, data):
             time.sleep(0.15 * (attempt + 1))
 
 
+HW_ON = False        # «Кодирование на видеокарте» из настроек
+HW_BAD = False       # видеокарта подвела — до конца работы кодируем процессором
+_HW_CACHE = {}
+
+
+def hw_encoder():
+    """Видеокодек видеокарты, который ffmpeg реально умеет и который проходит пробное кодирование: (имя, подпись) или None."""
+    if "v" in _HW_CACHE:
+        return _HW_CACHE["v"]
+    found = None
+    try:
+        have = subprocess.run([ffmpeg_bin(), "-hide_banner", "-encoders"], capture_output=True, creationflags=NO_WINDOW, timeout=30).stdout.decode(errors="replace")
+        for name, label in (("h264_nvenc", "NVIDIA (NVENC)"), ("h264_qsv", "Intel (Quick Sync)"), ("h264_amf", "AMD (AMF)")):
+            if name not in have:
+                continue
+            r = subprocess.run([ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=640x360:d=0.5:r=25", "-frames:v", "8",
+                                "-c:v", name, "-pix_fmt", "yuv420p", "-f", "null", "-"], capture_output=True, creationflags=NO_WINDOW, timeout=60)
+            if r.returncode == 0:
+                found = (name, label)
+                break
+    except Exception:
+        found = None
+    _HW_CACHE["v"] = found
+    return found
+
+
+def venc(crf, hw=None):
+    """Аргументы видеокодека. Видеокарта — если включена в настройках и проверена; иначе x264. crf — как у x264, для карты пересчитывается."""
+    use = HW_ON and not HW_BAD if hw is None else hw
+    e = hw_encoder() if use else None
+    if e:
+        q = int(crf) + 3  # у аппаратных кодеров шкала качества жёстче: те же глаза при чуть большем числе
+        if e[0] == "h264_nvenc":
+            return ["-c:v", "h264_nvenc", "-preset", "p4", "-rc", "vbr", "-cq", str(q), "-b:v", "0"]
+        if e[0] == "h264_qsv":
+            return ["-c:v", "h264_qsv", "-preset", "veryfast", "-global_quality", str(q)]
+        return ["-c:v", "h264_amf", "-quality", "balanced", "-rc", "cqp", "-qp_i", str(q), "-qp_p", str(q + 2)]
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(int(crf))]
+
+
 def run_ffmpeg(args, check=True):
     r = subprocess.run([ffmpeg_bin(), "-y", "-loglevel", "error", *args], capture_output=True, creationflags=NO_WINDOW)
     if check and r.returncode != 0:
+        global HW_BAD
+        if HW_ON and not HW_BAD and any(str(a).startswith("h264_") for a in args):
+            HW_BAD = True
+            log("видеокарта не справилась с кодированием — дальше кодирую процессором (работа продолжится)")
         raise RuntimeError("ffmpeg: " + r.stderr.decode(errors="replace")[:400])
     return r
 
@@ -2865,7 +2909,7 @@ def render_scene_clip(img_path, i, duration, out_path, kb=None):
         still = out_path + ".still.png"
         im.resize((W, H), Image.LANCZOS).save(still)
         fx_in, fx_fc = fx_filter(i)
-        enc = ["-t", f"{duration:.3f}", "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
+        enc = ["-t", f"{duration:.3f}", "-r", str(FPS), *venc(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
         try:  # эффекты — в том же проходе: вдвое быстрее, чем перекодировать клип второй раз
             run_ffmpeg(["-loop", "1", "-framerate", str(FPS), "-i", still] + ((fx_in or []) + ["-filter_complex", fx_fc, "-map", "[v]"] if fx_fc else []) + enc)
         except Exception as e:
@@ -2900,7 +2944,7 @@ def _kb_encode(im, path, frames, duration, tmp, i, fx):
     extra = (list(fx[0] or []) + ["-filter_complex", fx[1], "-map", "[v]"]) if fx else []
     cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
            "-r", str(FPS), "-i", "-", *extra, "-t", f"{duration:.3f}",
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
+           *venc(crf_clip()), "-pix_fmt", "yuv420p", "-an", tmp]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
     try:
         for n in range(frames):
@@ -2944,7 +2988,7 @@ def render_video_clip(src_mp4, duration, out_path):
     y = {"top": "0", "bottom": "ih-oh"}.get(VIDEO_ANCHOR, "(ih-oh)/2")
     pre = f"crop=iw/{z:.4f}:ih/{z:.4f}:(iw-ow)/2:{y}," if z > 1.0 else ""
     base_vf = f"{pre}scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps={FPS}"
-    enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p"]
+    enc = ["-an", *venc(crf_clip()), "-pix_fmt", "yuv420p"]
     try:
         clip_len = audio_duration(src_mp4)
     except Exception:
@@ -3427,8 +3471,7 @@ def apply_fx(clip, seed=0):
         return clip
     out = clip + ".fx.mp4"
     try:
-        run_ffmpeg(["-i", clip, *inputs, "-filter_complex", fc, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "veryfast",
-                    "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", out])
+        run_ffmpeg(["-i", clip, *inputs, "-filter_complex", fc, "-map", "[v]", "-an", *venc(crf_clip()), "-pix_fmt", "yuv420p", out])
         os.replace(out, clip)
     except Exception as e:
         log(f"эффекты: {os.path.basename(clip)} — {str(e)[:200]}")
@@ -3467,7 +3510,7 @@ def render_tail_zoom(img_path, seconds, out_path):
     BW, BH = big.size
     zmax = 1.0 + min(0.10, 0.012 * seconds + 0.01)  # ~1,2 % в секунду, не больше 10 %
     cmd = [ffmpeg_bin(), "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
-           "-t", f"{seconds:.3f}", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_clip()), "-pix_fmt", "yuv420p", out_path]
+           "-t", f"{seconds:.3f}", "-an", *venc(crf_clip()), "-pix_fmt", "yuv420p", out_path]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NO_WINDOW)
     try:
         for n in range(frames):
@@ -3764,7 +3807,7 @@ def concat_with_transitions(clips, scenes, audio_path, out_mp4, job_dir=None, pr
     durs = [s["duration"] for s in scenes]
     K = cut_kinds(len(clips), vids)
     kinds_all = K[1:]
-    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf_final()), "-pix_fmt", "yuv420p"]
+    enc = [*venc(crf_final()), "-pix_fmt", "yuv420p"]
     if len(clips) > XFADE_GROUP:
         gdir = os.path.join(job_dir or os.path.dirname(clips[0]), "groups")
         os.makedirs(gdir, exist_ok=True)
@@ -4711,16 +4754,24 @@ def ensure_full_length(mp4, audio_path, scenes=None):
                 pass
 
 
+def _dur(sec):
+    sec = int(sec)
+    return f"{sec // 3600} ч {sec % 3600 // 60} мин" if sec >= 3600 else f"{sec // 60} мин {sec % 60} с" if sec >= 60 else f"{sec} с"
+
+
 def finish_video(spec, progress):
     """Монтаж готового задания: клипы, переходы, звук, субтитры, копии скорости, уборка. spec — из make_video."""
     apply_look(spec.get("look"))
     scenes, img_dir, job_dir, out_mp4 = spec["scenes"], spec["img_dir"], spec["job_dir"], spec["out_mp4"]
     videos = {int(k): v for k, v in (spec.get("videos") or {}).items()}
     audio_path, motion = spec["audio_path"], spec.get("motion")
+    t_asm = time.time()
     if spec.get("subtitles"):
         raw_mp4 = os.path.join(job_dir, "nosubs.mp4")
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, raw_mp4, progress, motion=motion)
         ensure_full_length(raw_mp4, audio_path, scenes)
+        log(f"время: сборка (клипы, переходы, звук) — {_dur(time.time() - t_asm)}" + (" · кодирование: видеокарта" if (HW_ON and not HW_BAD and hw_encoder()) else " · кодирование: процессор"))
+        t_sub = time.time()
         check_cancel()
         progress("subtitles", 0, 1, "накладываю субтитры")
         sub_words = spec.get("sub_words") or []
@@ -4731,18 +4782,20 @@ def finish_video(spec, progress):
         if style_cfg:
             subs_style.write_ass(sub_words, os.path.join(job_dir, "subs.ass"), style_cfg, font_dirs())
             fonts_sub = subs_style.prepare_fonts(job_dir, subs_style.normalize(style_cfg)["font"], font_dirs())
-            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW, crf=crf_final())
+            subs_style.burn(ffmpeg_bin(), raw_mp4, "subs.ass", out_mp4 + ".tmp.mp4", job_dir, fonts_sub, NO_WINDOW, crf=crf_final(), venc=venc, on_pct=lambda p: progress("subtitles", p, 100, f"накладываю субтитры: {p}%"))
         else:
             try:
-                subs_style.burn_classic(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", job_dir, font_dirs(), NO_WINDOW, crf=crf_final())
+                subs_style.burn_classic(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", job_dir, font_dirs(), NO_WINDOW, crf=crf_final(), venc=venc, on_pct=lambda p: progress("subtitles", p, 100, f"накладываю субтитры: {p}%"))
             except Exception as e:  # не вышло — старый способ
                 log(f"субтитры «Как было»: {str(e)[:150]} — вжигаю старым способом")
                 subs.burn(ffmpeg_bin(), raw_mp4, srt_path, out_mp4 + ".tmp.mp4", NO_WINDOW)
         os.replace(out_mp4 + ".tmp.mp4", out_mp4)
+        log(f"время: субтитры — {_dur(time.time() - t_sub)}")
         progress("subtitles", 1, 1, "субтитры наложены, .srt — в «файлах ролика» проекта")
     else:
         assemble_video(scenes, img_dir, videos, audio_path, job_dir, out_mp4, progress, motion=motion)
         ensure_full_length(out_mp4, audio_path, scenes)
+        log(f"время: сборка (клипы, переходы, звук) — {_dur(time.time() - t_asm)}" + (" · кодирование: видеокарта" if (HW_ON and not HW_BAD and hw_encoder()) else " · кодирование: процессор"))
     try:  # контроль: ролик не должен быть короче озвучки
         got, want = audio_duration(out_mp4), audio_duration(audio_path)
         if want - got > 0.5:
@@ -4869,6 +4922,8 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     VIDEO_ANCHOR = cfg.get("video_anchor") if cfg.get("video_anchor") in ("top", "center", "bottom") else "top"
     VIDEO_QUALITY = cfg.get("video_quality") if cfg.get("video_quality") in VIDEO_QUALITIES else "high"
     FX = fx_settings(cfg)
+    global HW_ON, HW_BAD
+    HW_ON = bool(cfg.get("hw_encode")); HW_BAD = False
     fg_img, fg_vid = apply_fg_models(cfg)
     providers = normalize_providers(provider or cfg.get("image_providers") or cfg.get("image_provider"))
     if mode not in MODES:

@@ -1,3 +1,4 @@
+import threading
 """Субтитры со своим видом: шрифт, размер, цвета, обводка, тень, плашка, положение, ширина и эффекты появления.
 
 Субтитры пишутся в .ass (координаты сразу в пикселях 1920×1080) и вжигаются в видео ffmpeg (libass) — тем же
@@ -486,23 +487,58 @@ CLASSIC_STYLE = ("FontName={font},FontSize=15,Bold=0,PrimaryColour=&H00FFFFFF,Ou
                  "Outline=1,Shadow=0.6,MarginV=12,Alignment=2")  # вид «Как было» — как в исходном KadroGen
 
 
-def burn_classic(ffmpeg, src_mp4, srt_path, out_mp4, work_dir, font_dirs, creationflags=0, crf=20):
+def burn_classic(ffmpeg, src_mp4, srt_path, out_mp4, work_dir, font_dirs, creationflags=0, crf=20, venc=None, on_pct=None):
     """Субтитры «Как было» (.srt со старым стилем). Шрифта нет — Arial."""
     shutil.copy(srt_path, os.path.join(work_dir, "subs.srt"))
     sub = prepare_fonts(work_dir, CLASSIC_FONT, font_dirs)
     has_font = any(f["name"].lower() == CLASSIC_FONT.lower() and f["file"] for f in list_fonts(font_dirs))
     style = CLASSIC_STYLE.format(font=CLASSIC_FONT if has_font else "Arial")
-    return burn(ffmpeg, src_mp4, "subs.srt", out_mp4, work_dir, sub, creationflags, crf=crf, force_style=style)
+    return burn(ffmpeg, src_mp4, "subs.srt", out_mp4, work_dir, sub, creationflags, crf=crf, force_style=style, venc=venc, on_pct=on_pct)
 
 
-def burn(ffmpeg, src_mp4, ass_name, out_mp4, work_dir, fonts_sub, creationflags=0, crf=20, force_style=None):
-    """Вжечь субтитры в видео: перекодирование картинки один раз, звук копируется. ffmpeg работает из work_dir."""
+def _duration(ffmpeg, path, creationflags=0):
+    try:
+        r = subprocess.run([ffmpeg, "-hide_banner", "-i", path], capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=creationflags)
+        m = re.search(r"Duration:\s*(\d+):(\d+):([\d.]+)", r.stderr or "")
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else 0.0
+    except Exception:
+        return 0.0
+
+
+def burn(ffmpeg, src_mp4, ass_name, out_mp4, work_dir, fonts_sub, creationflags=0, crf=20, force_style=None, venc=None, on_pct=None):
+    """Вжечь субтитры в видео: перекодирование картинки один раз, звук копируется. ffmpeg работает из work_dir.
+    venc(crf) — аргументы видеокодека (видеокарта или x264); on_pct(0..100) — ход работы."""
     vf = f"subtitles={ass_name}:fontsdir={fonts_sub}" + (f":force_style='{force_style}'" if force_style else "")
-    r = subprocess.run([ffmpeg, "-y", "-loglevel", "error", "-i", src_mp4, "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
-                        "-crf", str(int(crf)), "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4],
-                       cwd=work_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=creationflags)
-    if r.returncode != 0:
-        raise RuntimeError("ffmpeg (субтитры): " + (r.stderr or "")[-600:])
+    total = _duration(ffmpeg, src_mp4, creationflags) if on_pct else 0.0
+    tries = [venc(crf)] if venc else []
+    tries.append(["-c:v", "libx264", "-preset", "veryfast", "-crf", str(int(crf))])
+    last_err = ""
+    for k, codec in enumerate(tries):
+        cmd = [ffmpeg, "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-i", src_mp4, "-vf", vf, *codec, "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", out_mp4]
+        proc = subprocess.Popen(cmd, cwd=work_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
+        err = []
+        th = threading.Thread(target=lambda: err.append(proc.stderr.read()), daemon=True)
+        th.start()
+        last = -1
+        for line in proc.stdout:
+            line = line.decode(errors="replace").strip()
+            if on_pct and total and (line.startswith("out_time_us=") or line.startswith("out_time_ms=")):
+                try:
+                    p = max(0, min(99, int(int(line.split("=", 1)[1]) / 1e6 / total * 100)))
+                except ValueError:
+                    continue
+                if p != last:
+                    last = p
+                    on_pct(p)
+        proc.wait()
+        th.join(timeout=5)
+        if proc.returncode == 0:
+            return
+        last_err = (b"".join(err)).decode(errors="replace")
+        if k == 0 and len(tries) > 1 and codec[1] != "libx264":
+            continue  # видеокарта не вышла — тот же проход процессором
+        break
+    raise RuntimeError("ffmpeg (субтитры): " + last_err[-600:])
 
 
 SAMPLE = "Пани Барбара боялась операции, но врач сказал: всё будет хорошо"

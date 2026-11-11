@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p84"
+VERSION = "1.7.1-p85"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1153,7 +1153,7 @@ class Api:
             "has_openai": bool(cfg.get("openai_api_key")),
             "text_engine": cfg.get("text_engine", "fastgen"),
             "openai_model": cfg.get("openai_model", "gpt-4.1-mini"),
-            "theme": cfg.get("theme", "dark"), "accent": cfg.get("accent", "blue"),
+            "theme": cfg.get("theme", "dark"), "accent": cfg.get("accent", "blue"), "hw_encode": bool(cfg.get("hw_encode", False)),
             "music": cfg.get("music_volume", 50),
             "tracks": music_tracks(),
             "providers": [p for p in (cfg.get("image_providers") or []) if p in pipeline.PROVIDERS],
@@ -1254,6 +1254,8 @@ class Api:
                 pass
         if data.get("theme") in ("light", "dark"):
             cfg["theme"] = data["theme"]
+        if "hw_encode" in data:
+            cfg["hw_encode"] = bool(data["hw_encode"])
         if data.get("accent") in ("blue", "sage", "lilac", "sand", "steel"):
             cfg["accent"] = data["accent"]
         for k, allowed in (("stt_engine", ("fastgen", "whisper", "assemblyai")), ("llm_engine", ("fastgen", "openai", "anthropic", "gemini")),
@@ -2189,6 +2191,14 @@ class Api:
             return {"ok": ok, "text": " | ".join(vals) if vals else "нет ответа"}
         except Exception as e:
             return {"ok": False, "text": str(e)[:200]}
+
+    def hw_check(self):
+        """Настройки → «Кодирование на видеокарте»: есть ли подходящий кодек и проходит ли пробное кодирование."""
+        try:
+            e = pipeline.hw_encoder()
+            return {"ok": True, "found": bool(e), "label": e[1] if e else ""}
+        except Exception as ex:
+            return {"ok": False, "error": str(ex)[:200]}
 
     def hero_counts(self, prompts_file):
         """В скольких кадрах файла готовых промптов встречается имя каждого героя. → {"ok", "total", "counts": {имя: N}}"""
