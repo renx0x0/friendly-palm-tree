@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p86"
+VERSION = "1.7.1-p87"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -2927,6 +2927,62 @@ class Api:
         os.startfile(f)
         return {"ok": True}
 
+    @staticmethod
+    def _lp(path):
+        """Путь с префиксом \\\\?\\ — Windows принимает такие пути длиннее 260 знаков."""
+        p = os.path.abspath(path)
+        if os.name == "nt" and not p.startswith("\\\\?\\"):
+            p = "\\\\?\\UNC\\" + p[2:] if p.startswith("\\\\") else "\\\\?\\" + p
+        return p
+
+    def shorten_result(self, job_id):
+        """Готовое видео с путём длиннее предела Windows: укорачиваем имя файла и папки (обходным способом для длинных путей),
+        чтобы оно открывалось в плеере. Запись о ролике обновляется."""
+        d = self._job_path(job_id)
+        jp = os.path.join(d, "job.json") if d else ""
+        rec = pipeline.read_json(jp, {}) if jp else {}
+        res = (rec or {}).get("result") or ""
+        if not res:
+            return {"ok": False, "error": "У этого ролика нет готового видео."}
+        lp = self._lp
+        if not os.path.exists(lp(res)):
+            return {"ok": False, "error": "Файл не найден по записанному пути: " + res}
+        folder, fname = os.path.split(res)
+        stem, ext = os.path.splitext(fname)
+        m = re.match(r"^(.*?)( \(\d+\))?$", stem)
+        core, num = m.group(1), m.group(2) or ""
+        parent, pname = os.path.split(folder)
+        in_sub = bool(pname) and pname.strip().lower() == core.strip().lower()
+        root = parent if in_sub else folder
+        lim = pipeline.title_limit(root, in_sub)
+        new_core = pipeline.safe_title(core, lim) or "ролик"
+        new_folder = os.path.join(parent, pipeline.safe_title(pname, lim) or "ролик") if in_sub else folder
+        if len(res) <= 250 and new_core == core:
+            return {"ok": True, "result": res, "unchanged": True}
+        try:
+            # сначала папка (её собственный путь короткий), потом файл
+            if in_sub and os.path.normcase(new_folder) != os.path.normcase(folder):
+                tgt = new_folder
+                for k in range(2, 50):
+                    if not os.path.exists(lp(tgt)):
+                        break
+                    tgt = f"{new_folder} ({k})"
+                os.rename(lp(folder), lp(tgt))
+                new_folder = tgt
+            new_path = os.path.join(new_folder, new_core + num + ext)
+            for k in range(2, 50):
+                if not os.path.exists(lp(new_path)) or os.path.normcase(new_path) == os.path.normcase(os.path.join(new_folder, fname)):
+                    break
+                new_path = os.path.join(new_folder, f"{new_core} ({k}){ext}")
+            old_in_new = os.path.join(new_folder, fname)
+            if os.path.exists(lp(old_in_new)) and os.path.normcase(old_in_new) != os.path.normcase(new_path):
+                os.rename(lp(old_in_new), lp(new_path))
+        except OSError as e:
+            return {"ok": False, "error": f"Не удалось переименовать: {e}"}
+        rec["result"] = new_path
+        pipeline.write_json(jp, rec)
+        return {"ok": True, "result": new_path, "length": len(new_path)}
+
     def play_job(self, job_id):
         d = self._job_path(job_id)
         rec = pipeline.read_json(os.path.join(d, "job.json"), {}) if d else {}
@@ -3018,7 +3074,7 @@ class Api:
             out.append({"id": n, "title": title[:80], "profile": label, "thumb": thumb, "length": length,
                         "scenes": len(scenes), "images": imgs, "videos": vids, "updated": int(updated),
                         "status": "running" if running_dir and os.path.normcase(running_dir) == os.path.normcase(d) else self._asm_status(d, rec),
-                        "result": rec.get("result"), "has_video": bool(rec.get("result") and os.path.exists(rec.get("result"))),
+                        "result": rec.get("result"), "has_video": bool(rec.get("result") and os.path.exists(self._lp(rec.get("result")))), "long_path": bool(rec.get("result") and len(rec.get("result")) > 250),
                         "known": bool(rec), "mode": args.get("mode", ""),
                         "parent": os.path.basename(os.path.normpath(args["remix_from"])) if args.get("remix_from") else "",
                         "fg_image_model": (rec.get("cfg") or {}).get("fg_image_model") or "", "fg_video_model": (rec.get("cfg") or {}).get("fg_video_model") or ""})

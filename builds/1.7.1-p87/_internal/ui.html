@@ -1069,6 +1069,8 @@
   .sd_pal { display:flex; gap:8px; padding:0 4px; } .sd_pal button { width:20px; height:20px; padding:0; border-radius:50%; border:2px solid var(--side); box-shadow:0 0 0 1px var(--line); cursor:pointer; }
   .sd_pal button.on { box-shadow:0 0 0 2px var(--ink); } .sd_pal button:hover { filter:brightness(1.1); background:inherit; } .sd_pal button { width:24px !important; height:24px !important; border-color:var(--bg2) !important; }
   #result.result { margin:0 0 12px; padding:14px 16px; border:1px solid var(--ok); background:transparent; border-radius:var(--r); } #result.result b { font-size:16px !important; font-weight:700; color:var(--ok); display:block; }
+  #result .rp_n { font-size:13px; color:var(--ink); font-weight:600; overflow-wrap:break-word; word-break:normal; line-height:1.4; } #result .rp_d { margin-top:3px; font-size:12px; color:var(--ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; direction:rtl; text-align:left; }
+  #result .rp_w { margin-top:8px; font-size:12.5px; color:var(--warn); line-height:1.5; } #result .rp_w .lk { color:var(--acc2); cursor:pointer; margin-left:6px; }
   #result .rinfo { margin:6px 0 2px; font-size:13px; color:var(--ink); } #result .path { font-size:12px; color:var(--ink2); overflow-wrap:anywhere; margin-bottom:10px; }
   #result button { padding:8px 14px; font-size:13px !important; margin:0 6px 6px 0; }
   #p_err:not(:empty) { margin-top:12px; padding:12px 14px; border:1px solid var(--err); border-radius:var(--r); color:var(--ink); font-size:13px; line-height:1.5; white-space:pre-line; }
@@ -1179,7 +1181,7 @@
   <div class="jdg"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
   <label class="jdc"><input type="checkbox" id="jd_rimg"><span id="jd_t_rimg"></span></label>
   <label class="jdc"><input type="checkbox" id="jd_rvid"><span id="jd_t_rvid"></span></label>
-  <div class="row"><button class="ghost" id="jd_remix"></button><button class="ghost" id="jd_files"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div>
+  <div class="row"><button class="ghost" id="jd_remix"></button><button class="ghost" id="jd_files"></button><button class="ghost" id="jd_short" style="display:none"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div>
   <div class="row jdd"><button class="danger" id="jd_del"></button><button class="danger" id="jd_delv"></button></div></div></div>
 <div id="rec_dlg"><div class="box"><h3 id="rec_t"></h3><div id="rec_all"></div><div class="row"><button class="ghost" id="rec_close" onclick="$('rec_dlg').classList.remove('show')"></button></div></div></div>
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
@@ -2460,6 +2462,17 @@ function errCard(msg) {
   const k = kinds.find(x => x[0].test(low));
   $('p_err').innerHTML = k ? `<span class="eh">${k[1]}</span>${esc(m)}<span class="ea">${k[2]}</span>` : `<span class="eh">${pt('Ролик остановился', 'The video stopped')}</span>${esc(m)}<span class="ea">${pt('Готовое сохранено. Можно нажать «Повторить» или «Продолжить» на главной.', 'Progress is saved; you can retry.')}</span>`;
 }
+function resPath(res) {  // путь к готовому видео: имя файла — крупно, папка — одной строкой с обрезкой, полный путь — подсказкой
+  const parts = String(res).split(/[\\/]/), name = parts.pop(), dir = parts.join('\\'), long = String(res).length > 250;
+  $('r_path').innerHTML = `<div class="rp_n" title="${esc(res)}">${esc(name)}</div><div class="rp_d" title="${esc(dir)}">${esc(dir)}</div>`
+    + (long ? `<div class="rp_w">${pt('Путь длиннее 260 знаков — Windows и плеер могут не открыть файл.', 'The path is longer than 260 characters — the player may fail to open it.')} <span class="lk" onclick="shortenRes()">${pt('Укоротить имя', 'Shorten the name')}</span></div>` : '');
+}
+async function shortenRes() {
+  if (!FRJOB) return; toast(pt('Укорачиваю…', 'Shortening…'), 2000);
+  const r = await pywebview.api.shorten_result(FRJOB);
+  if (r && r.ok) { resPath(r.result); toast(pt('Готово: видео теперь по пути ', 'Done: ') + esc(r.result), 7000); refreshRecent(); }
+  else toast(esc((r && r.error) || pt('Не вышло', 'Failed')), 8000);
+}
 async function runSum() {
   if (!$('p_sum')) return;
   let j = null; try { j = await pywebview.api.job_summary(); } catch (e) {}
@@ -2559,6 +2572,8 @@ function jobMenu(id) {
   $('jd_remix').textContent = pt('Новая озвучка…', 'New voice-over…');
   $('jd_remix').onclick = () => { $('job_dlg').classList.remove('show'); openRemix(r); };
   $('jd_files').textContent = pt('Сценарий и .srt', 'Script & .srt'); $('jd_files').title = pt('Папка с файлами этого ролика: сценарий (.txt) и субтитры (.srt)', 'Script and subtitles of this video');
+  $('jd_short').style.display = r.long_path ? '' : 'none'; $('jd_short').textContent = pt('Укоротить путь к видео', 'Shorten the video path'); $('jd_short').title = pt('Название файла и папки слишком длинное для Windows — переименуем покороче, чтобы видео открывалось', 'The path is too long for Windows');
+  $('jd_short').onclick = async () => { const x = await pywebview.api.shorten_result(id); if (x && x.ok) { toast(pt('Готово: ', 'Done: ') + esc(x.result), 8000); refreshRecent(); $('job_dlg').classList.remove('show'); } else toast(esc((x && x.error) || ''), 8000); };
   $('jd_files').onclick = async () => { const x = await pywebview.api.open_job_files(id); if (!x.ok) toast(esc(x.error || ''), 6000); };
   $('jd_go').onclick = () => {
     const o = {fg_image_model: $('jd_img').value, fg_video_model: $('jd_vid').value, mode: $('jd_mode').value, reset_images: $('jd_rimg').checked, reset_videos: $('jd_rvid').checked};
@@ -2765,7 +2780,7 @@ async function pollOnce(gen) {
   });
   if (st.stage === 'images' && st.running) { let n = 0; document.querySelectorAll('.frame.pending').forEach(d => { d.classList.toggle('active', n < 6); n++; }); }
   if (st.queue && !st.queue_active) { $('result').classList.add('show'); $('r_path').innerHTML = queueSummary(st); $('g_title').textContent = t('frames_done'); queueItems = st.queue_items || queueItems; }
-  else if (st.result && !st.queue_active) { $('result').classList.add('show'); $('r_path').textContent = st.result; $('g_title').textContent = t('frames_done'); resultInfo(st.result); }
+  else if (st.result && !st.queue_active) { $('result').classList.add('show'); resPath(st.result); $('g_title').textContent = t('frames_done'); resultInfo(st.result); }
   if (st.error) { $('error').textContent = t('error') + st.error; errCard(st.error); $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; $('btn_again').textContent = t('again'); }
   if (st.cancelled) $('error').textContent = t('stopped');
   await updateParts();
