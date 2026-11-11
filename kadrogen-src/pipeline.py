@@ -4875,11 +4875,20 @@ def safe_title(name, limit=120):
 
 
 FILES_DIR = "файлы ролика"   # сценарий и .srt готового ролика — внутри папки проекта
+PATH_MAX = 240               # Windows (и VLC, плеер, проводник) не открывают пути длиннее 260; оставляем запас на «(2)», .mp4 и .tmp.mp4
 
 
-def named_output(out_dir, name, job_dir):
+def title_limit(root, subfolder, want=120):
+    """Сколько знаков можно оставить в названии, чтобы путь к готовому видео не вышел за предел Windows.
+    С подпапкой название встречается в пути дважды (папка и файл)."""
+    room = PATH_MAX - len(os.path.abspath(root) if os.name == "nt" else str(root)) - 1 - 4 - 4 - 8 - (1 if subfolder else 0)  # «\», («(2)»), .mp4, .tmp.mp4
+    lim = room // 2 if subfolder else room
+    return max(20, min(want, lim))
+
+
+def named_output(out_dir, name, job_dir, limit=120):
     """Имя готового файла по названию ролика. Занято другим роликом — «Название (2)»; этим же (пересборка) — то же имя."""
-    base = safe_title(name) or "ролик"
+    base = safe_title(name, limit) or "ролик"
     prev = (read_json(os.path.join(job_dir, "job.json"), {}) or {}).get("result") or ""
     for k in range(1, 100):
         cand = base if k == 1 else f"{base} ({k})"
@@ -4988,8 +4997,11 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
     out_dir = out_dir or os.path.join(data_dir(), "output")
     if out_sub is None:
         out_sub = bool((look_prof or {}).get("subfolder"))
+    tlim = title_limit(out_dir, bool(out_sub))
+    if out_name and len(safe_title(out_name, 400)) > tlim:
+        log(f"название ролика длиннее, чем позволяет Windows для такого пути ({len(out_dir)} знаков до него) — укорочено до {tlim} знаков, иначе видео не открывалось бы в плеере")
     if out_sub:  # «Ниша\Название ролика\Название ролика.mp4» — рядом с превью, если папка уже есть
-        folder = safe_title(out_name) or base
+        folder = safe_title(out_name, tlim) or base
         out_dir = os.path.join(out_dir, folder)
         try:
             os.makedirs(out_dir, exist_ok=True)
@@ -4998,9 +5010,9 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
             out_dir = os.path.dirname(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     if out_name:
-        base = named_output(out_dir, out_name, job_dir)
+        base = named_output(out_dir, out_name, job_dir, tlim)
     elif "~" in base:  # вторая озвучка с тем же именем — файл «имя (2)», а не «имя~2» и не поверх первого
-        base = named_output(out_dir, plain_base(base), job_dir)
+        base = named_output(out_dir, plain_base(base), job_dir, tlim)
     out_mp4 = os.path.join(out_dir, base + ".mp4")
     # в папку сохранения — только готовое видео; сценарий и .srt под тем же названием — в папку проекта (jobs\…\файлы ролика)
     files_dir = os.path.join(job_dir, FILES_DIR)
