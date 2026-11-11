@@ -1000,7 +1000,7 @@
   #screen6 .topbar { align-items:flex-end; padding-right:0 !important; margin-bottom:14px; } #screen6 .crumb { color:var(--ink2); font-size:13px; margin-bottom:3px; }
   #screen6 .stepname { display:flex; flex-direction:column; } #screen6 .stepname > span:last-child { font-size:24px; }
   #screen6 .topbar .pbtns { margin:0; flex-wrap:nowrap; } #screen6 .topbar .pbtns button { padding:9px 14px; font-size:13px !important; }
-  #screen6 #p_time { order:0; margin:-4px 0 8px; } #screen6 .stages li .cnt { float:right; color:var(--ink2); font-weight:400; }
+  #screen6 #p_time { order:0; margin:10px 0 12px !important; font-weight:400 !important; letter-spacing:normal !important; text-transform:none !important; } #screen6 .stages li .cnt { float:right; color:var(--ink2); font-weight:400; }
   #screen6 .plh { align-items:center; } #screen6 .plh .jdc { display:none; } #log_badge { padding:3px 9px; border-radius:10px; background:var(--bg3); color:var(--ink2); font-size:12px; font-weight:600; } #log_badge.bad { color:var(--warn); }
   #log_all { display:block; margin-top:6px; color:var(--ink2); font-size:12.5px; cursor:pointer; } #log_all:hover { color:var(--ink); }
   /* эффекты и герои: переключатели, свёрнутые строки, действия ссылками */
@@ -2680,7 +2680,14 @@ async function cancelJob() {
   poll();
 }
 let shownPct = 0, animating = false;
-function animatePct(target) { if (animating) return; animating = true; const step = () => { if (shownPct < target) { shownPct = Math.min(target, shownPct + 1); $('p_pct').textContent = shownPct + '%'; requestAnimationFrame(step); } else animating = false; }; step(); }
+let PCT_TARGET = 0;
+function animatePct(target) {  // цель хранится отдельно: поздний вызов (например, 100% в конце) не теряется, а в фоне без отрисовки значение ставится сразу
+  PCT_TARGET = target;
+  if (document.hidden || target <= shownPct) { shownPct = target; $('p_pct').textContent = shownPct + '%'; animating = false; return; }
+  if (animating) return; animating = true;
+  const step = () => { if (shownPct < PCT_TARGET) { shownPct = Math.min(PCT_TARGET, shownPct + 1); $('p_pct').textContent = shownPct + '%'; requestAnimationFrame(step); } else animating = false; };
+  step();
+}
 let lastQueueId = null;
 function queueSummary(st) {
   const items = st.queue_items || [], done = items.filter(x => x.status === 'done').length;
@@ -2714,6 +2721,7 @@ async function pollOnce(gen) {
   const idx = ORDER[st.stage] ?? 0;
   document.querySelectorAll('.stages li').forEach(li => { const o = ORDER[li.id.slice(3)] ?? 0; li.classList.toggle('done', o < idx || !!st.result); li.classList.toggle('cur', o === idx && !st.result && st.running); });
   const pct = st.result ? 100 : Math.min(99, Math.round((idx / 8) * 100 * 0.85 + (st.total ? (st.done / st.total) * 12 : 0)));
+  if (st.result) { shownPct = 100; $('p_pct').textContent = '100%'; }
   animatePct(pct); $('ring').style.strokeDashoffset = 502 - 502 * pct / 100; $('ring_glow').style.display = st.running ? '' : 'none';
   $('stage_bar').style.width = (st.total ? Math.round(100 * st.done / st.total) : (st.running ? 15 : 100)) + '%';
   $('p_stage').textContent = (t('stages')[st.stage] || st.stage_name || '').toUpperCase();
@@ -2746,7 +2754,7 @@ async function pollOnce(gen) {
   try { const act = {tts: pt('Озвучиваю сценарий', 'Voicing the script'), speech: pt('Слушаю озвучку', 'Listening to the voice-over'), scenes: pt('Делю на сцены', 'Splitting into scenes'), style: pt('Подбираю стиль', 'Choosing the style'), prompts: pt('Пишу промпты', 'Writing prompts'),
       refs: pt('Рисую героев', 'Drawing heroes'), images: pt('Рисую картинки', 'Drawing images'), videos: pt('Оживляю кадры', 'Animating frames'), render: pt('Собираю ролик', 'Assembling'), subtitles: pt('Накладываю субтитры', 'Adding subtitles'), done: pt('Готово', 'Done')};
     $('c6_title').textContent = st.error ? pt('Ролик остановился', 'The video stopped') : st.result ? pt('Ролик готов', 'The video is ready') : (act[st.stage] || t('s6'));
-    $('c6_crumb').textContent = pt('Главная / ', 'Home / ') + (st.title || (st.queue && st.queue.title) || pt('ролик', 'video')); $('c6_bg').textContent = pt('Свернуть в фон', 'Run in background'); $('c6_bg').style.display = st.running ? '' : 'none';
+    $('c6_crumb').textContent = pt('Главная / ', 'Home / ') + (st.title || (st.queue && st.queue.title) || pt('ролик', 'video')); $('c6_bg').textContent = pt('Свернуть в фон', 'Run in background'); $('c6_bg').style.display = st.running ? '' : 'none'; $('btn_cancel').style.display = (st.running || st.queue_active) ? '' : 'none';
     $('btn_cancel').textContent = pt('Остановить', 'Stop');
     document.querySelectorAll('.stages li').forEach(li => { let c = li.querySelector('.cnt'); const curLi = li.classList.contains('cur'); if (curLi && st.total) { if (!c) { c = document.createElement('span'); c.className = 'cnt'; li.appendChild(c); } c.textContent = `${st.done || 0} ${pt('из', 'of')} ${st.total}`; } else if (c) c.remove(); });
   } catch (e) {}
@@ -2799,8 +2807,8 @@ async function renderStats(st) {
     rows.push(`<div class="psr${done >= total ? ' ok' : ''}"><span class="l">${label}</span><span class="v">${done} / ${total}</span><i><b style="width:${pc}%"></b></i><span class="e">${done >= total ? '✓' : eta}${extra || ''}</span></div>`);
   };
   if (S) {
-    row('img', pt('Картинки', 'Images'), S.images, S.scenes);
-    row('clip', pt('Клипы сцен', 'Scene clips'), Math.min(S.clips, S.scenes - (S.anim || 0)), Math.max(0, S.scenes - (S.anim || 0)));
+    row('img', pt('Картинки', 'Images'), st.result ? S.scenes : S.images, S.scenes);
+    { const ct = Math.max(0, S.scenes - (S.anim || 0)); row('clip', pt('Клипы сцен', 'Scene clips'), st.result ? ct : Math.min(S.clips, ct), ct); }  // готовый ролик: временные клипы уже удалены, считаем сделанными
     if (S.anim) row('vid', pt('Оживление', 'Animation'), S.videos, S.anim);
   }
   if (st.stage === 'render' && st.total) row('render', (st.message || '').startsWith('финальная') ? pt('Склейка', 'Final glue') : pt('Сборка', 'Assembly'), st.done, st.total);
