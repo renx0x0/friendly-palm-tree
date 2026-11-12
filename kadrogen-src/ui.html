@@ -2786,7 +2786,7 @@ async function pollOnce(gen) {
   if (st.stage === 'images' && st.running) { let n = 0; document.querySelectorAll('.frame.pending').forEach(d => { d.classList.toggle('active', n < 6); n++; }); }
   if (st.queue && !st.queue_active) { $('result').classList.add('show'); $('r_path').innerHTML = queueSummary(st); $('g_title').textContent = t('frames_done'); queueItems = st.queue_items || queueItems; }
   else if (st.result && !st.queue_active) { $('result').classList.add('show'); resPath(st.result); $('g_title').textContent = t('frames_done'); resultInfo(st.result); }
-  if (st.error) { $('error').textContent = t('error') + st.error; errCard(st.error); $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; $('btn_again').textContent = t('again'); }
+  if (st.error) { $('error').textContent = t('error') + st.error; errCard(st.error); $('btn_again').textContent = t('to_settings'); } else { $('p_err').textContent = ''; if (!(st.running || st.queue_active)) $('btn_again').textContent = t('again'); }
   if (st.cancelled) $('error').textContent = t('stopped');
   await updateParts();
   const queued = (st.queue_items || []).filter(q => q.status === 'queued').length;
