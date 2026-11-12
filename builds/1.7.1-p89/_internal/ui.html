@@ -2717,7 +2717,7 @@ async function cancelJob() {
   poll();
 }
 let shownPct = 0, animating = false;
-let PCT_TARGET = 0;
+let PCT_TARGET = 0, PCT_MAX = 0;
 function animatePct(target) {  // цель хранится отдельно: поздний вызов (например, 100% в конце) не теряется, а в фоне без отрисовки значение ставится сразу
   PCT_TARGET = target;
   if (document.hidden || target <= shownPct) { shownPct = target; $('p_pct').textContent = shownPct + '%'; animating = false; return; }
@@ -2753,11 +2753,13 @@ async function pollOnce(gen) {
   jobRunning = !!(st.running || st.queue_active);
   if (st.queue) {
     $('p_queue').textContent = `${t('q_job')} ${st.queue.pos} ${t('q_of')} ${st.queue.total} · ${st.queue.title}`; $('p_queue').title = st.queue.title;
-    if (st.queue.id !== lastQueueId) { lastQueueId = st.queue.id; buildFrames(0); $('result').classList.remove('show'); $('error').textContent = ''; shownPct = 0; }
+    if (st.queue.id !== lastQueueId) { lastQueueId = st.queue.id; buildFrames(0); $('result').classList.remove('show'); $('error').textContent = ''; shownPct = 0; PCT_MAX = 0; }
   } else $('p_queue').textContent = '';
   const idx = ORDER[st.stage] ?? 0;
   document.querySelectorAll('.stages li').forEach(li => { const o = ORDER[li.id.slice(3)] ?? 0; li.classList.toggle('done', o < idx || !!st.result); li.classList.toggle('cur', o === idx && !st.result && st.running); });
-  const pct = st.result ? 100 : Math.min(99, Math.round((idx / 8) * 100 * 0.85 + (st.total ? (st.done / st.total) * 12 : 0)));
+  let pct = st.result ? 100 : Math.min(99, Math.round((idx / 8) * 100 * 0.85 + (st.total ? (st.done / st.total) * 12 : 0)));
+  // у сборки несколько подэтапов, счёт в каждом идёт с нуля — процент не должен откатываться назад
+  if (!(st.running || st.queue_active) || idx === 0 || st.result) PCT_MAX = 0; else { pct = Math.max(pct, PCT_MAX); PCT_MAX = pct; }
   if (st.result) { shownPct = 100; $('p_pct').textContent = '100%'; }
   animatePct(pct); $('ring').style.strokeDashoffset = 502 - 502 * pct / 100; $('ring_glow').style.display = st.running ? '' : 'none';
   $('stage_bar').style.width = (st.total ? Math.round(100 * st.done / st.total) : (st.running ? 15 : 100)) + '%';
