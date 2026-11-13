@@ -1637,12 +1637,13 @@ function qpRender() {
   let h = '';
   if (now.length || (live && RUN)) h += `<div class="qsec">${pt('Сейчас', 'Now')}</div>` + (now.length ? now.map(q => qCard(q)).join('')
     : `<div class="qc run"><div class="q1"><span class="qtt">${esc(RUN.title)}</span><span class="chipq running">${pt('идёт', 'running')}</span></div><div class="q2"><span>${esc(RUN.stage)} · ${RUN.pct}%</span><span>${pt('запущен не из очереди', 'started directly')}</span></div><div class="qb"><i style="width:${RUN.pct}%"></i></div><div class="qacts"><button class="ghost" onclick="qpClose(); go(6)">${pt('Открыть', 'Open')}</button></div></div>`);
-  if (next.length) h += `<div class="qsec">${pt('Дальше, по порядку', 'Next, in order')} · ${next.length}</div>` + next.map((q, k) => qCard(q, k + 1)).join('');
+  if (next.length) h += `<div class="qsec" style="display:flex;align-items:center">${pt('Дальше, по порядку', 'Next, in order')} · ${next.length}${live ? '' : `<button class="primary" style="margin-left:12px;padding:5px 14px" onclick="queueRunAll()">${pt('Запустить очередь', 'Run the queue')}</button>`}</div>` + next.map((q, k) => qCard(q, k + 1)).join('');
   if (rest.length) h += `<div class="qsec" style="display:flex;align-items:center;gap:10px"><span style="flex:1">${pt('Готово и ошибки', 'Done & failed')} · ${rest.length}</span><span class="lk" style="color:var(--acc2);cursor:pointer" onclick="queueOp('clear')">${pt('убрать готовые', 'clear')}</span></div>` + rest.map(q => qCard(q)).join('');
   if (!h) h = `<div class="qempty">${pt('В очереди пусто и ничего не делается. Чтобы поставить ролик в очередь, пройдите шаги нового ролика до «Озвучка и файлы» и нажмите там «+ В очередь».', 'The queue is empty.')}</div>`;
   h += `<div class="qsec">${pt('Настройки очереди', 'Queue settings')}</div><div class="qc"><label class="jdc"><input type="checkbox"${queueStyles ? ' checked' : ''} onchange="toggleQueueStyles()">${pt('разный стиль у каждого ролика (выбирается в «Изменить»)', 'own style per video')}</label></div>`;
   $('qp_body').innerHTML = h; bindQueue(); try { sideNav(); } catch (e) {}
 }
+function queueRunAll() { qpClose(); queueMode = true; renderReview(null); go(5); }
 function qpClose() { $('queue_dlg').classList.remove('show'); clearInterval(qpTimer); qpTimer = null; }
 async function openQueue() {
   $('qp_t').textContent = pt('Очередь', 'Queue'); $('qp_close').textContent = pt('Готово', 'Done'); $('qp_add').textContent = pt('Добавить ролик', 'Add a video');
@@ -1670,7 +1671,7 @@ function sideNav() {
   $('sd_set').innerHTML = `<div class="sd_it can" onclick="openSettings()">${pt('Настройки', 'Settings')}</div>`;
   $('sd_home_t').textContent = pt('Главная', 'Home'); $('sd_home').classList.toggle('cur', cur === 0); if ($('svc_keys')) $('svc_keys').textContent = pt('Ключи', 'Keys');
   let live = false; try { live = jobRunning; } catch (e) {}
-  $('sd_nav').innerHTML = `<div class="sd_it can" onclick="openQueue()">${pt('Очередь', 'Queue')}${live ? '<span class="live"></span>' : sdN(() => queueItems.length)}</div>`
+  $('sd_nav').innerHTML = `<div class="sd_it can" onclick="openQueue()">${pt('Очередь', 'Queue')}${live ? '<span class="live"></span>' : sdN(() => queueItems.filter(q => q.status === 'queued' || q.status === 'running' || q.status === 'assembling').length)}</div>`
     + `<div class="sd_it can" onclick="openProfiles()">${pt('Профили', 'Profiles')}</div>`
     + `<div class="sd_it can" onclick="openHeroes()">${pt('Герои', 'Heroes')}${sdN(() => HEROES.length)}</div>`;
   runCard();
@@ -1916,7 +1917,7 @@ async function rvSide() {
   const W = [];
   try { if (profileName || (typeof promptsFile !== 'undefined' && promptsFile)) (HEROES || []).filter(h => h.on && !h.img).forEach(h => W.push(`${pt('У героя', 'Hero')} <b>${esc(h.name)}</b> ${pt('нет портрета — он пойдёт только по тексту промпта.', 'has no portrait.')}<span class="lk" onclick="openHeroes()">${pt('Нарисовать портрет', 'Draw portrait')}</span>`)); } catch (e) {}
   try { await ktLoad(); provs().forEach(p => { const r = KT.find(x => x.id === p); if (r && !r.count) W.push(`${esc(r.name)}: ${pt('ключ не введён.', 'no key.')}<span class="lk" onclick="openKeysTable()">${pt('Ввести', 'Add')}</span>`); }); } catch (e) {}
-  if (source !== 'script' && !audioPath && !rwOn()) W.push(pt('Не выбран файл озвучки.', 'No voice-over file.') + `<span class="lk" onclick="go(4)">${pt('Выбрать', 'Choose')}</span>`);
+  if (!queueMode && source !== 'script' && !audioPath && !rwOn()) W.push(pt('Не выбран файл озвучки.', 'No voice-over file.') + `<span class="lk" onclick="go(4)">${pt('Выбрать', 'Choose')}</span>`);
   $('rv_wl').innerHTML = W.map(w => `<div class="wi">${w}</div>`).join(''); $('rv_warn').style.display = W.length ? '' : 'none';
 }
 function rvLinks() {  // строки «Проверки» — по разделам, у каждой «изменить» ведёт на свой шаг
@@ -2280,7 +2281,7 @@ let queueMode = false;
 async function startAll() {
   await saveKeys(); $('s_prep').textContent = ''; $('s_prep2').textContent = '';
   await queueRefresh();
-  if (!jobRunning && (queueItems.some(q => q.status === 'queued') || (queueItems.length && formHasContent()))) {
+  if (!jobRunning && queueItems.some(q => q.status === 'queued')) {  // старые готовые/упавшие задания в очереди обычный запуск не превращают в очередь
     if (formHasContent() && !(await queueAdd())) return;
     queueMode = true; renderReview(null); go(5); return;
   }
