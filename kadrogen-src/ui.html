@@ -1160,6 +1160,47 @@
   #frames .frame, .frame { border-radius:8px; overflow:hidden; }
   .fxi, .hero, .fxpv, .fxpv video, .hero .pic { border-radius:var(--r); } .fxi.on { border-color:var(--acc); }
   ::-webkit-scrollbar { width:10px; height:10px; } ::-webkit-scrollbar-thumb { background:var(--line); border-radius:5px; border:2px solid transparent; background-clip:content-box; } ::-webkit-scrollbar-track { background:transparent; }
+  /* ===== p94: экран «Очередь», карточки проверки, полоска «Сейчас делается» ===== */
+  #screen7 { gap:14px; } #screen7 .q7sub { color:var(--ink2); margin:-6px 0 0; }
+  #screen7 .q7wrap { flex:1; min-height:0; display:flex; gap:22px; }
+  #screen7 .q7main { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding-right:6px; }
+  #screen7 .q7side { width:340px; flex:none; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+  .q7sec { font-size:12px; color:var(--ink2); display:flex; align-items:center; justify-content:space-between; margin-top:6px; flex-shrink:0; } .q7sec .lk { color:var(--acc2); cursor:pointer; }
+  .q7c { border:1px solid var(--line); border-radius:12px; background:var(--bg2); flex-shrink:0; overflow:hidden; }
+  .q7c.run { border-color:var(--acc); } .q7c.bad { border-color:#7a3a3a; } .q7c.warn { border-color:#6b5220; }
+  .q7h { display:flex; align-items:center; gap:12px; padding:13px 18px; }
+  .q7n { width:24px; height:24px; flex:none; border-radius:50%; background:var(--bg3); font-size:12px; font-weight:600; display:grid; place-items:center; }
+  .q7ico { width:22px; height:22px; flex:none; border-radius:50%; color:#fff; font-size:13px; font-weight:700; display:grid; place-items:center; } .q7ico.ok { background:#2f9e6c; } .q7ico.bad { background:#b84a4a; } .q7ico.mute { background:var(--bg3); color:var(--ink2); }
+  .q7t { flex:1; min-width:0; } .q7t b { display:block; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .q7t small { display:block; margin-top:3px; color:var(--ink2); font-size:13px; }
+  .q7chip { padding:3px 10px; border-radius:11px; font-size:12px; background:var(--bg3); color:var(--ink2); white-space:nowrap; } .q7chip.run { background:#1d3354; color:#8fbaff; } .q7chip.bad { background:#3a1d1d; color:#ff9b9b; }
+  .q7h button { height:34px; padding:0 14px; font-size:13px; letter-spacing:0; text-transform:none; } .q7h button.sq { width:34px; padding:0; } .q7h a { color:var(--acc2); cursor:pointer; font-size:13px; white-space:nowrap; }
+  .q7prog { padding:0 18px 14px; display:flex; flex-direction:column; gap:8px; } .q7bar { height:6px; border-radius:3px; background:var(--line); } .q7bar i { display:block; height:6px; border-radius:3px; background:var(--acc); }
+  .q7row { display:flex; justify-content:space-between; gap:12px; color:var(--ink2); font-size:13px; }
+  .q7why { padding:0 18px 14px; color:var(--ink); font-size:13px; line-height:1.5; } .q7why small { display:block; margin-top:6px; color:var(--ink2); font-size:12px; overflow-wrap:anywhere; }
+  .q7form { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; padding:12px 18px 16px; border-top:1px solid var(--line2); background:var(--bg); } .q7form label { display:flex; flex-direction:column; gap:6px; color:var(--ink2); font-size:12px; } .q7form input, .q7form select { height:36px; }
+  .q7drop { margin-top:auto; padding:18px; border:1px dashed var(--line); border-radius:12px; display:flex; align-items:center; gap:14px; color:var(--ink2); cursor:pointer; flex-shrink:0; } .q7drop:hover { background:var(--bg2); }
+  .q7card { border:1px solid var(--line); border-radius:12px; background:var(--bg2); padding:16px 18px; display:flex; flex-direction:column; gap:10px; flex-shrink:0; } .q7card b { font-weight:600; }
+  .q7tiles { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; } .q7tiles div { padding:10px 12px; border-radius:8px; background:var(--bg3); } .q7tiles small { display:block; color:var(--ink2); font-size:12px; } .q7tiles b { display:block; margin-top:3px; }
+  .q7chk { display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.4; } .q7chk input { width:16px; height:16px; margin:1px 0 0; flex:none; }
+  #rv_cards { display:flex; flex-direction:column; gap:14px; overflow-y:auto; min-height:0; flex:1; padding-right:4px; }
+  #screen5 .rvmain > .panel.rv:not(#rv_script_panel) { display:none !important; }
+  .rvhero { display:flex; align-items:center; gap:18px; padding:16px 20px; border:1px solid var(--line); border-radius:14px; background:var(--bg2); flex-shrink:0; } .rvhero.bad { border-color:#6b5220; }
+  .rvhi { width:52px; height:52px; border-radius:12px; background:#20303f; color:#8fbaff; display:grid; place-items:center; flex:none; }
+  .rvhb { flex:1; min-width:0; } .rvhb b { font-weight:600; font-size:15px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .rvhb small { display:block; margin-top:3px; color:var(--ink2); font-size:13px; }
+  .rvwave { display:flex; align-items:center; gap:3px; height:24px; margin-top:8px; } .rvwave i { width:4px; border-radius:2px; background:var(--acc); }
+  .rvhero a, .rvc7h a { color:var(--acc2); cursor:pointer; font-size:13px; }
+  .rvgrid { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; flex-shrink:0; align-items:start; }
+  .rvc7 { padding:13px 16px; border:1px solid var(--line); border-radius:14px; background:var(--bg2); display:flex; flex-direction:column; gap:8px; min-width:0; } .rvc7.warn { border-color:#6b5220; }
+  .rvc7h { display:flex; align-items:center; gap:10px; color:var(--ink2); } .rvc7h b { flex:1; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .rvc7h a { white-space:nowrap; }
+  .rvbig { font-size:22px; font-weight:700; letter-spacing:-.01em; } .rvmid { font-size:15px; font-weight:600; overflow-wrap:anywhere; } .rvsm { color:var(--ink2); font-size:13px; overflow-wrap:anywhere; } .rvsm.warn { color:var(--warn); }
+  .rvchips { display:flex; flex-wrap:wrap; gap:6px; } .rvchips span { padding:4px 10px; border-radius:12px; background:var(--bg3); font-size:13px; } .rvchips span.off { color:var(--ink2); text-decoration:line-through; }
+  .rvbarrow { display:flex; align-items:center; gap:10px; } .rvbar { flex:1; height:8px; border-radius:4px; background:var(--line); } .rvbar i { display:block; height:8px; border-radius:4px; background:var(--acc); }
+  .rvsubp { padding:8px 0; border-radius:8px; background:#0f1014; text-align:center; } .rvsubp span { padding:3px 12px; border-radius:6px; background:rgba(0,0,0,.7); font-weight:700; color:#fff; } .rvsubp em { font-style:normal; color:#f0c040; }
+  .rvql { display:flex; flex-direction:column; gap:6px; margin-top:8px; } .rvql > div { display:flex; align-items:center; gap:10px; } .rvql .q7t small { margin:0; }
+  .rvready { display:flex; align-items:center; gap:10px; padding:9px 16px; border-radius:10px; border:1px solid #1f5c43; background:color-mix(in srgb, var(--ok) 14%, var(--bg)); color:var(--ok); font-weight:600; margin-left:auto; } .rvready i { width:20px; height:20px; border-radius:50%; background:#2f9e6c; color:#fff; font-style:normal; font-size:12px; display:grid; place-items:center; flex:none; }
+  .rvready.bad { border-color:#6b5220; background:color-mix(in srgb, var(--warn) 14%, var(--bg)); color:var(--warn); } .rvready.bad i { background:#c98a2b; color:#15171c; }
+  .qstrip { margin:0 0 12px; display:flex; align-items:center; gap:14px; padding:12px 18px; border:1px solid color-mix(in srgb, var(--acc) 45%, var(--line)); border-radius:12px; background:color-mix(in srgb, var(--acc) 12%, var(--bg)); font-size:13px; line-height:1.5; flex-shrink:0; } .qstrip .dot { width:8px; height:8px; border-radius:50%; background:var(--acc); flex:none; } .qstrip > div { flex:1; min-width:0; } .qstrip span { color:var(--ink2); } .qstrip .q7bar { width:120px; flex:none; } .qstrip a { color:var(--acc2); cursor:pointer; }
+  .rvnext { display:flex; gap:10px; align-items:flex-start; color:var(--ink2); font-size:13px; line-height:1.5; } .rvnext i { width:20px; height:20px; flex:none; border-radius:50%; background:var(--bg3); color:var(--ink); font-style:normal; font-size:12px; display:grid; place-items:center; } .rvnext i.a { background:var(--acc); color:#fff; } .rvnext b { color:var(--ink); font-weight:600; }
 </style>
 </head>
 <body>
@@ -1386,12 +1427,18 @@
     <div class="topbar"><div class="logo"><span class="k">Kadro</span><span class="d">.</span><span class="thin">Gen</span></div><div class="stepname"><span data-i18n="step"></span> <b>05</b> · <span data-i18n="s5"></span></div></div>
     <div class="scan" id="scan" style="display:none"><div class="wave" id="wave"></div><div class="phase" id="scan_phase"></div><div class="line"></div><div class="sub" id="scan_sub"></div></div>
     <div class="review" id="review">
-      <div class="rvmain"><div class="panel rv"><div class="fc" id="fc" style="display:none"><div class="lbl" data-i18n="fc_title"></div><div class="big" id="fc_big"></div><div class="sub" id="fc_sub"></div><div class="alt" id="fc_alt"></div></div><h3 data-i18n="rv_settings"></h3><div class="rvlist" id="rv_sum"></div></div>
+      <div class="rvmain"><div id="rv_cards"></div><div class="panel rv"><div class="fc" id="fc" style="display:none"><div class="lbl" data-i18n="fc_title"></div><div class="big" id="fc_big"></div><div class="sub" id="fc_sub"></div><div class="alt" id="fc_alt"></div></div><h3 data-i18n="rv_settings"></h3><div class="rvlist" id="rv_sum"></div></div>
       <div class="panel rv" id="rv_script_panel"><h3 id="rv_script_title"></h3><textarea id="rv_script" spellcheck="false"></textarea><div class="status" id="rv_words"></div></div></div>
       <aside id="rv_side"><div class="s3card" id="rv_fcc"><b id="rv_fct"></b></div><div class="s3card" id="rv_warn" style="display:none"><b id="rv_wt" style="color:var(--warn)"></b><div id="rv_wl"></div></div><div class="s3card"><b id="rv_mt"></b><div class="s3n" id="rv_mn"></div></div></aside>
     </div>
     <div class="status err" id="s_prep2" style="text-align:center"></div>
-    <div class="nav"><button class="ghost" onclick="autoStart = false; go(4)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="rv_q" onclick="queueAdd().then(ok => { if (ok) toast(pt('Ролик поставлен в очередь.', 'Added to the queue.'), 4000); })"></button><button class="primary" id="btn_go" onclick="startFromReview()" data-i18n="go"></button></div>
+    <div class="nav"><button class="ghost" onclick="autoStart = false; go(4)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="rv_q" onclick="queueAdd().then(ok => { if (ok) { toast(pt('Ролик добавлен в очередь.', 'Added to the queue.'), 4000); openQueue(); } })"></button><button class="primary" id="btn_go" onclick="startFromReview()" data-i18n="go"></button></div>
+  </div>
+
+  <div class="screen" id="screen7">
+    <div class="topbar"><div class="stepname"><span></span><span id="pg7_t"></span></div><div class="hm_tools"><button class="ghost" id="q7_add"></button><button class="primary" id="q7_run"></button><button class="danger" id="q7_stop"></button></div></div>
+    <div class="q7sub" id="q7_sub"></div>
+    <div class="q7wrap"><div class="q7main" id="q7_main"></div><aside class="q7side" id="q7_side"></aside></div>
   </div>
 
   <div class="screen" id="screen6">
@@ -1515,13 +1562,15 @@ function go(n) {
   const from = $('screen' + cur); from.classList.add('leaving');
   setTimeout(() => {
     from.classList.remove('leaving', 'active'); cur = n; sideRender();
-    for (let i = 0; i <= 6; i++) $('screen' + i).classList.toggle('active', i === n);
+    for (let i = 0; i <= 7; i++) $('screen' + i).classList.toggle('active', i === n);
     if (n === 4) renderAccess();
     if (n === 0) refreshRecent();
     if (n === 1) svcKeys();
     if (n === 3) s3Enter();
     if (n === 2) try { s2Paint(); } catch (e) {}
-    if (n === 5) try { rvSide(); } catch (e) {}
+    if (n === 5) try { rvSide(); rvCards(); } catch (e) {}
+    if (n === 7) q7Enter();
+    try { qStrip(); } catch (e) {}
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
@@ -1603,7 +1652,7 @@ function openSettings() { const st = $('store'); if (st && st.parentNode !== $('
 // очередь — своя панель
 let qpTimer = null;
 function keysMove() { try { accessCols(); } catch (e) {} const kb = document.querySelector('#dropzone .keysbox'); if (kb && $('kt_adv')) { kb.classList.add('open'); $('kt_adv').innerHTML = ''; $('kt_adv').appendChild(kb); } }
-window.addEventListener('load', () => { const ra0 = renderAccess; renderAccess = function () { const r = ra0.apply(this, arguments); try { keysMove(); if ($('queue_dlg').classList.contains('show')) qpRender(); sideNav(); } catch (e) {} return r; }; });
+window.addEventListener('load', () => { const ra0 = renderAccess; renderAccess = function () { const r = ra0.apply(this, arguments); try { keysMove(); if (cur === 7) qpRender(); sideNav(); } catch (e) {} return r; }; });
 let RUN = null;  // что делается сейчас: {title, stage, pct, queued}
 function runCard() {
   const el = $('sd_run'); if (!el) return; let on = false; try { on = jobRunning && !!RUN; } catch (e) {}
@@ -1630,7 +1679,7 @@ function qCard(q, n) {
     + (run && RUN ? `<div class="q2"><span>${esc(RUN.stage)} · ${RUN.pct}%</span></div><div class="qb"><i style="width:${RUN.pct}%"></i></div>` : '')
     + (meta.length ? `<div class="q2">${meta.map(m => `<span>${esc(m)}</span>`).join('')}</div>` : '') + (acts ? `<div class="qacts">${acts}</div>` : '') + form + `</div>`;
 }
-function qpRender() {
+function qpRenderOld() {
   if (!$('qp_body')) return;
   const now = queueItems.filter(q => q.status === 'running' || q.status === 'assembling'), next = queueItems.filter(q => q.status === 'queued'), rest = queueItems.filter(q => q.status === 'done' || q.status === 'error' || q.status === 'stopped');
   let live = false; try { live = jobRunning; } catch (e) {}
@@ -1645,7 +1694,7 @@ function qpRender() {
 }
 function queueRunAll() { qpClose(); queueMode = true; renderReview(null); go(5); }
 function qpClose() { $('queue_dlg').classList.remove('show'); clearInterval(qpTimer); qpTimer = null; }
-async function openQueue() {
+async function openQueueOld() {
   $('qp_t').textContent = pt('Очередь', 'Queue'); $('qp_close').textContent = pt('Готово', 'Done'); $('qp_add').textContent = pt('Добавить ролик', 'Add a video');
   $('qp_n').textContent = pt('Что делается сейчас, что ждёт и что уже готово. Ролики идут по порядку; у ждущих можно поменять название, голос и место в очереди.', 'What is running, what waits and what is done.');
   $('qp_close').onclick = qpClose; $('qp_add').onclick = () => { qpClose(); if (cur === 6 || cur === 0) go(1); else go(4); };
@@ -1659,7 +1708,7 @@ function openKeys() {  // ключи живут на шаге «Озвучка �
 let sideMax = 1;
 function sideRender() {
   if (!$('sd_steps')) return;
-  sideMax = Math.max(sideMax, cur);
+  sideMax = Math.max(sideMax, cur <= 6 ? cur : 0);
   const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Озвучка и файлы', 'Voice & files'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
   $('sd_cap').textContent = pt('Шаги нового ролика', 'New video steps'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
   $('pg0_t').textContent = pt('Ролики', 'Videos'); $('sd_new').textContent = pt('Новый ролик', 'New video'); $('hm_folder').textContent = pt('Рабочая папка', 'Work folder');
@@ -1671,13 +1720,13 @@ function sideNav() {
   $('sd_set').innerHTML = `<div class="sd_it can" onclick="openSettings()">${pt('Настройки', 'Settings')}</div>`;
   $('sd_home_t').textContent = pt('Главная', 'Home'); $('sd_home').classList.toggle('cur', cur === 0); if ($('svc_keys')) $('svc_keys').textContent = pt('Ключи', 'Keys');
   let live = false; try { live = jobRunning; } catch (e) {}
-  $('sd_nav').innerHTML = `<div class="sd_it can" onclick="openQueue()">${pt('Очередь', 'Queue')}${live ? '<span class="live"></span>' : sdN(() => queueItems.filter(q => q.status === 'queued' || q.status === 'running' || q.status === 'assembling').length)}</div>`
+  $('sd_nav').innerHTML = `<div class="sd_it can${cur === 7 ? ' cur' : ''}" onclick="openQueue()">${pt('Очередь', 'Queue')}${live ? '<span class="live"></span>' : sdN(() => queueItems.filter(q => q.status === 'queued' || q.status === 'running' || q.status === 'assembling').length)}</div>`
     + `<div class="sd_it can" onclick="openProfiles()">${pt('Профили', 'Profiles')}</div>`
     + `<div class="sd_it can" onclick="openHeroes()">${pt('Герои', 'Heroes')}${sdN(() => HEROES.length)}</div>`;
   runCard();
   const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Озвучка и файлы', 'Voice & files'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
   $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
-    return `<div class="sd_it${n === cur ? ' cur' : ''}${n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
+    return `<div class="sd_it${n === cur ? ' cur' : ''}${cur <= 6 && n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${cur <= 6 && n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
 }
 function provs() { return Array.from(document.querySelectorAll('input[name=prov]:checked')).map(x => x.value); }
 function mode() { const r = document.querySelector('input[name=mode]:checked'); return r ? r.value : 'images'; }
@@ -1911,14 +1960,17 @@ function accessCols() {
 async function rvSide() {
   if (!$('rv_side')) return;
   const f = $('fc'); if (f && f.parentNode !== $('rv_fcc')) $('rv_fcc').appendChild(f);
-  $('rv_fct').textContent = pt('Прогноз', 'Forecast'); $('rv_mt').textContent = pt('Если что-то пойдёт не так', 'If something goes wrong');
-  $('rv_mn').textContent = pt('Готовые кадры сохраняются. Ролик можно остановить и продолжить с того же места с главной.', 'Finished frames are kept; you can stop and continue later.');
-  $('rv_q').textContent = pt('В очередь', 'To the queue'); $('rv_wt').textContent = pt('Обратите внимание', 'Note');
-  const W = [];
+  $('rv_fct').textContent = pt('Прогноз', 'Forecast'); $('rv_mt').textContent = pt('Что будет дальше', 'What happens next');
+  $('rv_mn').innerHTML = `<div class="rvnext"><i class="a">1</i><span><b>${pt('Начать', 'Start')}</b>: ${pt('ролик встанет в очередь и запустится, как только освободится сборка (если ничего не идёт, сразу).', 'the video joins the queue and starts as soon as it is free.')}</span></div><div class="rvnext" style="margin-top:8px"><i>2</i><span><b>${pt('Только добавить', 'Only add')}</b>: ${pt('ролик ждёт в очереди, запустите его позже из «Очередь».', 'it waits in the queue; run it later from “Queue”.')}</span></div><div class="rvnext" style="margin-top:8px"><span>${pt('Готовые кадры сохраняются: ролик можно остановить и продолжить с того же места.', 'Finished frames are kept.')}</span></div>`;
+  $('rv_q').textContent = pt('Только добавить в очередь', 'Only add to the queue'); $('rv_wt').textContent = pt('Обратите внимание', 'Note');
+  const W = [], BLOCK = [];
   try { if (profileName || (typeof promptsFile !== 'undefined' && promptsFile)) (HEROES || []).filter(h => h.on && !h.img).forEach(h => W.push(`${pt('У героя', 'Hero')} <b>${esc(h.name)}</b> ${pt('нет портрета — он пойдёт только по тексту промпта.', 'has no portrait.')}<span class="lk" onclick="openHeroes()">${pt('Нарисовать портрет', 'Draw portrait')}</span>`)); } catch (e) {}
-  try { await ktLoad(); provs().forEach(p => { const r = KT.find(x => x.id === p); if (r && !r.count) W.push(`${esc(r.name)}: ${pt('ключ не введён.', 'no key.')}<span class="lk" onclick="openKeysTable()">${pt('Ввести', 'Add')}</span>`); }); } catch (e) {}
+  try { await ktLoad(); provs().forEach(p => { const r = KT.find(x => x.id === p); if (r && !r.count) { BLOCK.push(r.name + ': ' + pt('ключ', 'key')); W.push(`${esc(r.name)}: ${pt('ключ не введён.', 'no key.')}<span class="lk" onclick="openKeysTable()">${pt('Ввести', 'Add')}</span>`); } }); } catch (e) {}
+  if (!queueMode && source !== 'script' && !audioPath && !rwOn()) BLOCK.push(pt('озвучки', 'voice-over'));
+  if (!queueMode && source === 'script' && !rwOn() && !(F.script || '').trim()) BLOCK.push(pt('сценария', 'script'));
   if (!queueMode && source !== 'script' && !audioPath && !rwOn()) W.push(pt('Не выбран файл озвучки.', 'No voice-over file.') + `<span class="lk" onclick="go(4)">${pt('Выбрать', 'Choose')}</span>`);
   $('rv_wl').innerHTML = W.map(w => `<div class="wi">${w}</div>`).join(''); $('rv_warn').style.display = W.length ? '' : 'none';
+  try { rvReady(BLOCK); } catch (e) {}
 }
 function rvLinks() {  // строки «Проверки» — по разделам, у каждой «изменить» ведёт на свой шаг
   const L = $('rv_sum'); if (!L) return;
@@ -2281,8 +2333,7 @@ let queueMode = false;
 async function startAll() {
   await saveKeys(); $('s_prep').textContent = ''; $('s_prep2').textContent = '';
   await queueRefresh();
-  if (!jobRunning && queueItems.some(q => q.status === 'queued')) {  // старые готовые/упавшие задания в очереди обычный запуск не превращают в очередь
-    if (formHasContent() && !(await queueAdd())) return;
+  if (!formHasContent() && !jobRunning && queueItems.some(q => q.status === 'queued')) {  // форма пуста, а в очереди ждут ролики — проверка очереди
     queueMode = true; renderReview(null); go(5); return;
   }
   queueMode = false;
@@ -2340,7 +2391,7 @@ function renderReview(script) {
   $('rv_script_title').textContent = rwOn() ? t('rv_script_rw') : t('rv_script');
   $('rv_script').value = script || ''; updRvWords();
   $('rv_mode').addEventListener('change', refreshForecast); $('rv_fgq').addEventListener('change', refreshForecast);
-  refreshForecast(); try { rvLinks(); rvSide(); } catch (e) {}
+  refreshForecast(); try { rvLinks(); rvSide(); rvCards(); } catch (e) {}
 }
 function updRvWords() { const n = $('rv_script').value.trim().split(/\s+/).filter(Boolean).length; $('rv_words').textContent = n ? `${n} ${t('rv_words')}` : ''; }
 let fcTimer = null;
@@ -2361,6 +2412,7 @@ async function refreshForecast() {
   if (seq !== fcSeq) return;
   box.classList.remove('pending');
   if (!e || !e.ok) { box.style.display = 'none'; return; }
+  LASTFC = e; try { rvCards(); } catch (x) {}
   const dur = e.duration >= 3600 ? `${Math.floor(e.duration / 3600)} ${t('h_')} ${Math.round(e.duration % 3600 / 60)} ${t('m_')}` : `${Math.round(e.duration / 60)} ${t('m_')}`;
   $('fc_big').innerHTML = `≈ <b>${fmtMin(e.minutes)}</b>`;
   const parts = [`${plural(e.scenes, t('fc_scenes'))}`, dur];
@@ -2668,6 +2720,9 @@ function askVoice() {
 }
 async function startFromReview() {
   const o = opts();
+  if (!queueMode && !jobRunning && $('rv_script_panel').style.display === 'none' && formHasContent() && queueItems.some(q => q.status === 'queued')) {
+    if (!(await queueAdd())) return; queueMode = true;  // в очереди уже ждут ролики: этот встаёт последним и запускается вместе с ними
+  }
   if (queueMode) {
     const r = await pywebview.api.queue_start(o);
     if (!r.ok) { $('s_prep2').textContent = r.error; return; }
@@ -2798,8 +2853,8 @@ async function pollOnce(gen) {
     $('btn_cancel').textContent = pt('Остановить', 'Stop');
     document.querySelectorAll('.stages li').forEach(li => { let c = li.querySelector('.cnt'); const curLi = li.classList.contains('cur'); if (curLi && st.total) { if (!c) { c = document.createElement('span'); c.className = 'cnt'; li.appendChild(c); } c.textContent = `${st.done || 0} ${pt('из', 'of')} ${st.total}`; } else if (c) c.remove(); });
   } catch (e) {}
-  RUN = {title: st.title || (st.queue && st.queue.title) || pt('ролик', 'video'), stage: (t('stages')[st.stage] || st.stage_name || '').toLowerCase(), pct: pct, queued: queued};
-  try { sideNav(); if ($('queue_dlg').classList.contains('show') && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#qp_body input, #qp_body select'))) qpRender(); if (cur === 0) homeLive(); if (cur === 3) s3Paint(); } catch (e) {}
+  RUN = {title: st.title || (st.queue && st.queue.title) || pt('ролик', 'video'), stage: (t('stages')[st.stage] || st.stage_name || '').toLowerCase(), pct: pct, queued: queued, left: (st.elapsed && pct >= 4 && pct < 100) ? Math.max(1, Math.round(st.elapsed * (100 - pct) / pct / 60)) : null};
+  try { sideNav(); if (cur === 7 && !(document.activeElement && document.activeElement.closest && document.activeElement.closest('#q7_main input, #q7_main select'))) qpRender(); qStrip(); if (cur === 0) homeLive(); if (cur === 3) s3Paint(); } catch (e) {}
   $('runpill_tx').textContent = `${pt('Идёт', 'Running')}: ${st.title || (st.queue && st.queue.title) || pt('ролик', 'video')} · ${(t('stages')[st.stage] || st.stage_name || '').toLowerCase()} ${pct}%`
     + (queued ? ` · ${pt('в очереди', 'queued')}: ${queued}` : '');
   $('runpill_go').textContent = pt('открыть ›', 'open ›');
@@ -3026,7 +3081,7 @@ async function loadConfig(keepScreen) {
   FXS = c.fx || {}; if ($('fx_lbl')) fxLabels(); lookLoad(); heroesLoad();
   if (c.stock) STK = c.stock; if (c.stock_keys) STKK = c.stock_keys; STKV = !!c.stock_vision; stockLabels();
   if ($('vquality')) { $('vquality').value = c.video_quality || 'high'; vqLabels(); }
-  STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
+  STYLES = st.styles || c.styles || STYLES; styleKey = c.style || 'ultrareal'; queueStyles = !!c.queue_styles; QCONT = c.queue_continue !== false; if (!keepScreen) { $('custom_style').value = c.custom_style || ''; $('video_prompt').value = c.video_prompt || ''; $('vzoom').value = c.video_zoom_pct ?? 104; $('vanchor').value = c.video_anchor || 'top'; } fillStyles(); drawVf();
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
   stt = c.stt_engine || (c.has_fastgen ? 'fastgen' : 'whisper'); llm = c.llm_engine || (c.has_fastgen ? 'fastgen' : 'openai'); tts = c.tts_service || 'voicegen';
   recent = c.tts_recent || [];
@@ -3187,7 +3242,7 @@ function bindQueue() {
   document.querySelectorAll('select.qst').forEach(el => el.addEventListener('change', () => { const q = queueItems.find(x => x.id === el.dataset.id); if (q) q.style = el.value; pywebview.api.queue_set_style(el.dataset.id, el.value); }));
   document.querySelectorAll('input.qv').forEach(el => el.addEventListener('change', () => { const q = queueItems.find(x => x.id === el.dataset.id); if (q) q.voice = el.value.trim(); pywebview.api.queue_set_voice(el.dataset.id, el.value.trim()); }));
 }
-async function queueRefresh() { try { const r = await pywebview.api.queue_list(); queueItems = r.items || []; } catch (e) {} }
+async function queueRefresh() { try { const r = await pywebview.api.queue_list(); queueItems = r.items || []; } catch (e) {} try { qStrip(); } catch (e) {} }
 async function queueOp(op, id, d) {
   let r;
   if (op === 'remove') r = await pywebview.api.queue_remove(id);
@@ -3719,6 +3774,150 @@ function lbStock(m, i) {  // стоковая сцена: откуда кадр,
 function fmtT(x) { x = Math.max(0, x || 0); const m = Math.floor(x / 60), s = Math.floor(x % 60); return `${m}:${String(s).padStart(2, '0')}`; }
 function stepLB(d) { const n = LB.i + d; if (n < 0 || (LB.total && n >= LB.total)) return; LB.i = n; if (LB.kind !== 'image') LB.kind = 'auto'; showLB(); }  // выбрали «Картинка» — листаем картинки
 $('lb_prev').onclick = () => stepLB(-1); $('lb_next').onclick = () => stepLB(1);
+// ===== p94: экран «Очередь» (в меню), карточки на «Проверке», полоска «Сейчас делается» =====
+let QCONT = true, LASTFC = null, RVH = {file: '', counts: null};
+const durTxt = s => s >= 3600 ? `${Math.floor(s / 3600)} ${t('h_')} ${Math.round(s % 3600 / 60)} ${t('m_')}` : `${Math.floor(s / 60)} ${t('m_')} ${Math.round(s % 60)} ${t('s_')}`;
+function qErrText(e) {  // причина ошибки понятными словами + сама строка мелко
+  const s = String(e || ''), low = s.toLowerCase();
+  let why = pt('Ролик остановился с ошибкой.', 'The video stopped with an error.');
+  if (/timed out|connecttimeout|max retries|connection|не удалось связаться/.test(low)) why = pt('Не удалось связаться с сервисом (таймаут): проверьте интернет и VPN.', 'Could not reach the service (timeout).');
+  else if (/overload|перегруж|транскрипция не удалась/.test(low)) why = pt('Сервис распознавания речи был перегружен слишком долго.', 'The speech service stayed overloaded for too long.');
+  else if (/401|403|ключ|api key|unauthor/.test(low)) why = pt('Сервис не принял ключ: проверьте его в «Ключах».', 'The service rejected the key.');
+  else if (/кредит|credit|лимит|limit|quota/.test(low)) why = pt('Закончились кредиты или лимит сервиса.', 'Out of credits or limit.');
+  return `${why}<small>${esc(s.replace(/^[A-Za-z.]+Error: |^[A-Za-z.]+Exception: /, '').slice(0, 260))}</small>`;
+}
+function q7Meta(q) {
+  return [q.voice ? pt('голос: ', 'voice: ') + q.voice : '', q.prompts_file ? pt('готовые промпты', 'ready prompts') : q.profile ? pt('профиль ', 'profile ') + q.profile : '',
+    q.name ? pt('файл: ', 'file: ') + q.name : '', q.out_dir ? pt('папка: ', 'folder: ') + (q.out_dir.split(/[\\/]/).filter(Boolean).pop() || q.out_dir) : ''].filter(Boolean).join(' · ');
+}
+function qReveal(id) { const q = queueItems.find(x => x.id === id); if (q && q.result) pywebview.api.reveal_file(q.result); }
+function q7Card(q, n) {
+  const edit = q.status === 'queued' || q.status === 'error' || q.status === 'stopped', open = QOPEN.has(q.id) && edit, run = q.status === 'running', asm = q.status === 'assembling';
+  const bt = (cls, txt, fn, tip) => `<button class="ghost ${cls || ''}" title="${esc(tip || txt)}" onclick="${fn}">${txt}</button>`;
+  let head = '', body = '', cls = '';
+  if (run || asm) {
+    cls = run ? 'run' : '';
+    head = `<div class="q7h"><div class="q7t"><b title="${esc(q.title)}">${esc(q.title)}</b></div><span class="q7chip run">${run ? pt('идёт', 'running') : pt('монтируется', 'assembling')}</span>${run ? '<a onclick="go(6)">' + pt('Открыть', 'Open') + '</a>' : ''}</div>`;
+    body = run && RUN ? `<div class="q7prog"><div class="q7bar"><i style="width:${RUN.pct}%"></i></div><div class="q7row"><span>${esc(RUN.stage)}</span><span>${RUN.pct}%${RUN.left ? ' · ' + pt('осталось ≈ ', '≈ ') + fmtMin(RUN.left) : ''}</span></div></div>`
+      : `<div class="q7prog"><div class="q7row"><span>${pt('Картинки готовы, ролик монтируется в фоне, очередь уже работает над следующим.', 'Assembling in the background.')}</span></div></div>`;
+  } else if (q.status === 'queued') {
+    head = `<div class="q7h"><span class="q7n">${n}</span><div class="q7t"><b title="${esc(q.title)}">${esc(q.title)}</b><small>${esc(q7Meta(q) || pt('готово к запуску', 'ready'))}</small></div>`
+      + bt('sq', '↑', `queueOp('move','${q.id}',-1)`, pt('Выше', 'Up')) + bt('sq', '↓', `queueOp('move','${q.id}',1)`, pt('Ниже', 'Down'))
+      + bt('', pt('Изменить', 'Edit'), `qToggle('${q.id}')`) + bt('', pt('Убрать', 'Remove'), `queueOp('remove','${q.id}')`) + `</div>`;
+  } else if (q.status === 'done') {
+    head = `<div class="q7h"><span class="q7ico ok">✓</span><div class="q7t"><b title="${esc(q.title)}">${esc(q.title)}</b><small>${pt('готов', 'done')}</small></div>${q.result ? `<a onclick="qReveal('${q.id}')">${pt('Открыть папку', 'Show in folder')}</a>` : ''}${bt('', pt('Убрать', 'Remove'), `queueOp('remove','${q.id}')`)}</div>`;
+  } else {  // error / stopped
+    const bad = q.status === 'error'; cls = bad ? 'bad' : '';
+    head = `<div class="q7h"><span class="q7ico ${bad ? 'bad' : 'mute'}">${bad ? '!' : '■'}</span><div class="q7t"><b title="${esc(q.title)}">${esc(q.title)}</b></div><span class="q7chip ${bad ? 'bad' : ''}">${bad ? pt('ошибка', 'error') : pt('остановлен', 'stopped')}</span>`
+      + bt('', pt('Повторить', 'Retry'), `queueOp('retry','${q.id}')`) + bt('', pt('Убрать', 'Remove'), `queueOp('remove','${q.id}')`) + `</div>`;
+    body = bad ? `<div class="q7why">${qErrText(q.error)}<small>${pt('Готовые кадры сохранены: «Повторить» продолжит с того же места.', 'Finished frames are kept; Retry continues from there.')}</small></div>` : '';
+  }
+  const form = open ? `<div class="q7form"><label>${pt('Название файла', 'File name')}<input type="text" class="qnm" data-id="${q.id}" value="${esc(q.name || '')}" placeholder="${esc(pt('необязательно', 'optional'))}" spellcheck="false" autocomplete="off"></label>`
+    + `<label>${pt('Голос', 'Voice')}<input type="text" class="qv" list="voice_list" data-id="${q.id}" value="${esc(q.voice || '')}" placeholder="${esc(t('q_voice_ph'))}" spellcheck="false" autocomplete="off"></label>`
+    + (queueStyles ? `<label>${pt('Стиль картинок', 'Style')}<select class="qst" data-id="${q.id}">${styleOpts(true).map(([v, nm]) => `<option value="${v}"${v === (q.style || '') ? ' selected' : ''}>${esc(nm)}</option>`).join('')}</select></label>` : '') + `</div>` : '';
+  return `<div class="q7c ${cls}">${head}${body}${form}</div>`;
+}
+function qpRender() { q7Render(); }
+function q7Render() {
+  const main = $('q7_main'); if (!main) return;
+  const items = queueItems || [], live = !!jobRunning;
+  const now = items.filter(q => q.status === 'running' || q.status === 'assembling'), next = items.filter(q => q.status === 'queued'), rest = items.filter(q => q.status === 'done' || q.status === 'error' || q.status === 'stopped');
+  $('pg7_t').textContent = pt('Очередь', 'Queue');
+  $('q7_sub').textContent = live ? pt(`Ролики делаются по очереди, один за другим. Сейчас идёт ${RUN && RUN.title ? '«' + RUN.title + '»' : 'ролик'}${next.length ? ', дальше ещё ' + next.length : ''}.`, 'Videos are made one after another.')
+    : next.length ? pt(`Ждут запуска: ${next.length}. Нажмите «Запустить очередь».`, `${next.length} waiting. Press “Run the queue”.`) : pt('Ролики делаются по очереди, один за другим.', 'Videos are made one after another.');
+  $('q7_add').textContent = pt('Добавить ролик', 'Add a video');
+  $('q7_run').textContent = pt('Запустить очередь', 'Run the queue'); $('q7_run').style.display = !live && next.length ? '' : 'none';
+  $('q7_stop').textContent = pt('Остановить очередь', 'Stop the queue'); $('q7_stop').style.display = live ? '' : 'none';
+  let h = '';
+  if (now.length || (live && RUN)) h += `<div class="q7sec">${pt('Сейчас', 'Now')}</div>` + (now.length ? now.map(q => q7Card(q)).join('')
+    : `<div class="q7c run"><div class="q7h"><div class="q7t"><b>${esc(RUN.title)}</b><small>${pt('запущен не из очереди', 'started directly')}</small></div><span class="q7chip run">${pt('идёт', 'running')}</span><a onclick="go(6)">${pt('Открыть', 'Open')}</a></div>`
+      + `<div class="q7prog"><div class="q7bar"><i style="width:${RUN.pct}%"></i></div><div class="q7row"><span>${esc(RUN.stage)}</span><span>${RUN.pct}%${RUN.left ? ' · ' + pt('осталось ≈ ', '≈ ') + fmtMin(RUN.left) : ''}</span></div></div></div>`);
+  if (next.length) h += `<div class="q7sec">${pt('Дальше, по порядку', 'Next, in order')} · ${next.length}</div>` + next.map((q, k) => q7Card(q, k + 1)).join('');
+  if (rest.length) h += `<div class="q7sec"><span>${pt('Готово и ошибки', 'Done and failed')} · ${rest.length}</span><span class="lk" onclick="queueOp('clear')">${pt('убрать готовые', 'clear')}</span></div>` + rest.map(q => q7Card(q)).join('');
+  if (!h) h = `<div class="q7card" style="align-items:center;text-align:center;color:var(--ink2)">${pt('В очереди пусто. Нажмите «Добавить ролик»: пройдите шаги и выберите «Только добавить в очередь» или «Начать».', 'The queue is empty.')}</div>`;
+  h += `<div class="q7drop" onclick="qpAddNew()"><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg><span>${pt('Нажмите сюда или «Добавить ролик», чтобы поставить ещё один ролик в очередь', 'Click here to add another video')}</span></div>`;
+  main.innerHTML = h; bindQueue();
+  const cnt = st => items.filter(q => q.status === st).length;
+  $('q7_side').innerHTML = `<div class="q7card"><b>${pt('Итого по очереди', 'Totals')}</b><div class="q7tiles"><div><small>${pt('Роликов', 'Videos')}</small><b>${items.length}</b></div><div><small>${pt('Ждут', 'Waiting')}</small><b>${next.length}</b></div><div><small>${pt('Готово', 'Done')}</small><b>${cnt('done')}</b></div><div><small>${pt('С ошибкой', 'Failed')}</small><b>${cnt('error') + cnt('stopped')}</b></div></div>`
+    + (live && RUN && RUN.left ? `<div class="rvsm">${pt('Идущий ролик закончится через ≈ ', 'Current video ends in ≈ ')}${fmtMin(RUN.left)}.</div>` : '') + `</div>`
+    + `<div class="q7card"><b>${pt('Настройки очереди', 'Queue settings')}</b>`
+    + `<label class="q7chk"><input type="checkbox"${queueStyles ? ' checked' : ''} onchange="toggleQueueStyles()"><span>${pt('свой стиль у каждого ролика', 'own style per video')}</span></label>`
+    + `<label class="q7chk"><input type="checkbox"${QCONT ? ' checked' : ''} onchange="QCONT = this.checked; pywebview.api.save_config({queue_continue: this.checked})"><span>${pt('если ролик упал, продолжить со следующим (причина видна в карточке)', 'if a video fails, continue with the next one')}</span></label>`
+    + `<label class="q7chk" title="${esc(pt('Как только у ролика готовы все картинки и видео, его монтаж идёт в фоне, а программа берётся за следующий.', 'Assemble in the background.'))}"><input type="checkbox"${ASM.parallel ? ' checked' : ''} onchange="ASM.parallel = this.checked; pywebview.api.save_config({parallel_assembly: this.checked})"><span>${pt('монтаж в фоне: следующий ролик начинается, пока монтируется предыдущий', 'background assembly')}</span></label></div>`
+    + `<div class="q7card rvsm">${pt('Ждущие ролики можно переставлять стрелками. Идущий остановится только кнопкой «Остановить очередь».', 'Reorder waiting videos with the arrows.')}</div>`;
+  try { sideNav(); } catch (e) {}
+}
+function qpAddNew() { go(cur === 0 || cur === 7 ? (provs().length ? 4 : 1) : 4); }
+async function openQueue() { await queueRefresh(); go(7); }
+function q7Enter() { queueRefresh().then(() => { q7Render(); qStrip(); }); }
+$('q7_add').onclick = qpAddNew; $('q7_run').onclick = () => queueRunAll(); $('q7_stop').onclick = () => cancelJob();
+
+// полоска над шагами 4 и 5: что сейчас делается / что уже ждёт
+['screen4', 'screen5'].forEach(id => { const s = $(id), tb = s && s.querySelector('.topbar'); if (!s || !tb || s.querySelector('.qstrip')) return; const d = document.createElement('div'); d.className = 'qstrip'; d.style.display = 'none'; tb.after(d); });
+function qStrip() {
+  const waiting = (queueItems || []).filter(q => q.status === 'queued').length; let h = '';
+  if (jobRunning && RUN) h = `<span class="dot"></span><div><b>${pt('Сейчас делается: ', 'Now making: ')}${esc(RUN.title)}</b> <span>· ${esc(RUN.stage)} · ${RUN.pct}%${RUN.left ? ' · ' + pt('осталось ≈ ', '≈ ') + fmtMin(RUN.left) : ''}. ${pt('Этот ролик встанет в очередь следующим и запустится сам, когда закончится идущий.', 'This video will start right after the current one.')}</span></div><div class="q7bar"><i style="width:${RUN.pct}%"></i></div><a onclick="go(6)">${pt('Открыть', 'Open')}</a>`;
+  else if (waiting) h = `<span class="dot"></span><div><b>${pt(`В очереди ждут: ${waiting}`, `${waiting} waiting in the queue`)}</b> <span>· ${pt('«Начать» запустит их по порядку, этот ролик будет последним.', 'Start runs them in order; this video goes last.')}</span></div><a onclick="openQueue()">${pt('Очередь', 'Queue')}</a>`;
+  document.querySelectorAll('.qstrip').forEach(d => { d.innerHTML = h; d.style.display = h ? '' : 'none'; });
+}
+function rvReady(block) {
+  const tb = document.querySelector('#screen5 .topbar'); if (!tb) return; let r = $('rv_ready'); if (!r) { r = document.createElement('div'); r.id = 'rv_ready'; tb.appendChild(r); }
+  r.className = 'rvready' + (block.length ? ' bad' : ''); r.innerHTML = block.length ? `<i>!</i>${pt('Не хватает: ', 'Missing: ')}${esc(block.join(', '))}` : `<i>✓</i>${pt('Всё готово к запуску', 'Ready to start')}`;
+}
+async function rvHeroCounts() {
+  if (!(typeof promptsFile !== 'undefined' && promptsFile) || RVH.file === promptsFile) return; RVH.file = promptsFile;
+  try { const c = await pywebview.api.hero_counts(promptsFile); RVH.counts = c && c.ok ? c : null; } catch (e) { RVH.counts = null; } if (cur === 5) rvCards();
+}
+function rvCards() {
+  const host = $('rv_cards'); if (!host) return;
+  const ic = d => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">${d}</svg>`;
+  const card = (d, title, step, body, cls) => `<div class="rvc7${cls ? ' ' + cls : ''}"><div class="rvc7h">${ic(d)}<b>${title}</b>${step ? `<a onclick="${step === 'H' ? 'openHeroes()' : 'go(' + step + ')'}">${pt('изменить', 'change')}</a>` : ''}</div>${body}</div>`;
+  const chips = a => `<div class="rvchips">${a.map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
+  const wave = Array.from({length: 46}, (_, i) => 6 + Math.round(14 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * .6)) + 2 * ((i * 7) % 5))).map(h => `<i style="height:${h}px"></i>`).join('');
+  const base = s => String(s || '').split(/[\\/]/).pop();
+  let hero = '';
+  if (queueMode) {
+    const q = queueItems.filter(x => x.status === 'queued');
+    hero = `<div class="rvhero"><div class="rvhi">${ic('<path d="M4 6h16M4 12h16M4 18h10"/>')}</div><div class="rvhb"><b>${pt('Очередь', 'Queue')} · ${q.length}</b><div class="rvql">${q.map((x, i) => `<div><span class="q7n">${i + 1}</span><div class="q7t"><b>${esc(x.title)}</b></div><small style="color:var(--ink2)">${esc((queueStyles && x.style ? styleName(x.style) + ' · ' : '') + (x.voice || t('q_default')))}</small></div>`).join('')}</div></div><a onclick="openQueue()">${pt('изменить', 'change')}</a></div>`;
+  } else if (rwOn()) {
+    hero = `<div class="rvhero"><div class="rvhi">${ic('<path d="M4 5h16v11H8l-4 4z"/>')}</div><div class="rvhb"><b>${pt('Рерайт: ', 'Rewrite: ')}${esc(rwSrc === 'youtube' ? F.rwUrl : t('rw_text_src'))}</b><small>${F.rwWords} ${t('rv_words')} · ${esc(langName(F.rwLang))} · ${pt('озвучит программа: ', 'voiced by ')}${esc(tts)}${F.voice ? ' · ' + esc(F.voice) : ''}</small></div><a onclick="go(3)">${pt('изменить', 'change')}</a></div>`;
+  } else if (source === 'script') {
+    const wc = (F.script || '').trim().split(/\s+/).filter(Boolean).length;
+    hero = `<div class="rvhero${wc ? '' : ' bad'}"><div class="rvhi">${ic('<path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>')}</div><div class="rvhb"><b>${pt('Сценарий', 'Script')} · ${wc} ${t('rv_words')}</b><small>${pt('озвучит программа: ', 'voiced by ')}${esc(tts)}${F.voice ? ' · ' + esc(F.voice) : ''}</small></div><a onclick="go(4)">${pt('изменить', 'change')}</a></div>`;
+  } else {
+    const has = !!audioPath, d = LASTFC && LASTFC.duration ? durTxt(LASTFC.duration) : '';
+    hero = `<div class="rvhero${has ? '' : ' bad'}"><div class="rvhi">${ic('<path d="M4 12v0M8 8v8M12 4v16M16 8v8M20 11v2"/>')}</div><div class="rvhb"><b>${has ? esc(base(audioPath)) : pt('Озвучка не выбрана', 'No voice-over')}</b><small>${pt('Озвучка', 'Voice-over')}${d ? ' · ' + d : ''}${has ? ' · ' + pt('готовая', 'ready') : ''}</small>${has ? `<div class="rvwave">${wave}</div>` : ''}</div><a onclick="go(4)">${has ? pt('изменить', 'change') : pt('выбрать', 'choose')}</a></div>`;
+  }
+  const out = OUTDIR.dir || OUTDIR.def || '';
+  const cardsArr = [];
+  cardsArr.push(card('<path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>', pt('Промпты', 'Prompts'), 4,
+    promptsInfo ? `<div class="rvbig">${plural(promptsInfo.prompts || 0, [pt('кадр', 'frame'), pt('кадра', 'frames'), pt('кадров', 'frames')])}</div><div class="rvsm">${pt('готовые', 'ready')}${promptsInfo.blocks ? ', ' + promptsInfo.blocks + ' ' + pt('блоков', 'blocks') : ''}</div>`
+      : `<div class="rvmid">${profileName ? pt('профиль ', 'profile ') + esc(profileName) : pt('напишет программа', 'written by the app')}</div><div class="rvsm">${pt('промпты для картинок', 'image prompts')}</div>`));
+  cardsArr.push(card('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', pt('Сохранить в', 'Save to'), 4, `<div class="rvmid">${esc(out) || '—'}</div><div class="rvsm">${OUTDIR.sub ? pt('в подпапку с названием ролика', 'in a subfolder') : pt('прямо в эту папку', 'directly in this folder')}</div>`));
+  const ex = []; try { if (typeof stt !== 'undefined' && stt) ex.push(pt('речь: ', 'speech: ') + stt); if (typeof llm !== 'undefined' && llm) ex.push(pt('тексты: ', 'text: ') + llm); } catch (e) {}
+  cardsArr.push(card('<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>', pt('Сервисы', 'Services'), 1, chips(provs().map(k => SVC_TITLES[k]).concat(ex))));
+  cardsArr.push(card('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 15 5-4 4 3 3-2 6 4"/>', pt('Режим', 'Mode'), 2,
+    `<div class="rvmid">${esc(t('m_' + mode()))}</div><div class="rvsm">${esc(fgq() === 'quality' ? t('quality') : t('speed'))} · ${esc(styleName(styleKey))}${mode() !== 'video' && vf() ? ' · ' + plural(vf(), t('vf_scenes')) : ''}</div>`));
+  const stOn = $('use_stock') && $('use_stock').checked && typeof STK !== 'undefined' && STK.share > 0;
+  const stN = {pexels: 'Pexels', pixabay: 'Pixabay', commons: pt('архивы', 'archives')};
+  cardsArr.push(card('<rect x="3" y="6" width="14" height="12" rx="2"/><path d="m17 10 4-2v8l-4-2"/>', pt('Стоки', 'Stock'), 2, stOn
+    ? `<div class="rvbarrow"><div class="rvbar"><i style="width:${STK.share}%"></i></div><b>${STK.share}%</b></div><div class="rvsm">${esc((STK.sources || []).map(s => stN[s] || s).join(', '))}${LASTFC && LASTFC.scenes ? ' · ' + pt('до ', 'up to ') + Math.round(LASTFC.scenes * STK.share / 100) + ' ' + pt('сцен', 'scenes') : ''}</div>`
+    : `<div class="rvmid">${pt('не используются', 'off')}</div>`));
+  cardsArr.push(card('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h10"/>', pt('Субтитры', 'Subtitles'), 3, $('use_subs').checked
+    ? `<div class="rvsubp"><span>${pt('Как инфляция <em>съела</em>', 'Sample <em>text</em>')}</span></div><div class="rvsm">${esc(S3SUM.sub || pt('включены', 'on'))}</div>` : `<div class="rvmid">${pt('выключены', 'off')}</div>`));
+  cardsArr.push(card('<path d="M4 12h6m4 0h6M10 8l4 4-4 4"/>', pt('Движение', 'Motion'), 3, $('use_motion').checked ? chips(String(S3SUM.tr || pt('включено', 'on')).split(/\s*·\s*/).filter(Boolean)) : `<div class="rvmid">${pt('выключено', 'off')}</div>`));
+  const fxs = fxSummary(FXS); cardsArr.push(card('<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', pt('Эффекты', 'Effects'), 3, fxs === pt('нет', 'none') ? `<div class="rvmid">${pt('нет', 'none')}</div>` : chips(fxs.split(/,\s*/))));
+  if (profileName || (typeof promptsFile !== 'undefined' && promptsFile)) {
+    const on = (HEROES || []).filter(h => h.on), cn = RVH.counts && RVH.counts.counts || {}, miss = on.filter(h => !h.img);
+    cardsArr.push(card('<circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/>', pt('Герои', 'Heroes'), 'H', on.length ? `<div class="rvchips">${on.map(h => `<span>${esc(h.name)}${cn[h.name] ? ' · ' + cn[h.name] : ''}</span>`).join('')}</div>${miss.length ? `<div class="rvsm warn">${esc(miss.map(h => h.name).join(', '))} ${pt('без портрета', 'no portrait')}</div>` : ''}` : `<div class="rvmid">${pt('нет', 'none')}</div>`, miss.length ? 'warn' : ''));
+  }
+  cardsArr.push(card('<path d="M12 3v18M3 12h18"/>', pt('Ещё', 'Extras'), 3, chips([]).replace('<div class="rvchips"></div>', `<div class="rvchips"><span class="${$('use_hd').checked ? '' : 'off'}">HD</span><span class="${$('use_qa').checked ? '' : 'off'}">${pt('проверка картинок', 'image QA')}</span><span class="${$('use_speed').checked ? '' : 'off'}">${pt('копии со скоростью', 'speed copies')}</span></div>`)));
+  host.innerHTML = hero + `<div class="rvgrid">${cardsArr.join('')}</div>`;
+  $('rv_q').textContent = pt('Только добавить в очередь', 'Only add to the queue'); $('rv_q').style.display = queueMode ? 'none' : '';
+  $('btn_go').textContent = queueMode ? pt(`Запустить очередь (${queueItems.filter(x => x.status === 'queued').length})`, 'Run the queue') : pt('Начать', 'Start');
+  rvHeroCounts();
+}
+
 document.addEventListener('keydown', e => {  // Esc закрывает открытую панель настроек (как «Отмена»)
   if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
   for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])

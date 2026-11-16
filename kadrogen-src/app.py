@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p93"
+VERSION = "1.7.1-p94"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1023,7 +1023,10 @@ def item_after_run(item):
         else:
             item["status"], item["result"] = "done", STATE.get("result")
         stopped = STATE.get("cancelled")
+        failed = item.get("status") == "error"
     queue_save()
+    if failed and not stopped and not load_cfg().get("queue_continue", True):
+        return True  # «если ролик упал, продолжать со следующим» выключено — очередь останавливается на ошибке
     return stopped
 
 
@@ -1043,16 +1046,17 @@ def assembly_state():
 
 def job_chain(args):
     """Ролик, а после него — задания, поставленные в очередь во время работы (у каждого свои настройки)."""
-    api, item, chained = Api(), None, False
+    api, item, chained, item_failed = Api(), None, False, False
     try:
         while args:
             run_job(**args)
-            if item is not None:
-                item_after_run(item)
+            item_failed = bool(item is not None and item_after_run(item))
             args, item = None, None
             while True:
                 with LOCK:
                     if STATE.get("cancelled") or QUEUE_STOP:
+                        break
+                    if item_failed and not load_cfg().get("queue_continue", True):
                         break
                     nxt = next((x for x in QUEUE if x.get("status") == "queued" and (x.get("opts") or x.get("args"))), None)
                     if nxt is None:
@@ -1174,6 +1178,7 @@ class Api:
             "openrouter": mask(cfg.get("openrouter_api_key", "")), "has_openrouter": bool(cfg.get("openrouter_api_key")),
             "qa_model": cfg.get("qa_model", ""),
             "queue_styles": bool(cfg.get("queue_styles", False)),
+            "queue_continue": bool(cfg.get("queue_continue", True)),
             "use_refs": bool(cfg.get("use_refs", False)),
             "subtitles": bool(cfg.get("subtitles", False)),
             "llm_model": cfg.get("llm_model", pipeline.DEFAULT_LLM_MODEL),
@@ -1243,6 +1248,8 @@ class Api:
             cfg["custom_style"] = " ".join(str(data.get("custom_style") or "").split())
         if "queue_styles" in data:
             cfg["queue_styles"] = bool(data.get("queue_styles"))
+        if "queue_continue" in data:
+            cfg["queue_continue"] = bool(data.get("queue_continue"))
         if data.get("text_engine") in pipeline.TEXT_ENGINES:
             cfg["text_engine"] = data["text_engine"]
         if data.get("openai_model"):
@@ -2901,6 +2908,18 @@ class Api:
         roots = [os.path.abspath(data_dir())] + ([os.path.abspath(load_cfg().get("output_dir"))] if load_cfg().get("output_dir") else [])
         if os.path.exists(p) and p.lower().endswith((".mp4", ".srt", ".txt")) and any(os.path.normcase(p).startswith(os.path.normcase(r)) for r in roots):
             os.startfile(p)
+            return True
+        return False
+
+    def reveal_file(self, path):
+        """Папка с готовым роликом, файл выделен (Проводник) — из карточки очереди."""
+        p = os.path.abspath(str(path or ""))
+        roots = [os.path.abspath(data_dir())] + ([os.path.abspath(load_cfg().get("output_dir"))] if load_cfg().get("output_dir") else [])
+        if os.path.exists(p) and any(os.path.normcase(p).startswith(os.path.normcase(r)) for r in roots):
+            try:
+                subprocess.Popen(["explorer", "/select,", p], creationflags=pipeline.NO_WINDOW)
+            except Exception:
+                os.startfile(os.path.dirname(p))
             return True
         return False
 
