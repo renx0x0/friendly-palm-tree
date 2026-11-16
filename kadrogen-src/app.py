@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p95"
+VERSION = "1.7.1-p96"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -1894,6 +1894,27 @@ class Api:
         cfg["output_dir"] = ""
         save_cfg(cfg)
         return True
+
+    def pick_script(self):
+        """Сценарий из текстового файла: выбор .txt → текст для поля «Сценарий» (кодировка UTF-8 или Windows-1251)."""
+        res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("Текст (*.txt;*.md)", "Все файлы (*.*)"))
+        if not res:
+            return {"ok": False}
+        path = res[0] if isinstance(res, (list, tuple)) else str(res)
+        try:
+            raw = open(path, "rb").read(3_000_000)
+        except OSError as e:
+            return {"ok": False, "error": f"Не открылся файл: {e}"}
+        text = None
+        for enc in ("utf-8-sig", "cp1251"):
+            try:
+                text = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None or not text.strip():
+            return {"ok": False, "error": "В файле нет текста или неизвестная кодировка."}
+        return {"ok": True, "text": text.strip(), "name": os.path.basename(path), "words": len(text.split())}
 
     def pick_prompts(self):
         res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("Промпты (*.txt)", "Все файлы (*.*)"))

@@ -3186,12 +3186,12 @@ function renderAccess() {
     TH.push(row(t('ttskey'), LINKS[tts] || SVC_LINKS[tts] || '', ttsSel + ttsCtl + chk(tts, 0, 's_tts'), 's_tts'));
     TH.push(row(t('voiceid'), 'https://elevenlabs.io/voice-library', `<input type="text" id="tts_voice" list="voice_list" value="${esc(F.voice)}" placeholder="${esc(t('ph_voice'))}" spellcheck="false" autocomplete="off"><button class="ghost" onclick="loadVoices()">${t('list')}</button>`, 's_voice'));
     H.push(`<div class="acard" data-col="L"><div class="ah"><b>${pt('Голос', 'Voice')}</b><span class="lk" onclick="openTts()">${pt('настроить', 'set up')}</span></div><div class="vsum" id="vsum">${esc(voiceSummary())}</div><div class="status st" id="s_vsum"></div></div>`);
-    if (!rwOn()) H.push(`<div class="acard agrow" data-col="L"><div class="ah"><label for="script">${pt('Сценарий', 'Script')}</label><span>${pt('его программа озвучит', 'the app voices it')}</span></div><textarea id="script" spellcheck="false" placeholder="${esc(t('ph_script'))}">${esc(F.script)}</textarea></div>`);
+    if (!rwOn()) H.push(`<div class="acard agrow" data-col="L"><div class="ah"><label for="script">${pt('Сценарий', 'Script')}</label><span><a class="lk" onclick="pickScript()">${pt('выбрать .txt', 'choose .txt')}</a> · ${pt('его программа озвучит', 'the app voices it')}</span></div><textarea id="script" spellcheck="false" placeholder="${esc(t('ph_script'))}">${esc(F.script)}</textarea></div>`);
   } else {
     const fnm = audioPath ? audioPath.split(/[\\/]/).pop() : '';
     H.push(`<div class="acard adrop" data-col="L"><svg class="aic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg><div class="dt"><b>${fnm ? esc(fnm) : pt('Перетащите файл озвучки в окно', 'Drop the voice-over file into the window')}</b><span title="${esc(audioPath)}">${fnm ? pt('перетащите другой файл в окно, чтобы заменить', 'drop another file to replace it') : pt('или нажмите «Выбрать файл» · mp3, wav, m4a, ogg', 'or click Choose file · mp3, wav, m4a, ogg')}</span></div>`
       + `<input type="text" id="file_name" readonly value="${esc(audioPath)}" hidden><button onclick="pick()">${pt('Выбрать файл', 'Choose file')}</button></div>`);
-    H.push(`<div class="acard agrow" data-col="L"><div class="ah"><label for="script">${pt('Сценарий', 'Script')}</label><span>${pt('необязательно', 'optional')}</span></div><textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему, субтитры будут без ошибок распознавания. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea></div>`);
+    H.push(`<div class="acard agrow" data-col="L"><div class="ah"><label for="script">${pt('Сценарий', 'Script')}</label><span><a class="lk" onclick="pickScript()">${pt('выбрать .txt', 'choose .txt')}</a> · ${pt('необязательно', 'optional')}</span></div><textarea id="script" spellcheck="false" placeholder="${esc(pt('Есть текст этой озвучки? Вставьте — части и промпты пойдут точно по нему, субтитры будут без ошибок распознавания. Пусто — текст распознается из файла.', 'Have the text of this audio? Paste it. Empty — the text is recognized from the file.'))}">${esc(F.script)}</textarea></div>`);
   }
   $('tts_body').innerHTML = TH.join('');
   H.push(`<div class="acard" data-col="R" id="s4_fc"><div class="ah"><b>${pt('Прогноз', 'Forecast')}</b></div><div id="s4_fcb" class="s4fc">${pt('Выберите озвучку или вставьте сценарий — здесь появится прогноз.', 'Choose the voice-over or paste a script — the forecast appears here.')}</div></div>`);
@@ -3333,6 +3333,11 @@ async function checkRow(k, i, sid) {
   put(v || '', String(v || '').startsWith('OK') ? 'ok' : 'err');
 }
 function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(); pywebview.api.save_config({source: v}); if (cur === 4) renderAccess(); }
+async function pickScript() {  // сценарий из .txt: как «выбрать .txt» у готовых промптов; вставить текст в поле можно и по-старому
+  const r = await pywebview.api.pick_script();
+  if (!r || !r.ok) { if (r && r.error) toast(esc(r.error), 6000); return; }
+  setScript(r.text); toast(pt(`Сценарий загружен: ${esc(r.name)} · ${r.words} слов.`, `Script loaded: ${esc(r.name)} · ${r.words} words.`), 5000);
+}
 window.setScript = function (text) { F.script = text; if (rwOn() && rwSrc === 'text') { F.rwText = text; const e = $('rw_text'); if (e) e.value = text; } else { const e = $('script'); if (e) e.value = text; } $('s_prep').textContent = ''; };
 window.setAudio = function (p) { audioPath = p; const e = $('file_name'); if (e) e.value = p; $('s_prep').textContent = ''; if (cur === 4) renderAccess(); if (p) autoFindPrompts(p); };
 function applyLang() {
