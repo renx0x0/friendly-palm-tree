@@ -791,17 +791,20 @@ def _transcribe_raw(engine, api, audio_path, job_dir, progress, duration=None):
             inp = netutil.patient(lambda: api.upload_file(part) if os.path.getsize(part) > INLINE_AUDIO_LIMIT else file_to_data_uri(part),
                                   tries=6)
             progress("transcribe", k, max(1, n_chunks), "распознаю речь (Gemini)" + label)
-            for attempt in range(8):  # service.overloaded / generation.failed у fast-gen — временно (обычно 10-20 мин), ждём и повторяем
+            t_start, attempt = time.time(), 0
+            while True:  # service.overloaded / generation.failed у fast-gen — временно: как с картинками, стучимся часто (раз в ~5 с), пока не примут
                 st = netutil.patient(lambda: api.run({"operation": "aistudio_gemini_3.5_transcribe", "inputs": [inp],
                                                       "word_timestamps": True, "diarization": False}, poll=3, max_wait=1800), tries=6)
                 if st.get("status") == "succeeded":
                     break
                 err = f"{st.get('error_code')} {st.get('error')}"
-                if attempt == 7 or not any(x in err for x in ("overloaded", "generation.failed", "try again", "accounts_exhausted")):
+                if not any(x in err for x in ("overloaded", "generation.failed", "try again", "accounts_exhausted")) or time.time() - t_start > 5400:
                     raise RuntimeError(f"Транскрипция не удалась: {err}")
-                wait = min(300, 60 * (attempt + 1))
-                log(f"транскрипция: {err[:80]} — жду {wait} с и повторяю ({attempt + 1}/7)")
-                progress("transcribe", k, max(1, n_chunks), f"сервис распознавания перегружен, жду {wait} с и повторяю")
+                attempt += 1
+                wait = 5 if attempt < 60 else 15  # первые ~5 минут каждые 5 с, дальше реже
+                if attempt == 1 or attempt % 12 == 0:
+                    log(f"транскрипция: {err[:80]} — повторяю каждые {wait} с (попытка {attempt}, ждём уже {int(time.time() - t_start) // 60} мин)")
+                progress("transcribe", k, max(1, n_chunks), f"сервис распознавания перегружен, пробую снова (попытка {attempt}, {int(time.time() - t_start) // 60} мин)")
                 for _ in range(wait):
                     check_cancel()
                     time.sleep(1)
