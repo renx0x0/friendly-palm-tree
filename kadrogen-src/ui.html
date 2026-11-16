@@ -1201,6 +1201,11 @@
   .rvready.bad { border-color:#6b5220; background:color-mix(in srgb, var(--warn) 14%, var(--bg)); color:var(--warn); } .rvready.bad i { background:#c98a2b; color:#15171c; }
   .qstrip { margin:0 0 12px; display:flex; align-items:center; gap:14px; padding:12px 18px; border:1px solid color-mix(in srgb, var(--acc) 45%, var(--line)); border-radius:12px; background:color-mix(in srgb, var(--acc) 12%, var(--bg)); font-size:13px; line-height:1.5; flex-shrink:0; } .qstrip .dot { width:8px; height:8px; border-radius:50%; background:var(--acc); flex:none; } .qstrip > div { flex:1; min-width:0; } .qstrip span { color:var(--ink2); } .qstrip .q7bar { width:120px; flex:none; } .qstrip a { color:var(--acc2); cursor:pointer; }
   .rvnext { display:flex; gap:10px; align-items:flex-start; color:var(--ink2); font-size:13px; line-height:1.5; } .rvnext i { width:20px; height:20px; flex:none; border-radius:50%; background:var(--bg3); color:var(--ink); font-style:normal; font-size:12px; display:grid; place-items:center; } .rvnext i.a { background:var(--acc); color:#fff; } .rvnext b { color:var(--ink); font-weight:600; }
+  .rvqwrap { display:flex; gap:22px; flex:1; min-height:0; } .rvqlist { width:300px; flex:none; display:flex; flex-direction:column; gap:10px; } .rvqmain { flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+  .rvq { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); cursor:pointer; } .rvq.sel { border-color:var(--acc); }
+  .rvtbl { padding:0 !important; gap:0 !important; overflow:hidden; } .rvtbl .rvc7h { padding:9px 18px 7px; font-size:12px; background:var(--bg); border-bottom:1px solid var(--line2); } .rvtbl .rvc7h b { font-weight:400; color:var(--ink2); }
+  .rvr { display:flex; align-items:center; gap:16px; padding:12px 18px; border-bottom:1px solid var(--line2); } .rvr:last-child { border-bottom:0; } .rvr > span:first-child { width:150px; flex:none; color:var(--ink2); } .rvr > span:nth-child(2) { flex:1; min-width:0; overflow-wrap:anywhere; } .rvr a { color:var(--acc2); cursor:pointer; font-size:13px; } .rvr i { width:52px; }
+  #screen5 .review.qmode #rv_side { display:none; }
 </style>
 </head>
 <body>
@@ -3857,7 +3862,7 @@ $('q7_add').onclick = qpAddNew; $('q7_run').onclick = () => queueRunAll(); $('q7
 function qStrip() {
   const waiting = (queueItems || []).filter(q => q.status === 'queued').length; let h = '';
   if (jobRunning && RUN) h = `<span class="dot"></span><div><b>${pt('Сейчас делается: ', 'Now making: ')}${esc(RUN.title)}</b> <span>· ${esc(RUN.stage)} · ${RUN.pct}%${RUN.left ? ' · ' + pt('осталось ≈ ', '≈ ') + fmtMin(RUN.left) : ''}. ${pt('Этот ролик встанет в очередь следующим и запустится сам, когда закончится идущий.', 'This video will start right after the current one.')}</span></div><div class="q7bar"><i style="width:${RUN.pct}%"></i></div><a onclick="go(6)">${pt('Открыть', 'Open')}</a>`;
-  else if (waiting) h = `<span class="dot"></span><div><b>${pt(`В очереди ждут: ${waiting}`, `${waiting} waiting in the queue`)}</b> <span>· ${pt('«Начать» запустит их по порядку, этот ролик будет последним.', 'Start runs them in order; this video goes last.')}</span></div><a onclick="openQueue()">${pt('Очередь', 'Queue')}</a>`;
+  else if (waiting && !queueMode) h = `<span class="dot"></span><div><b>${pt(`В очереди ждут: ${waiting}`, `${waiting} waiting in the queue`)}</b> <span>· ${pt('«Начать» запустит их по порядку, этот ролик будет последним.', 'Start runs them in order; this video goes last.')}</span></div><a onclick="openQueue()">${pt('Очередь', 'Queue')}</a>`;
   document.querySelectorAll('.qstrip').forEach(d => { d.innerHTML = h; d.style.display = h ? '' : 'none'; });
 }
 function rvReady(block) {
@@ -3867,6 +3872,30 @@ function rvReady(block) {
 async function rvHeroCounts() {
   if (!(typeof promptsFile !== 'undefined' && promptsFile) || RVH.file === promptsFile) return; RVH.file = promptsFile;
   try { const c = await pywebview.api.hero_counts(promptsFile); RVH.counts = c && c.ok ? c : null; } catch (e) { RVH.counts = null; } if (cur === 5) rvCards();
+}
+let RVSEL = '';
+function rvQueueLayout(card, chips, ic) {  // проверка очереди из нескольких роликов: слева список, справа сводка выбранного
+  const q = queueItems.filter(x => x.status === 'queued'); if (!q.length) return '';
+  if (!q.some(x => x.id === RVSEL)) RVSEL = q[0].id;
+  const it = q.find(x => x.id === RVSEL), base = x => String(x || '').split(/[\\/]/).pop();
+  const row = (k, v, step) => `<div class="rvr"><span>${k}</span><span>${v}</span>${step ? `<a onclick="${step}">${pt('изменить', 'change')}</a>` : '<i></i>'}</div>`;
+  const src = it.source === 'script' ? pt('сценарий', 'script') + (it.words ? ', ' + it.words + ' ' + t('rv_words') : '') : it.source === 'rewrite' ? pt('рерайт', 'rewrite') : pt('готовая озвучка', 'ready voice-over');
+  const voice = it.source === 'mp3' ? esc(base(it.audio) || '—') : pt('озвучит программа: ', 'voiced by ') + esc(tts) + (it.voice ? ' · ' + esc(it.voice) : '');
+  const out = it.out_dir || OUTDIR.dir || OUTDIR.def || '';
+  const list = q.map((x, i) => `<div class="rvq${x.id === RVSEL ? ' sel' : ''}" onclick="RVSEL='${x.id}'; rvCards()"><span class="q7n">${i + 1}</span><div class="q7t"><b>${esc(x.title)}</b><small style="color:var(--ok)">${pt('готов', 'ready')}${queueStyles && x.style ? ' · ' + esc(styleName(x.style)) : ''}</small></div></div>`).join('');
+  const ex = []; try { if (typeof stt !== 'undefined' && stt) ex.push(pt('речь: ', 'speech: ') + stt); } catch (e) {}
+  const stOn = $('use_stock') && $('use_stock').checked && typeof STK !== 'undefined' && STK.share > 0;
+  return `<div class="rvqwrap"><div class="rvqlist"><div class="q7sec">${pt('Ролики по порядку запуска', 'Videos in run order')}</div>${list}<button class="ghost" onclick="qpAddNew()" style="border-style:dashed;height:40px">${pt('Добавить ещё ролик', 'Add another video')}</button>`
+    + `<div class="rvc7" style="margin-top:auto"><b>${pt('Итого', 'Total')}</b><div class="rvbig">${plural(q.length, [pt('ролик', 'video'), pt('ролика', 'videos'), pt('роликов', 'videos')])}</div><div class="rvsm">${pt('идут по порядку, один за другим', 'run one after another')}</div></div></div>`
+    + `<div class="rvqmain"><div class="rvc7 rvtbl"><div class="rvc7h"><b>${pt('Ролик ', 'Video ')}${q.indexOf(it) + 1} · ${pt('свои настройки', 'own settings')}</b></div>`
+    + row(pt('Что озвучиваем', 'Source'), src, '') + row(pt('Озвучка', 'Voice-over'), voice, '')
+    + row(pt('Название файла', 'File name'), esc(it.name || pt('как озвучка (необязательно)', 'as the source')), `QOPEN.add('${it.id}'); openQueue()`)
+    + row(pt('Куда сохранить', 'Save to'), esc(out) + (it.out_sub !== false && OUTDIR.sub ? '\\…' : ''), '')
+    + row(pt('Промпты', 'Prompts'), it.prompts_file ? esc(base(it.prompts_file)) : it.profile ? pt('профиль ', 'profile ') + esc(it.profile) : pt('напишет программа', 'by the app'), '') + `</div>`
+    + `<div class="rvc7 rvtbl"><div class="rvc7h"><b>${pt('Общее для всех роликов очереди', 'Shared by all videos')}</b></div>`
+    + row(pt('Сервисы и режим', 'Services and mode'), esc(provs().map(k => SVC_TITLES[k]).concat(ex).join(' · ') + ' · ' + t('m_' + mode()) + ' · ' + (fgq() === 'quality' ? t('quality') : t('speed'))), 'go(2)')
+    + row(pt('Стоки', 'Stock'), stOn ? STK.share + '% ' + pt('сцен', 'scenes') : pt('не используются', 'off'), 'go(2)')
+    + row(pt('Оформление', 'Look'), esc([$('use_subs').checked ? pt('субтитры', 'subtitles') : '', $('use_motion').checked ? pt('движение', 'motion') : '', fxSummary(FXS) !== pt('нет', 'none') ? fxSummary(FXS) : ''].filter(Boolean).join(' · ') || pt('без оформления', 'plain')), 'go(3)') + `</div></div></div>`;
 }
 function rvCards() {
   const host = $('rv_cards'); if (!host) return;
@@ -3912,7 +3941,8 @@ function rvCards() {
     cardsArr.push(card('<circle cx="12" cy="8" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/>', pt('Герои', 'Heroes'), 'H', on.length ? `<div class="rvchips">${on.map(h => `<span>${esc(h.name)}${cn[h.name] ? ' · ' + cn[h.name] : ''}</span>`).join('')}</div>${miss.length ? `<div class="rvsm warn">${esc(miss.map(h => h.name).join(', '))} ${pt('без портрета', 'no portrait')}</div>` : ''}` : `<div class="rvmid">${pt('нет', 'none')}</div>`, miss.length ? 'warn' : ''));
   }
   cardsArr.push(card('<path d="M12 3v18M3 12h18"/>', pt('Ещё', 'Extras'), 3, chips([]).replace('<div class="rvchips"></div>', `<div class="rvchips"><span class="${$('use_hd').checked ? '' : 'off'}">HD</span><span class="${$('use_qa').checked ? '' : 'off'}">${pt('проверка картинок', 'image QA')}</span><span class="${$('use_speed').checked ? '' : 'off'}">${pt('копии со скоростью', 'speed copies')}</span></div>`)));
-  host.innerHTML = hero + `<div class="rvgrid">${cardsArr.join('')}</div>`;
+  document.querySelector('.review').classList.toggle('qmode', !!queueMode);
+  host.innerHTML = queueMode ? rvQueueLayout(card, chips, ic) : hero + `<div class="rvgrid">${cardsArr.join('')}</div>`;
   $('rv_q').textContent = pt('Только добавить в очередь', 'Only add to the queue'); $('rv_q').style.display = queueMode ? 'none' : '';
   $('btn_go').textContent = queueMode ? pt(`Запустить очередь (${queueItems.filter(x => x.status === 'queued').length})`, 'Run the queue') : pt('Начать', 'Start');
   rvHeroCounts();

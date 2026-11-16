@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p94"
+VERSION = "1.7.1-p95"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -99,7 +99,12 @@ def queue_save():
 
 
 def queue_public():
-    return [{k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file", "out_sub")} for x in QUEUE]
+    out = []
+    for x in QUEUE:
+        d = {k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file", "out_sub", "audio")}
+        d["words"] = len(str(x.get("script") or "").split())
+        out.append(d)
+    return out
 
 
 def style_key(v, default=None):
