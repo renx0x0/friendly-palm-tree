@@ -100,7 +100,9 @@ QUERY_SYSTEM = (
     "Also set historic=true if the scene shows the past (before ~1970: old photos, newsreels, archive), else false. "
     "Also give q2: a different search query for the SAME main subject but another look (another angle, action or setting), "
     "so that different clips are found for neighbouring scenes. "
-    'Answer JSON: {"items": [{"i": <scene number>, "q": "<query>", "q2": "<other query>", "historic": true|false}]}'
+    "Also give subj: the ONE main thing that must be visible on screen, 1-2 English words (a species, object or place, e.g. 'great tit', 'hedgehog', 'old lighthouse'); "
+    "if the sentence is abstract, use the main subject of the video topic. subj must not be a style or an adjective alone. "
+    'Answer JSON: {"items": [{"i": <scene number>, "q": "<query>", "q2": "<other query>", "subj": "<main subject>", "historic": true|false}]}'
 )
 
 
@@ -122,12 +124,13 @@ def make_queries(llm, scenes, log=print, topic=""):
                         continue
                     q = " ".join(str(it.get("q") or "").split())[:80]
                     q2 = " ".join(str(it.get("q2") or "").split())[:80]
+                    subj = " ".join(str(it.get("subj") or "").split())[:40]
                     if q:
-                        got[i] = (q, bool(it.get("historic")), q2)
+                        got[i] = (q, bool(it.get("historic")), q2, subj)
             except Exception as e:
                 log(f"стоки: запросы от модели не получены ({str(e)[:120]}) — беру слова из промптов")
         for s in chunk:
-            out[s["index"]] = got.get(s["index"]) or (fallback_query(s), False, "")
+            out[s["index"]] = got.get(s["index"]) or (fallback_query(s), False, "", "")
     return out
 
 
@@ -454,7 +457,8 @@ def lexical_ok(query, desc):
     if not str(desc or "").strip():
         return True
     d = {w[:5] for w in _words(desc)}
-    return any(w[:5] in d for w in _words(query) if len(w) > 3)
+    ws = [w for w in _words(query) if len(w) > 3]
+    return any(w[:5] in d for w in ws) if ws else True
 
 
 def _parse_fit(resp):
@@ -489,19 +493,26 @@ def make_chooser(llm, topic="", log=print):
         cands = [c for c in cands if lexical_ok(query, c.get("desc"))]
         if llm is None or not cands:
             return cands
-        cands = cands[:10]
-        listing = "\n".join(f"{k + 1}. {str(c.get('desc') or '(без описания)')[:140]}" for k, c in enumerate(cands))
-        user = (f"Тема ролика: {topic[:300]}\nПредложение: {str(scene.get('text') or '')[:300]}\nПоисковый запрос: {query}\nКандидаты:\n{listing}")
-        try:
-            resp = llm.chat_json(CHOOSE_SYSTEM, user, max_tokens=120)
-            fit = _parse_fit(resp)
-            if fit is None:  # ответ не разобрали — это не «ничего не подходит»: берём прошедших отсев по словам
-                log(f"стоки: отбор по описанию ответил непонятно ({str(resp)[:80]}) — беру по порядку")
-                return cands
-            return [cands[k] for k in fit if 0 <= k < len(cands)]
-        except Exception as e:
-            log(f"стоки: отбор по описанию не ответил ({str(e)[:100]}) — беру по порядку")
-            return cands
+        subj = str(scene.get("_subj") or "").strip()
+        out = []
+        for b in range(0, min(len(cands), 40), 10):  # пачками по 10: модель не теряется в длинном списке
+            part = cands[b:b + 10]
+            listing = "\n".join(f"{k + 1}. {str(c.get('desc') or '(без описания)')[:140]}" for k, c in enumerate(part))
+            user = (f"Тема ролика: {topic[:300]}\nПредложение: {str(scene.get('text') or '')[:300]}\nПоисковый запрос: {query}\n"
+                    + (f"Главный объект кадра: {subj}. Клип, где вместо него другое животное, растение или предмет (другая птица, другой зверь), НЕ подходит.\n" if subj else "")
+                    + f"Кандидаты:\n{listing}")
+            try:
+                resp = llm.chat_json(CHOOSE_SYSTEM, user, max_tokens=120)
+                fit = _parse_fit(resp)
+                if fit is None:  # ответ не разобрали — это не «ничего не подходит»: берём прошедших отсев по словам
+                    log(f"стоки: отбор по описанию ответил непонятно ({str(resp)[:80]}) — беру по порядку")
+                    out += part
+                else:
+                    out += [part[k] for k in fit if 0 <= k < len(part)]
+            except Exception as e:
+                log(f"стоки: отбор по описанию не ответил ({str(e)[:100]}) — беру по порядку")
+                out += part
+        return out
     return choose
 
 
@@ -568,34 +579,57 @@ class _Run:
                         cands = [c for c in cands if (c.get("dur") or 0) >= dur] or cands
                     yield from cands
 
-    def fetch(self, scene, q, historic, tmp_dir, skip=(), tries=3, alt=""):
+    def fetch(self, scene, q, historic, tmp_dir, skip=(), tries=3, alt="", subj=""):
         """→ (cand, tmp_video, tmp_image) или None. Файлы лежат во временной папке, пока кадр не проверен."""
         i = scene["index"]
         os.makedirs(tmp_dir, exist_ok=True)
         tv, ti = os.path.join(tmp_dir, f"{i:04d}.mp4"), os.path.join(tmp_dir, f"{i:04d}.png")
         n = 0
-        stream = self.candidates(q, historic, float(scene.get("duration") or 0), alt)
+        dur = float(scene.get("duration") or 0)
+        scene = dict(scene, _subj=subj)
         if self.st.get("select", True):
-            pool = []
-            for c in stream:
-                key = f"{c['src']}:{c['id']}"
-                with self.lock:
-                    if key in self.used or key in skip:
+            # запрос по этапам: свой, запасной, потом всё короче — но главный объект остаётся всегда (синица не станет орлом)
+            stages = [x for x in (q, alt) if x]
+            if subj:
+                rest = [w for w in q.split() if w.lower() not in subj.lower().split()]
+                for v in (" ".join([subj] + rest[:1]), subj):
+                    if v and v not in stages:
+                        stages.append(v)
+            seen, stream = set(), []
+            for si, qq in enumerate(stages):
+                pool = []
+                for c in self._candidates(qq, historic, dur):
+                    key = f"{c['src']}:{c['id']}"
+                    with self.lock:
+                        if key in self.used or key in skip:
+                            continue
+                    if key in seen:
                         continue
-                pool.append(c)
-                if len(pool) >= 16:
+                    seen.add(key)
+                    if si >= 2 and subj and not lexical_ok(subj, c.get("desc")):
+                        continue  # на расширенном запросе описание обязано называть главный объект
+                    pool.append(c)
+                    if len(pool) >= 30:
+                        break
+                with self.lock:
+                    self.stats["pool"] += len(pool)
+                    if si >= 2 and pool:
+                        self.stats["wide"] = self.stats.get("wide", 0) + 1
+                if not pool:
+                    continue
+                if self.choose is not None:
+                    stream = self.choose(scene, qq, pool)
+                else:
+                    stream = [c for c in pool if lexical_ok(qq, c.get("desc"))]
+                if stream:
                     break
-            with self.lock:
-                self.stats["pool"] += len(pool)
-            if self.choose is not None:
-                stream = self.choose(scene, (q + " " + alt).strip(), pool)
-            else:
-                stream = [c for c in pool if lexical_ok((q + " " + alt).strip(), c.get("desc"))]
             with self.lock:
                 self.stats["fit"] += len(stream)
             if not stream:
-                self.log(f"стоки: сцена {i + 1} «{q}» — по описаниям ничего подходящего (кандидатов было {len(pool)})")
+                self.log(f"стоки: сцена {i + 1} «{q}» — по описаниям ничего подходящего (кандидатов было {len(seen)}, запросов {len(stages)})")
                 return None
+        else:
+            stream = self.candidates(q, historic, dur, alt)
         for c in stream:
             key = f"{c['src']}:{c['id']}"
             with self.lock:
@@ -681,10 +715,10 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
         if check_cancel:
             check_cancel()
         i = s["index"]
-        q, historic, alt = queries.get(i) or (fallback_query(s), False, "")
+        q, historic, alt, subj = (tuple(queries.get(i) or ()) + ("", "", "", ""))[:4] if queries.get(i) else (fallback_query(s), False, "", "")
         if not q:
             return
-        r = run.fetch(s, q, historic, tmp_dir, alt=alt)
+        r = run.fetch(s, q, historic, tmp_dir, alt=alt, subj=subj)
         if r is None:
             log(f"стоки: сцена {i + 1} «{q}» — подходящего не нашлось, будет генерация")
         else:
@@ -711,7 +745,8 @@ def fill(cfg, scenes, job_dir, data_dir, llm=None, progress=None, log=print, ffm
         pass
     stt = run.stats
     log(f"стоки: взято {counter['got']} из {len(todo)} сцен, остальные будут сгенерированы · поисков {stt['search']} (сбоев {stt['fail']}), "
-        f"найдено клипов {stt['found']}, в пуле {stt['pool']}, прошло отбор {stt['fit']}")
+        f"найдено клипов {stt['found']}, в пуле {stt['pool']}, прошло отбор {stt['fit']}, "
+        f"сцен с расширенным запросом {stt.get('wide', 0)}")
     return stock_vids
 
 
