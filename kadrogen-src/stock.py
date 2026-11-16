@@ -174,20 +174,25 @@ def _slug_desc(url):
     return re.sub(r"[-_]+", " ", re.sub(r"-\d+$", "", m.group(1))).strip() if m else ""
 
 
+MIN_VIDEO_W = 960    # уже не берём: растянутый вдвое клип в ролике заметно мыльный
+GOOD_VIDEO_W = 1280  # от этой ширины клип «нормальный»; 960–1279 — запасной, идёт после нормальных
+
+
 def search_pexels(key, q, kind, page=1):
     if kind == "video":
-        data = _get("https://api.pexels.com/videos/search", {"query": q, "orientation": "landscape", "per_page": 40, "size": "medium", "page": page},
+        data = _get("https://api.pexels.com/videos/search", {"query": q, "orientation": "landscape", "per_page": 40, "size": "small", "page": page},
                     {"Authorization": key})
         out = []
         for v in data.get("videos") or []:
-            files = [f for f in v.get("video_files") or [] if (f.get("file_type") == "video/mp4" and (f.get("width") or 0) >= 1280
+            files = [f for f in v.get("video_files") or [] if (f.get("file_type") == "video/mp4" and (f.get("width") or 0) >= MIN_VIDEO_W
                                                                 and (f.get("width") or 0) >= (f.get("height") or 1))]
             if not files:
                 continue
             f = min(files, key=lambda f: abs((f.get("width") or 0) - 1920))
             out.append({"src": "pexels", "id": str(v.get("id")), "kind": "video", "url": f["link"], "w": f.get("width"), "h": f.get("height"),
                         "dur": float(v.get("duration") or 0), "page": v.get("url"), "author": (v.get("user") or {}).get("name", ""),
-                        "desc": _slug_desc(v.get("url"))})
+                        "desc": _slug_desc(v.get("url")), "small": (f.get("width") or 0) < GOOD_VIDEO_W})
+        out.sort(key=lambda c: c["small"])
         return out
     data = _get("https://api.pexels.com/v1/search", {"query": q, "orientation": "landscape", "per_page": 40, "page": page}, {"Authorization": key})
     return [{"src": "pexels", "id": str(p.get("id")), "kind": "photo", "url": (p.get("src") or {}).get("large2x") or (p.get("src") or {}).get("original"),
@@ -202,11 +207,13 @@ def search_pixabay(key, q, kind, page=1):
         out = []
         for v in data.get("hits") or []:
             vs = v.get("videos") or {}
-            f = next((vs[k] for k in ("large", "medium") if (vs.get(k) or {}).get("url") and (vs[k].get("width") or 0) >= 1280), None)
+            f = next((vs[k] for k in ("large", "medium", "small") if (vs.get(k) or {}).get("url") and (vs[k].get("width") or 0) >= MIN_VIDEO_W), None)
             if not f or (f.get("width") or 0) < (f.get("height") or 1):
                 continue
             out.append({"src": "pixabay", "id": str(v.get("id")), "kind": "video", "url": f["url"], "w": f.get("width"), "h": f.get("height"),
-                        "dur": float(v.get("duration") or 0), "page": v.get("pageURL"), "author": v.get("user", ""), "desc": str(v.get("tags") or "")})
+                        "dur": float(v.get("duration") or 0), "page": v.get("pageURL"), "author": v.get("user", ""), "desc": str(v.get("tags") or ""),
+                        "small": (f.get("width") or 0) < GOOD_VIDEO_W})
+        out.sort(key=lambda c: c["small"])  # мелкие (960–1279) — после нормальных
         return out
     data = _get("https://pixabay.com/api/", {"key": key, "q": q[:100], "image_type": "photo", "orientation": "horizontal", "per_page": 50, "page": page,
                                              "safesearch": "true"})
@@ -623,6 +630,7 @@ class _Run:
                     stream = [c for c in pool if lexical_ok(qq, c.get("desc"))]
                 if stream:
                     break
+            stream = sorted(stream, key=lambda c: bool(c.get("small")))  # мелкие клипы — только если нормальных не нашлось
             with self.lock:
                 self.stats["fit"] += len(stream)
             if not stream:
