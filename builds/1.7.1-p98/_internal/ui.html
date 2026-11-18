@@ -1404,8 +1404,8 @@
       <div class="lookbar" id="look_row"><span class="lbl" id="look_lbl"></span><select id="look_sel" onchange="lookPick(this.value)"></select><button type="button" class="ghost" id="look_save" onclick="lookSave()"></button><button type="button" class="ghost" id="look_del" onclick="lookDel()">×</button></div>
       <label class="opt sec" id="motion" data-tipkey="tip_motion"><input type="checkbox" id="use_motion"><svg viewBox="0 0 64 64"><path d="M8 40c8-20 16-20 24 0s16 20 24 0"/><path d="M8 24c8-12 16-12 24 0s16 12 24 0"/></svg><span class="t" data-i18n="o_motion"></span><button type="button" class="ghost subcfg" id="tr_cfg_btn"></button><span class="dot"></span></label>
       <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
-      <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button><span class="dot" id="fx_dot" onclick="openFx()"></span></div>
-      <div class="optx" id="hero_row"><svg viewBox="0 0 64 64"><circle cx="32" cy="22" r="10"/><path d="M12 54c2-14 10-20 20-20s18 6 20 20"/></svg><span class="t"><span id="hero_lbl"></span><small class="dsc fxsum" id="hero_sum"></small></span><button type="button" class="ghost subcfg" id="hero_btn" onclick="openHeroes()"></button><span class="dot" id="hero_dot" onclick="openHeroes()"></span></div>
+      <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button><span class="dot" id="fx_dot" onclick="fxMaster(event)" title="" role="switch"></span></div>
+      <div class="optx" id="hero_row"><svg viewBox="0 0 64 64"><circle cx="32" cy="22" r="10"/><path d="M12 54c2-14 10-20 20-20s18 6 20 20"/></svg><span class="t"><span id="hero_lbl"></span><small class="dsc fxsum" id="hero_sum"></small></span><button type="button" class="ghost subcfg" id="hero_btn" onclick="openHeroes()"></button><span class="dot" id="hero_dot" onclick="heroMaster(event)" role="switch"></span></div>
       <div class="optx" id="vq_row"><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="36" rx="3"/><path d="M18 40V24l8 10 8-10v16M42 24v16"/></svg><span class="t"><span id="vq_lbl"></span><small class="dsc" id="vq_hint"></small></span><select id="vquality"><option value="standard"></option><option value="high"></option><option value="max"></option></select></div>
       <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="hd" data-tipkey="tip_hd"><input type="checkbox" id="use_hd"><svg viewBox="0 0 64 64"><rect x="6" y="14" width="52" height="36" rx="3"/><path d="M16 24v16M16 32h10M26 24v16M36 24v16h7a8 8 0 0 0 0-16z"/></svg><span class="t" data-i18n="o_hd"></span><span class="dot"></span></label>
@@ -1838,6 +1838,18 @@ function heroLabels() {
   $('hero_lbl').textContent = pt('Герои (портреты)', 'Heroes (portraits)'); $('hero_btn').textContent = pt('Настроить ›', 'Set up ›');
   const on = HEROES.filter(h => h.on);
   $('hero_sum').textContent = on.length ? on.map(h => h.name + (h.img ? '' : ' (без портрета)')).join(', ') : pt('нет — кадры идут только по тексту промпта', 'none');
+  if ($('hero_dot')) $('hero_dot').classList.toggle('on', on.length > 0);
+}
+let HERO_BACK = [];
+async function heroMaster(ev) {  // переключатель в строке «Герои»: выключить всех / вернуть тех, кто был включён
+  if (ev) ev.stopPropagation();
+  const on = (HEROES || []).filter(h => h.on).map(h => h.name);
+  if (!(HEROES || []).length) { openHeroes(); return; }
+  let names, val;
+  if (on.length) { HERO_BACK = on; names = on; val = false; } else if (HERO_BACK.length) { names = HERO_BACK; HERO_BACK = []; val = true; } else { names = HEROES.map(h => h.name); val = true; }
+  let r = null; for (const n of names) r = await pywebview.api.hero_set(n, {on: val});
+  if (r && r.ok) HEROES = r.heroes; heroLabels(); try { s3Paint(); } catch (e) {}
+  toast(val ? pt('Герои включены.', 'Heroes on.') : pt('Герои выключены: кадры идут только по тексту промпта. Нажмите ещё раз, чтобы вернуть.', 'Heroes off.'), 4000);
 }
 async function heroesLoad() { try { const r = await pywebview.api.heroes_list(); HEROES = Array.isArray(r) ? r : []; } catch (e) { HEROES = []; } heroLabels(); }
 function heroRender() {
@@ -2034,6 +2046,17 @@ async function openHeroes() {
 function fxLabels() {
   $('fx_lbl').textContent = pt('Эффекты', 'Effects'); $('fx_btn').textContent = pt('Настроить ›', 'Set up ›');
   $('fx_sum').textContent = fxSummary(FXS);
+  if ($('fx_dot')) $('fx_dot').classList.toggle('on', fxSummary(FXS) !== pt('нет', 'none'));  // переключатель всегда показывает, что эффекты есть (в том числе после шаблона)
+}
+let FX_BACK = null;
+async function fxMaster(ev) {  // переключатель в строке «Эффекты»: выключить все / вернуть как было (если ничего не было, открыть настройку)
+  if (ev) ev.stopPropagation();
+  FXS = fxNorm(FXS); const any = fxSummary(FXS) !== pt('нет', 'none');
+  if (any) { FX_BACK = JSON.parse(JSON.stringify(FXS)); FX_INFO.forEach(([k]) => { FXS[k].on = false; }); }
+  else if (FX_BACK && fxSummary(FX_BACK) !== pt('нет', 'none')) { FXS = FX_BACK; FX_BACK = null; }
+  else { openFx(); return; }
+  await pywebview.api.save_config({fx: FXS}); fxLabels(); try { s3Paint(); s3Preview(); if (typeof syncRvFx === 'function') syncRvFx(); } catch (e) {}
+  toast(any ? pt('Эффекты выключены. Нажмите переключатель ещё раз, чтобы вернуть.', 'Effects off.') : pt('Эффекты включены: ', 'Effects on: ') + esc(fxSummary(FXS)), 4000);
 }
 function fxSlider(k, key, cur, lo, hi) {
   return `<span class="fxs"><small>${lo}</small><input type="range" min="0" max="100" step="5" value="${cur}" data-k="${k}" data-key="${key}"><small>${hi}</small><b>${cur}</b></span>`;
