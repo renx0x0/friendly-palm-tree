@@ -1206,6 +1206,28 @@
   .rvtbl { padding:0 !important; gap:0 !important; overflow:hidden; } .rvtbl .rvc7h { padding:9px 18px 7px; font-size:12px; background:var(--bg); border-bottom:1px solid var(--line2); } .rvtbl .rvc7h b { font-weight:400; color:var(--ink2); }
   .rvr { display:flex; align-items:center; gap:16px; padding:12px 18px; border-bottom:1px solid var(--line2); } .rvr:last-child { border-bottom:0; } .rvr > span:first-child { width:150px; flex:none; color:var(--ink2); } .rvr > span:nth-child(2) { flex:1; min-width:0; overflow-wrap:anywhere; } .rvr a { color:var(--acc2); cursor:pointer; font-size:13px; } .rvr i { width:52px; }
   #screen5 .review.qmode #rv_side { display:none; }
+  /* ===== p99: окна «Ролик» (что сделать) и «Новая озвучка» по шагам ===== */
+  #job_dlg .box, #rx_dlg .box { width:min(760px, calc(100% - 48px)) !important; padding:26px 28px 22px !important; border-radius:16px !important; max-height:calc(100vh - 40px); overflow-y:auto; }
+  .jdhead { display:flex; align-items:flex-start; gap:14px; margin-bottom:14px; } .jdhead .jdt { flex:1; min-width:0; } .jdhead h3 { margin:0 !important; font:700 18px/1.3 Inter, system-ui, sans-serif !important; } .jdhead .note { margin:6px 0 0 !important; color:var(--ink2); font-size:13px; line-height:1.5; }
+  .jdx { width:34px; height:34px; flex:none; padding:0 !important; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); display:grid; place-items:center; cursor:pointer; letter-spacing:0 !important; }
+  .jdq { font-size:12px; color:var(--ink2); margin:0 0 10px; }
+  .jdtile { display:flex; align-items:center; gap:16px; padding:16px 18px; border:1px solid var(--line); border-radius:14px; background:var(--bg2); margin-bottom:10px; } .jdtile.pri { border-color:var(--acc); background:color-mix(in srgb, var(--acc) 12%, var(--bg)); }
+  .jdtile .ic { width:48px; height:48px; flex:none; border-radius:12px; background:var(--bg3); color:var(--ink2); display:grid; place-items:center; } .jdtile.pri .ic { color:var(--acc2); }
+  .jdtile .tx { flex:1; min-width:0; } .jdtile .tx b { font-weight:600; font-size:15px; } .jdtile .ds { margin-top:4px; color:var(--ink2); font-size:13px; line-height:1.45; }
+  .jdtile .chip { margin-left:10px; padding:2px 9px; border-radius:10px; background:color-mix(in srgb, var(--acc) 22%, var(--bg)); color:var(--acc2); font-size:12px; }
+  .jdtile button, .jddanger button, .jdfoot button, .rxfoot button { height:40px; padding:0 18px !important; border-radius:10px; font-size:14px !important; letter-spacing:0 !important; text-transform:none !important; white-space:nowrap; }
+  .jddanger { display:flex; align-items:center; gap:10px; margin-top:6px; padding:14px 16px; border:1px solid #3a2a2a; border-radius:12px; } .jddanger .tx { flex:1; min-width:0; color:var(--ink2); font-size:13px; line-height:1.5; } .jddanger .tx b { color:var(--ink); font-weight:600; } .jddanger button { height:36px; padding:0 14px !important; font-size:13px !important; }
+  .jdok { padding:12px 16px; border-radius:12px; background:color-mix(in srgb, var(--ok) 14%, var(--bg)); border:1px solid #1f5c43; color:var(--ok); font-size:13px; line-height:1.5; margin-bottom:16px; }
+  .jdopt { display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); margin:0 0 10px !important; cursor:pointer; } .jdopt input { width:18px; height:18px; margin:2px 0 0; flex:none; } .jdopt b { font-weight:600; font-size:14px; } .jdopt small { display:block; margin-top:3px; color:var(--ink2); font-size:13px; line-height:1.5; } .jdopt:has(input:checked) { border-color:var(--acc); background:color-mix(in srgb, var(--acc) 12%, var(--bg)); } .jdopt.off { opacity:.6; cursor:default; }
+  .jdadv { display:flex; align-items:center; gap:12px; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); margin-bottom:10px; } .jdadv .tx { flex:1; min-width:0; } .jdadv b { font-weight:600; } .jdadv small { display:block; margin-top:3px; color:var(--ink2); font-size:13px; } .jdadv a, .rxlook a { color:var(--acc2); cursor:pointer; font-size:13px; white-space:nowrap; }
+  #jd_advb { margin:0 0 10px !important; }
+  .jdfoot { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:6px; } .jdfoot .sum { color:var(--ink2); font-size:13px; } .jdfoot .sum b { color:var(--ink); font-weight:600; } .jdfoot .bt { display:flex; gap:10px; flex:none; }
+  .rxstep { display:flex; gap:14px; margin-top:16px; } .rxstep .n { width:26px; height:26px; flex:none; border-radius:50%; background:var(--bg3); font-size:13px; font-weight:600; display:grid; place-items:center; } .rxstep .n.on { background:var(--acc); color:#fff; } .rxb { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+  .rxh { font-size:14px; } .rxh b { font-weight:600; } .rxh span { margin-left:8px; color:var(--ink2); font-size:13px; } .rxh span.req { color:var(--warn); }
+  .rxdrop { display:flex; align-items:center; gap:14px; padding:14px 16px; border:1px dashed var(--line); border-radius:12px; background:var(--bg2); color:var(--ink2); } .rxdrop .tx { flex:1; min-width:0; } .rxdrop b { display:block; color:var(--ink); font-weight:600; overflow-wrap:anywhere; } .rxdrop span { display:block; margin-top:3px; font-size:13px; }
+  .rxg2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .rxg2 label { display:block; color:var(--ink2); font-size:12px; margin-bottom:6px; } .rxg2 input { width:100%; height:40px; box-sizing:border-box; } .rxg2 .f { display:flex; gap:8px; } .rxg2 .f input { flex:1; min-width:0; } .rxg2 .f button { height:40px; padding:0 14px !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; }
+  .rxlook { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); } .rxlook .chips { flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:6px; } .rxlook .chips span { padding:4px 10px; border-radius:12px; background:var(--bg3); font-size:13px; }
+  #rx_adv { margin-top:4px; } .rxfoot { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:18px; } .rxfoot .note { margin:0 !important; max-width:440px; font-size:12.5px !important; } .rxfoot .row { margin:0 !important; flex:none; }
 </style>
 </head>
 <body>
@@ -1226,12 +1248,25 @@
 <div id="credit"></div>
 <div id="paste_dlg"><div class="box"><h3 id="pd_t"></h3><textarea id="pd_text" spellcheck="false"></textarea>
   <div class="row"><span style="flex:1"></span><button class="ghost" id="pd_cancel"></button><button class="primary" id="pd_save"></button></div></div></div>
-<div id="job_dlg"><div class="box"><h3 id="jd_t"></h3><div class="note" id="jd_info"></div>
-  <div class="jdg"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
-  <label class="jdc"><input type="checkbox" id="jd_rimg"><span id="jd_t_rimg"></span></label>
-  <label class="jdc"><input type="checkbox" id="jd_rvid"><span id="jd_t_rvid"></span></label>
-  <div class="row"><button class="ghost" id="jd_remix"></button><button class="ghost" id="jd_files"></button><button class="ghost" id="jd_short" style="display:none"></button><span style="flex:1"></span><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div>
-  <div class="row jdd"><button class="danger" id="jd_del"></button><button class="danger" id="jd_delv"></button></div></div></div>
+<div id="job_dlg"><div class="box">
+  <div class="jdhead"><div class="jdt"><h3 id="jd_t"></h3><div class="note" id="jd_info"></div></div><button class="jdx" id="jd_x" aria-label="Закрыть"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m2 2 8 8M10 2l-8 8"/></svg></button></div>
+  <div id="jd_menu">
+    <div class="jdq" id="jd_q"></div>
+    <div class="jdtile pri"><div class="ic"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12v0M8 8v8M12 4v16M16 8v8M20 11v2"/></svg></div><div class="tx"><div><b id="jd_t_remix"></b><span class="chip" id="jd_chip"></span></div><div class="ds" id="jd_d_remix"></div></div><button class="primary" id="jd_remix"></button></div>
+    <div class="jdtile"><div class="ic"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg></div><div class="tx"><div><b id="jd_t_restart"></b></div><div class="ds" id="jd_d_restart"></div></div><button class="ghost" id="jd_restart"></button></div>
+    <div class="jdtile"><div class="ic"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><div class="tx"><div><b id="jd_t_files"></b></div><div class="ds" id="jd_d_files"></div></div><button class="ghost" id="jd_files"></button></div>
+    <div class="jdtile" id="jd_shortrow" style="display:none"><div class="ic"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/></svg></div><div class="tx"><div><b id="jd_t_short"></b></div><div class="ds" id="jd_d_short"></div></div><button class="ghost" id="jd_short"></button></div>
+    <div class="jddanger"><div class="tx" id="jd_d_del"></div><button class="danger" id="jd_del"></button><button class="danger" id="jd_delv"></button></div>
+  </div>
+  <div id="jd_re" style="display:none">
+    <div class="jdok" id="jd_ok"></div>
+    <div class="jdq" id="jd_q2"></div>
+    <label class="jdopt" id="jd_o_img"><input type="checkbox" id="jd_rimg"><span><b id="jd_t_rimg"></b><small id="jd_s_rimg"></small></span></label>
+    <label class="jdopt" id="jd_o_vid"><input type="checkbox" id="jd_rvid"><span><b id="jd_t_rvid"></b><small id="jd_s_rvid"></small></span></label>
+    <div class="jdadv"><div class="tx"><b id="jd_adv_t"></b><small id="jd_adv_s"></small></div><a id="jd_adv_a"></a></div>
+    <div class="jdg" id="jd_advb" style="display:none"><label id="jd_l_img"></label><select id="jd_img"></select><label id="jd_l_vid"></label><select id="jd_vid"></select><label id="jd_l_mode"></label><select id="jd_mode"></select></div>
+    <div class="jdfoot"><div class="sum" id="jd_sum"></div><div class="bt"><button class="ghost" id="jd_cancel"></button><button class="primary" id="jd_go"></button></div></div>
+  </div></div></div>
 <div id="rec_dlg"><div class="box"><h3 id="rec_t"></h3><div id="rec_all"></div><div class="row"><button class="ghost" id="rec_close" onclick="$('rec_dlg').classList.remove('show')"></button></div></div></div>
 <div id="vo_dlg"><div class="box"><h3 id="vo_t"></h3><p id="vo_p"></p><div class="row">
   <button class="ghost" id="vo_cancel"></button><button class="ghost" id="vo_tts"></button><button class="primary" id="vo_file"></button>
@@ -1283,18 +1318,22 @@
       <div class="psample" id="pf_sample"></div><div class="pchead" id="pf_chead"></div><div class="pchips" id="pf_chips"></div><div id="pf_warn"></div><div id="pf_nums"></div></div>
     <div class="pform" id="pf_form"></div></div>
   <div class="row"><button class="danger" id="pf_del"></button><span class="note" id="pf_note" style="color:var(--ink2);font-size:12px"></span><span style="flex:1"></span><button class="ghost" id="pf_cancel"></button><button class="primary" id="pf_save"></button></div></div></div>
-<div id="rx_dlg"><div class="box"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div>
-  <div class="g"><label id="rx_l1"></label><div class="f"><input type="text" id="rx_file" readonly><button class="ghost" id="rx_pick"></button></div>
-    <label id="rx_l4"></label><input type="text" id="rx_name" maxlength="120" spellcheck="false" autocomplete="off">
-    <label id="rx_l8"></label><div class="f"><input type="text" id="rx_out" readonly><button class="ghost" id="rx_outb"></button></div>
-    <div class="sep"></div><div class="sep"></div>
+<div id="rx_dlg"><div class="box">
+  <div class="jdhead"><div class="jdt"><h3 id="rx_t"></h3><div class="note" id="rx_n"></div></div><button class="jdx" id="rx_x" aria-label="Закрыть"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m2 2 8 8M10 2l-8 8"/></svg></button></div>
+  <div class="rxstep"><span class="n on">1</span><div class="rxb"><div class="rxh"><b id="rx_l1"></b><span class="req" id="rx_s1"></span></div>
+    <div class="rxdrop"><svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V5M8 9l4-4 4 4"/><path d="M5 15v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"/></svg><div class="tx"><b id="rx_fn"></b><span id="rx_fd"></span></div><button class="ghost" id="rx_pick"></button></div><input type="text" id="rx_file" readonly hidden></div></div>
+  <div class="rxstep"><span class="n">2</span><div class="rxb"><div class="rxh"><b id="rx_h2"></b><span id="rx_s2"></span></div>
+    <div class="rxg2"><div><label id="rx_l4" for="rx_name"></label><input type="text" id="rx_name" maxlength="120" spellcheck="false" autocomplete="off"></div>
+      <div><label id="rx_l8" for="rx_out"></label><div class="f"><input type="text" id="rx_out" readonly><button class="ghost" id="rx_outb"></button></div></div></div></div></div>
+  <div class="rxstep"><span class="n">3</span><div class="rxb"><div class="rxh"><b id="rx_h3"></b><span id="rx_s3"></span></div>
+    <div class="rxlook"><div class="chips" id="rx_chips"></div><a id="rx_edit"></a></div>
+    <div class="g" id="rx_adv" style="display:none">
     <label id="rx_l5"></label><select id="rx_look"></select>
     <label id="rx_l6"></label><div class="f"><select id="rx_fx"></select><button class="ghost" id="rx_fxb"></button></div>
     <label id="rx_l3"></label><div class="f"><select id="rx_sub"></select><button class="ghost" id="rx_subb"></button></div>
     <select id="rx_mot" hidden></select>
-    <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div></div>
-  <div class="note" id="rx_n2" style="margin:10px 0 0"></div>
-  <div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div>
+    <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div></div></div></div>
+  <div class="rxfoot"><div class="note" id="rx_n2"></div><div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div></div>
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
   <div class="note" id="pfv_n"></div><pre id="pfv_text"></pre></div></div>
@@ -2645,18 +2684,39 @@ function jobMenu(id) {
   $('jd_l_mode').textContent = pt('Режим', 'Mode');
   $('jd_mode').innerHTML = [['', `${pt('как в прошлый раз', 'as last time')}${r.mode ? ' (' + modeName(r.mode) + ')' : ''}`], ['images', modeName('images')], ['mixed', modeName('mixed')], ['video', modeName('video')]]
     .map(([v, n]) => `<option value="${v}">${esc(n)}</option>`).join('');
-  $('jd_t_rimg').textContent = pt('Удалить картинки и нарисовать заново (промпты останутся)', 'Delete images and redraw (prompts are kept)');
-  $('jd_t_rvid').textContent = pt('Удалить оживление и оживить заново', 'Delete animations and animate again');
+  const done = r.scenes && r.images >= r.scenes, hasVid = !!r.videos || (r.mode && r.mode !== 'images');
+  $('jd_q').textContent = pt('Что сделать с этим роликом?', 'What to do with this video?'); $('jd_q2').textContent = pt('Что пересоздать', 'What to redo');
+  $('jd_t_remix').textContent = pt('Новая озвучка', 'New voice-over'); $('jd_chip').textContent = pt('чаще всего', 'most common');
+  $('jd_d_remix').textContent = pt('Тот же ролик с другим файлом озвучки. Картинки и клипы остаются, кредиты не тратятся.', 'Same video with another voice-over. Images and clips stay, no credits.');
+  $('jd_t_restart').textContent = done ? pt('Перезапустить', 'Restart') : pt('Продолжить', 'Continue');
+  $('jd_d_restart').textContent = done ? pt('Заново собрать ролик или нарисовать заново картинки и оживление.', 'Rebuild or redraw images and animation.') : pt('Доделать недостающее: что уже готово, остаётся.', 'Finish what is missing; finished parts stay.');
+  $('jd_restart').textContent = done ? pt('Настроить', 'Set up') : pt('Продолжить', 'Continue');
+  $('jd_t_files').textContent = pt('Файлы ролика', 'Video files'); $('jd_d_files').textContent = pt('Сценарий и субтитры (.srt), папка с готовым видео.', 'Script and subtitles, the output folder.');
+  $('jd_t_short').textContent = pt('Укоротить путь к видео', 'Shorten the video path'); $('jd_d_short').textContent = pt('Название файла и папки слишком длинное для Windows — переименуем покороче, чтобы видео открывалось.', 'The path is too long for Windows.');
+  $('jd_d_del').innerHTML = pt(`<b>Удаление</b><br>«Удалить проект» убирает картинки и клипы, готовое видео остаётся.${r.has_video ? ' «Вместе с видео» удаляет всё.' : ''}`, 'Delete: the project, optionally with the video.');
+  $('jd_ok').textContent = done ? pt(`Всё готово: ${r.images} картинок. Если ничего не отмечать, программа просто заново соберёт ролик из готового, кредиты не тратятся.`, `All ${r.images} images are ready. Without ticks the video is just rebuilt, no credits.`)
+    : pt(`Готово ${r.images} из ${r.scenes || '?'} картинок. Если ничего не отмечать, программа доделает недостающее.`, `${r.images} of ${r.scenes || '?'} images are ready. Without ticks the rest is made.`);
+  $('jd_t_rimg').textContent = pt('Нарисовать картинки заново', 'Redraw the images');
+  $('jd_s_rimg').textContent = pt(`Удалит ${r.images} картинок. Промпты остаются. Потратит ≈ ${r.images} кредитов fast-gen.`, `Deletes ${r.images} images, prompts stay. Spends credits again.`);
+  $('jd_t_rvid').textContent = pt('Оживить заново', 'Animate again');
+  $('jd_s_rvid').textContent = hasVid ? pt('Удалит оживлённые клипы и оживит заново, кредиты потратятся снова.', 'Deletes the animated clips and animates again.') : pt('Недоступно: в этом ролике режим «только картинки», оживления нет.', 'Not available: this video has images only.');
+  $('jd_o_vid').classList.toggle('off', !hasVid); $('jd_rvid').disabled = !hasVid;
   $('jd_rimg').checked = false; $('jd_rvid').checked = false;
+  $('jd_adv_t').textContent = pt('Дополнительно', 'Advanced'); $('jd_adv_s').textContent = pt('Модель картинок, модель видео, режим: как в прошлый раз', 'Image model, video model, mode: as last time'); $('jd_adv_a').textContent = pt('изменить ›', 'change ›');
+  $('jd_advb').style.display = 'none'; $('jd_adv_a').onclick = () => { const b = $('jd_advb'); b.style.display = b.style.display === 'none' ? '' : 'none'; };
+  const sum = () => { const a = []; if ($('jd_rimg').checked) a.push(pt(`картинки заново · ≈ ${r.images} кредитов`, 'images again')); if ($('jd_rvid').checked) a.push(pt('оживление заново', 'animation again')); $('jd_sum').innerHTML = pt('Будет сделано: ', 'Will do: ') + '<b>' + esc(a.length ? a.join(' · ') : (done ? pt('пересборка из готового, без кредитов', 'rebuild only') : pt('доделать недостающее', 'finish the rest'))) + '</b>'; };
+  $('jd_rimg').onchange = sum; $('jd_rvid').onchange = sum; sum();
+  const showMenu = () => { $('jd_menu').style.display = ''; $('jd_re').style.display = 'none'; }, showRe = () => { $('jd_menu').style.display = 'none'; $('jd_re').style.display = ''; };
+  showMenu(); $('jd_restart').onclick = showRe; $('jd_x').onclick = () => $('job_dlg').classList.remove('show');
   $('jd_del').textContent = pt('Удалить проект', 'Delete project'); $('jd_delv').textContent = pt('Удалить проект и видео', 'Delete project and video');
   $('jd_del').title = pt('Картинки, промпты, озвучка, клипы этого ролика. Готовое видео останется.', 'Images, prompts, voice-over, clips. The finished video stays.');
   $('jd_delv').title = pt('То же самое плюс готовый файл видео.', 'Same plus the finished video file.');
-  $('jd_delv').style.display = r.has_video ? '' : 'none'; $('jd_cancel').textContent = pt('Отмена', 'Cancel'); $('jd_go').textContent = pt('Перезапустить', 'Restart');
-  $('jd_cancel').onclick = () => $('job_dlg').classList.remove('show');
-  $('jd_remix').textContent = pt('Новая озвучка…', 'New voice-over…');
+  $('jd_delv').textContent = pt('Вместе с видео', 'With the video'); $('jd_delv').style.display = r.has_video ? '' : 'none'; $('jd_cancel').textContent = pt('Назад', 'Back'); $('jd_go').textContent = done ? pt('Перезапустить', 'Restart') : pt('Продолжить', 'Continue');
+  $('jd_cancel').onclick = showMenu;
+  $('jd_remix').textContent = pt('Выбрать озвучку', 'Pick voice-over');
   $('jd_remix').onclick = () => { $('job_dlg').classList.remove('show'); openRemix(r); };
-  $('jd_files').textContent = pt('Сценарий и .srt', 'Script & .srt'); $('jd_files').title = pt('Папка с файлами этого ролика: сценарий (.txt) и субтитры (.srt)', 'Script and subtitles of this video');
-  $('jd_short').style.display = r.long_path ? '' : 'none'; $('jd_short').textContent = pt('Укоротить путь к видео', 'Shorten the video path'); $('jd_short').title = pt('Название файла и папки слишком длинное для Windows — переименуем покороче, чтобы видео открывалось', 'The path is too long for Windows');
+  $('jd_files').textContent = pt('Открыть', 'Open'); $('jd_files').title = pt('Папка с файлами этого ролика: сценарий (.txt) и субтитры (.srt)', 'Script and subtitles of this video');
+  $('jd_shortrow').style.display = r.long_path ? '' : 'none'; $('jd_short').textContent = pt('Укоротить', 'Shorten');
   $('jd_short').onclick = async () => { const x = await pywebview.api.shorten_result(id); if (x && x.ok) { toast(pt('Готово: ', 'Done: ') + esc(x.result), 8000); refreshRecent(); $('job_dlg').classList.remove('show'); } else toast(esc((x && x.error) || ''), 8000); };
   $('jd_files').onclick = async () => { const x = await pywebview.api.open_job_files(id); if (!x.ok) toast(esc(x.error || ''), 6000); };
   $('jd_go').onclick = () => {
@@ -4366,12 +4426,15 @@ function openRemix(r) {
   $('rx_out').placeholder = pt('туда же, где оригинал', 'next to the original');
   pywebview.api.remix_default_dir(r.id).then(d => { if (!RX.out) $('rx_out').placeholder = d ? pt('туда же, где оригинал: ', 'next to the original: ') + d : pt('как в настройках', 'as in settings'); });
   $('rx_outb').onclick = async () => { const p = await pywebview.api.pick_folder(); if (p) { RX.out = p; $('rx_out').value = p; } };
-  $('rx_t').textContent = pt(`Новая озвучка: ${r.title}`, `New voice-over: ${r.title}`);
-  $('rx_n').innerHTML = pt('Тот же визуал — картинки и оживлённые клипы этого ролика, ничего не генерируется и кредиты не тратятся. '
-    + 'Сцены сами разложатся по новой озвучке. Получится отдельный ролик, исходный не меняется.', 'Same visuals, no generation. Scenes are re-timed to the new voice-over.');
-  $('rx_l1').textContent = pt('Файл озвучки', 'Voice-over file'); $('rx_pick').textContent = pt('Выбрать', 'Pick');
-  $('rx_file').value = ''; $('rx_file').placeholder = pt('другой mp3 / wav этого же сценария', 'another mp3 of the same script');
-  $('rx_l4').textContent = pt('Название', 'Name'); $('rx_name').value = ''; $('rx_name').placeholder = pt('необязательно — имя готового файла', 'optional — output file name');
+  $('rx_t').textContent = pt('Новая озвучка', 'New voice-over');
+  $('rx_n').textContent = pt(`Для ролика «${r.title}». Картинки и клипы остаются, ничего не генерируется, кредиты не тратятся. Сцены сами разложатся по новой озвучке. Получится отдельный ролик, исходный не меняется.`, `For “${r.title}”. Same visuals, nothing is generated; scenes are re-timed.`);
+  $('rx_x').onclick = () => $('rx_dlg').classList.remove('show');
+  $('rx_l1').textContent = pt('Файл новой озвучки', 'New voice-over file'); $('rx_s1').textContent = pt('· обязательно', '· required'); $('rx_pick').textContent = pt('Выбрать файл', 'Choose file');
+  $('rx_fn').textContent = pt('Файл не выбран', 'No file chosen'); $('rx_fd').textContent = pt('mp3 или wav этого же сценария', 'mp3 or wav of the same script');
+  $('rx_file').value = ''; $('rx_h2').textContent = pt('Название и папка', 'Name and folder'); $('rx_s2').textContent = pt('· по желанию', '· optional');
+  $('rx_h3').textContent = pt('Оформление', 'Look'); $('rx_s3').textContent = pt('· как у оригинала', '· as the original'); $('rx_edit').textContent = pt('изменить ›', 'change ›');
+  $('rx_adv').style.display = 'none'; $('rx_edit').onclick = () => { const a = $('rx_adv'); a.style.display = a.style.display === 'none' ? '' : 'none'; };
+  $('rx_l4').textContent = pt('Название файла', 'File name'); $('rx_name').value = ''; $('rx_name').placeholder = pt('имя готового ролика', 'output file name');
   $('rx_l5').textContent = pt('Шаблон оформления', 'Look template');
   $('rx_look').innerHTML = `<option value="">${pt('не брать — как ниже', 'none')}</option>` + LOOKS.names.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
   $('rx_l6').textContent = pt('Эффекты', 'Effects'); $('rx_fxb').textContent = pt('Настроить ›', 'Set up ›');
@@ -4382,8 +4445,9 @@ function openRemix(r) {
     .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join(''); if (RX.trans) $('rx_tr').value = 'own'; };
   trOpts();
   $('rx_trb').textContent = pt('Вид ›', 'Style ›');
-  $('rx_trb').onclick = () => openTrans({t: RX.trans, onSave: t => { RX.trans = t; trOpts(); $('rx_mot').value = 'on'; }});
-  $('rx_tr').onchange = () => { if ($('rx_tr').value !== 'own') { RX.trans = null; trOpts(); } };
+  $('rx_trb').onclick = () => openTrans({t: RX.trans, onSave: t => { RX.trans = t; trOpts(); $('rx_mot').value = 'on'; rxRender(); }});
+  $('rx_tr').onchange = () => { if ($('rx_tr').value !== 'own') { RX.trans = null; trOpts(); } rxRender(); };
+  $('rx_sub').addEventListener('change', () => rxRender());
   $('rx_sub').value = $('use_subs').checked ? 'on' : 'off';
   const rxRender = () => {
     const tpl = RX.look ? pt(`из шаблона «${RX.look}»`, `from template`) : pt('как сейчас', 'as now');
@@ -4393,8 +4457,13 @@ function openRemix(r) {
     const sv = $('rx_sub').value || 'on';
     $('rx_sub').innerHTML = `<option value="on">${RX.sub ? pt('свой вид (настроен для этого ролика)', 'own style') : pt('с субтитрами — вид ', 'on — style ') + tpl}</option><option value="off">${pt('без субтитров', 'off')}</option>`;
     $('rx_sub').value = sv;
-    $('rx_n2').textContent = pt('Всё выбранное здесь запоминается за этим роликом: если он постоит в очереди, а вы поменяете настройки в программе, он соберётся именно так.',
+    $('rx_n2').textContent = pt('Выбранное запоминается за этим роликом: если он встанет в очередь, а вы поменяете настройки в программе, он соберётся именно так.',
       'Everything chosen here is stored with this video, even if it waits in the queue.');
+    const trTxt = ($('rx_tr').selectedOptions[0] || {}).textContent || '';
+    $('rx_chips').innerHTML = [RX.look ? pt('шаблон: ', 'template: ') + RX.look : pt('шаблон не берём', 'no template'),
+      RX.fxNone ? pt('без эффектов', 'no effects') : pt('эффекты: ', 'effects: ') + (RX.fx ? fxSummary(RX.fx) : (RX.look ? pt('из шаблона', 'from template') : fxSummary(FXS))),
+      $('rx_sub').value === 'off' ? pt('без субтитров', 'no subtitles') : pt('субтитры включены', 'subtitles on'),
+      trTxt.replace(/^как сейчас.*/i, pt('переходы как сейчас', 'transitions as now'))].map(x => `<span>${esc(x)}</span>`).join('');
   };
   $('rx_mot').innerHTML = [['on', 'с движением камеры и переходами', 'with motion and transitions'], ['off', 'без движения (статичные кадры, склейки встык)', 'no motion']]
     .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
@@ -4412,8 +4481,8 @@ function openRemix(r) {
   $('rx_subb').onclick = () => openSubs({style: RX.sub, source: RX.subSrc,
     onSave: (st, src) => { RX.sub = st; RX.subSrc = src; $('rx_sub').value = 'on'; rxRender(); },
     onOff: () => { $('rx_sub').value = 'off'; rxRender(); }});
-  $('rx_cancel').textContent = pt('Отмена', 'Cancel'); $('rx_go').textContent = pt('Собрать', 'Build');
-  $('rx_pick').onclick = async () => { const p = await pywebview.api.pick_file(); if (p) { RX.file = p; $('rx_file').value = p; } };
+  $('rx_cancel').textContent = pt('Отмена', 'Cancel'); $('rx_go').textContent = pt('Собрать ролик', 'Build the video');
+  $('rx_pick').onclick = async () => { const p = await pywebview.api.pick_file(); if (p) { RX.file = p; $('rx_file').value = p; $('rx_fn').textContent = p.split(/[\\/]/).pop(); $('rx_fd').textContent = pt('выбрано · нажмите «Выбрать файл», чтобы заменить', 'chosen · click to replace'); } };
   $('rx_cancel').onclick = () => $('rx_dlg').classList.remove('show');
   $('rx_go').onclick = async () => {
     if (!RX.file) { toast(pt('Выберите файл новой озвучки', 'Pick the new voice-over file'), 4000); return; }
