@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p99"
+VERSION = "1.7.1-p100"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -564,7 +564,7 @@ def make_thumb(path, size=480):
     from PIL import Image
     try:
         mt = os.path.getmtime(path)
-        cached = THUMBS.get(path)
+        cached = THUMBS.get((path, size))
         if cached and cached[0] == mt:
             return cached[1]
         im = Image.open(path).convert("RGB")
@@ -572,7 +572,7 @@ def make_thumb(path, size=480):
         buf = io.BytesIO()
         im.save(buf, "JPEG", quality=80)
         url = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
-        THUMBS[path] = (mt, url)
+        THUMBS[(path, size)] = (mt, url)
         return url
     except Exception:
         return None
@@ -2609,6 +2609,12 @@ class Api:
 
     def heroes_list(self):
         return self._heroes_view()
+
+    def hero_big(self, name):
+        """Портрет героя крупно — для панели героя."""
+        h = next((x for x in (load_cfg().get("heroes") or []) if x.get("name") == name), None)
+        f = (h or {}).get("file") or ""
+        return {"ok": bool(f) and os.path.isfile(f), "img": make_thumb(f, 900) if f and os.path.isfile(f) else None}
 
     def heroes_add(self, text):
         """Вставили карточки из чата (HERO / DESCRIPTION / PORTRAIT): добавляем новых, у существующих обновляем описание."""

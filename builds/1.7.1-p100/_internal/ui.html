@@ -1228,6 +1228,17 @@
   .rxg2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .rxg2 label { display:block; color:var(--ink2); font-size:12px; margin-bottom:6px; } .rxg2 input { width:100%; height:40px; box-sizing:border-box; } .rxg2 .f { display:flex; gap:8px; } .rxg2 .f input { flex:1; min-width:0; } .rxg2 .f button { height:40px; padding:0 14px !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; }
   .rxlook { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); } .rxlook .chips { flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:6px; } .rxlook .chips span { padding:4px 10px; border-radius:12px; background:var(--bg3); font-size:13px; }
   #rx_adv { margin-top:4px; } .rxfoot { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:18px; } .rxfoot .note { margin:0 !important; max-width:440px; font-size:12.5px !important; } .rxfoot .row { margin:0 !important; flex:none; }
+  #rw { display:none !important; }
+  #hero_dlg.det #hd_chk { display:none !important; }
+  /* ===== p100: панель героя ===== */
+  #hero_det { display:none; flex-direction:column; gap:12px; min-height:0; overflow-y:auto; } #hero_dlg.det #hero_det { display:flex; }
+  #hero_dlg.det #hd_add, #hero_dlg.det .hbar, #hero_dlg.det #hero_list, #hero_dlg.det #hd_text, #hero_dlg.det #hd_cnt, #hero_dlg.det #hd_n { display:none !important; }
+  #hero_dlg.det > .box > div:has(#hd_add) { display:none; }
+  #hero_det .back { color:var(--acc2); cursor:pointer; font-size:13px; } #hero_det .big { width:100%; max-height:420px; object-fit:contain; border-radius:12px; background:var(--bg2); min-height:160px; }
+  #hero_det .nopic { display:grid; place-items:center; height:200px; border-radius:12px; background:var(--bg2); color:var(--ink2); }
+  #hero_det label { font-size:12px; color:var(--ink2); } #hero_det textarea { display:block !important; width:100%; box-sizing:border-box; height:130px; font:13px/1.45 Inter, system-ui, sans-serif; resize:vertical; }
+  #hero_det .row { display:flex; flex-wrap:wrap; gap:8px; } #hero_det .row button { height:38px; padding:0 14px; letter-spacing:0; text-transform:none; font-size:13px; }
+  #hero_list .hero { cursor:pointer; } #hero_list .hero:hover { border-color:var(--acc); }
 </style>
 </head>
 <body>
@@ -1346,7 +1357,13 @@
   <div style="display:flex;gap:10px;align-items:center"><button class="primary" id="hd_add"></button><span class="note" id="hd_msg"></span></div>
   <div class="hbar"><button class="ghost" id="hd_sel"></button><span style="flex:1"></span><button class="ghost" id="hd_all"></button><button class="ghost" id="hd_del"></button></div>
   <div id="hero_list"></div>
-  <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="primary" id="hd_close"></button></div></div></div>
+  <div id="hero_det"><a class="back" id="hd_back"></a><img class="big" id="hd_big" alt=""><div class="nopic" id="hd_nopic"></div>
+    <b id="hd_dn" style="font-size:16px"></b>
+    <div><label for="hd_ddesc" id="hd_l_desc"></label><textarea id="hd_ddesc" spellcheck="false"></textarea></div>
+    <div><label for="hd_dpor" id="hd_l_por"></label><textarea id="hd_dpor" spellcheck="false"></textarea></div>
+    <div class="note" id="hd_dmsg"></div>
+    <div class="row"><button class="primary" id="hd_dsave"></button><button class="ghost" id="hd_dmake"></button><button class="ghost" id="hd_dup"></button><button class="ghost" id="hd_ddel"></button></div></div>
+  <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="ghost" id="hd_chk" style="display:none"></button><button class="primary" id="hd_close"></button></div></div></div>
 <div id="set_dlg"><div class="box"><h3 id="st_t"></h3>
   <div class="setg"><div class="sl" id="st_l_theme"></div><div class="seg2" id="st_theme"></div></div>
   <div class="setg"><div class="sl" id="st_l_col"></div><div class="sd_pal" id="sd_pal"></div></div>
@@ -1364,7 +1381,7 @@
   <div style="display:flex"><span style="flex:1"></span><button class="primary" id="kt_close"></button></div></div></div>
 <div class="toast" id="toast"></div>
 <aside id="side"><div class="sd_home" id="sd_home" onclick="goHome()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/><path d="M10 19v-5h4v5"/></svg><span id="sd_home_t"></span></div>
-  <button type="button" class="sd_new" id="sd_new" onclick="go(1)"></button>
+  <button type="button" class="sd_new" id="sd_new" onclick="newVideo()"></button>
   <div id="sd_nav"></div>
   <div><div class="sd_cap" id="sd_cap"></div><div id="sd_steps"></div></div>
   <div class="sd_bot"><div id="sd_set"></div><div id="sd_run" onclick="go(6)"></div></div></aside>
@@ -1426,7 +1443,7 @@
     <div class="crow hidden vpw" id="vp_row"><span class="lbl" id="vp_lbl"></span><textarea id="video_prompt" spellcheck="false"></textarea><span class="vph" id="vp_hint"></span></div>
     <div class="s2list" id="s2_list"></div>
     </div><aside id="s2_side"><div class="s3card"><b id="s2_st"></b><div id="s2_sum"></div></div><div class="s3card"><b id="s2_ht"></b><div class="s3n" id="s2_hint"></div></div></aside></div>
-    <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(3)" data-i18n="next"></button></div>
+    <div class="nav"><button class="ghost" onclick="go(1)" data-i18n="back"></button><button class="primary" onclick="go(4)" data-i18n="next"></button></div>
   </div>
 
   <div class="screen" id="screen3">
@@ -1436,7 +1453,7 @@
     <div class="opts">
       <input type="checkbox" id="use_refs" hidden>
       <h1 class="optq" data-i18n="opt_q"></h1>
-      <div class="grp" data-i18n="g_main"></div>
+      <div class="grp" data-i18n="g_main" style="display:none"></div>
       <label class="opt" id="rw" data-tipkey="tip_rw"><input type="checkbox" id="use_rw"><svg viewBox="0 0 64 64"><path d="M12 52V12h26l10 10v30z"/><path d="M38 12v10h10M20 30h22M20 38h22M20 46h14"/><path d="M44 44l10-10 4 4-10 10h-4z"/></svg><span class="t" data-i18n="o_rw"></span><span class="dot"></span></label>
       <label class="opt" id="mk_tts" data-tipkey="tip_tts" style="display:none"><input type="checkbox" id="use_tts"><svg viewBox="0 0 64 64"><rect x="24" y="8" width="16" height="30" rx="8"/><path d="M14 30c0 10 8 18 18 18s18-8 18-18M32 48v10M22 58h20"/></svg><span class="t" data-i18n="o_tts"></span><span class="dot"></span></label>
       <div class="grp sec" id="g_look"></div>
@@ -1454,7 +1471,7 @@
     </div><aside id="s3_side"><div class="s3card"><div class="s3h"><b id="s3_pvt"></b><span class="lk" id="s3_pvr" onclick="s3Preview(true)"></span></div>
       <div class="s3pv" id="s3_pvbox"><video id="s3_pv" autoplay loop muted playsinline></video><span class="busy" id="s3_pvb"></span></div><div class="s3n" id="s3_pvn"></div></div>
       <div class="s3card" id="s3_run" style="display:none" onclick="go(6)"><div class="s3h"><b id="s3_runt"></b><span class="lk" id="s3_runo"></span></div><div class="s3n" id="s3_runn"></div><div id="s3_log"></div></div></aside></div>
-    <div class="nav"><button class="ghost" onclick="go(2)" data-i18n="back"></button><button class="primary" id="btn_opts" onclick="go(4)" data-i18n="next"></button></div>
+    <div class="nav"><button class="ghost" onclick="go(4)" data-i18n="back"></button><button class="primary" id="btn_opts" onclick="startAll()" data-i18n="next"></button></div>
   </div>
 
   <div class="screen" id="screen4">
@@ -1464,7 +1481,7 @@
     <datalist id="voice_list"></datalist>
     <datalist id="lang_list"><option value="русском"><option value="польском"><option value="английском"><option value="украинском"><option value="немецком"><option value="испанском"><option value="французском"><option value="португальском"><option value="итальянском"><option value="турецком"></datalist>
     <div class="status err" id="s_prep" style="text-align:center"></div>
-    <div class="nav"><button class="ghost" onclick="go(3)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="s4_q" onclick="queueAdd().then(ok => { if (ok) toast(pt('Ролик поставлен в очередь.', 'Added to the queue.'), 4000); })"></button><button class="primary" id="btn_prep" onclick="startAll()" data-i18n="begin"></button></div>
+    <div class="nav"><button class="ghost" onclick="go(2)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="s4_q" onclick="queueAdd().then(ok => { if (ok) toast(pt('Ролик поставлен в очередь.', 'Added to the queue.'), 4000); })"></button><button class="primary" id="btn_prep" onclick="step4Next()" data-i18n="next"></button></div>
   </div>
 
   <div class="screen" id="screen5">
@@ -1476,7 +1493,7 @@
       <aside id="rv_side"><div class="s3card" id="rv_fcc"><b id="rv_fct"></b></div><div class="s3card" id="rv_warn" style="display:none"><b id="rv_wt" style="color:var(--warn)"></b><div id="rv_wl"></div></div><div class="s3card"><b id="rv_mt"></b><div class="s3n" id="rv_mn"></div></div></aside>
     </div>
     <div class="status err" id="s_prep2" style="text-align:center"></div>
-    <div class="nav"><button class="ghost" onclick="autoStart = false; go(4)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="rv_q" onclick="queueAdd().then(ok => { if (ok) { toast(pt('Ролик добавлен в очередь.', 'Added to the queue.'), 4000); openQueue(); } })"></button><button class="primary" id="btn_go" onclick="startFromReview()" data-i18n="go"></button></div>
+    <div class="nav"><button class="ghost" onclick="autoStart = false; go(3)" data-i18n="back"></button><span style="flex:1"></span><button class="ghost" id="rv_q" onclick="queueAdd().then(ok => { if (ok) { toast(pt('Ролик добавлен в очередь.', 'Added to the queue.'), 4000); openQueue(); } })"></button><button class="primary" id="btn_go" onclick="startFromReview()" data-i18n="go"></button></div>
   </div>
 
   <div class="screen" id="screen7">
@@ -1581,7 +1598,7 @@ const RW_PH = {fastgen:'ключ fast-gen (тот же, что для карти
 const QA_ENGINES = [['gemini','Gemini'],['anthropic','Claude'],['openai','OpenAI'],['openrouter','OpenRouter']];
 const QA_DEFAULT = {gemini:'gemini-3.6-flash', anthropic:'claude-haiku-5-5', openai:'gpt-4.1-mini', openrouter:'google/gemini-2.5-flash'};
 let rwEngine = 'fastgen', rwSrc = 'youtube'; const rwKeys = {};
-function rwOn() { return $('use_rw').checked; }
+function rwOn() { return false; }  // рерайт убран из интерфейса: оставлено выключенным
 $('use_rw').addEventListener('change', () => { if (rwOn()) setSource('script'); mark(); pywebview.api.save_config({rewrite: rwOn()}); });
 const LINKS = {whisper:'https://platform.openai.com/api-keys', assemblyai:'https://www.assemblyai.com/app', openai:'https://platform.openai.com/api-keys', anthropic:'https://console.anthropic.com/settings/keys', gemini:'https://aistudio.google.com/apikey', openrouter:'https://openrouter.ai/settings/keys', voicegen:'https://qw1voicegencore.pro', voicer:'https://voicer.mat3u.com/docs', lumean:'https://lumean.app/developers/docs'};
 let KEYS_OPEN = false;
@@ -1749,10 +1766,11 @@ function openKeys() {  // ключи живут на шаге «Озвучка �
   const open = () => { const k = document.querySelector('.keysbox .khead'); if (k && !k.parentNode.classList.contains('open')) k.click(); };
   openKeysTable();
 }
+const STEP_ORDER = [1, 2, 4, 3, 5, 6]; const stepPos = sc => STEP_ORDER.indexOf(sc) + 1;  // экран → номер шага в меню (озвучка идёт раньше оформления)
 let sideMax = 1;
 function sideRender() {
   if (!$('sd_steps')) return;
-  sideMax = Math.max(sideMax, cur <= 6 ? cur : 0);
+  sideMax = Math.max(sideMax, cur <= 6 ? stepPos(cur) : 0);
   const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Озвучка и файлы', 'Voice & files'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
   $('sd_cap').textContent = pt('Шаги нового ролика', 'New video steps'); if ($('pg1_t')) $('pg1_t').textContent = pt('Сервисы', 'Services');
   $('pg0_t').textContent = pt('Ролики', 'Videos'); $('sd_new').textContent = pt('Новый ролик', 'New video'); $('hm_folder').textContent = pt('Рабочая папка', 'Work folder');
@@ -1768,9 +1786,10 @@ function sideNav() {
     + `<div class="sd_it can" onclick="openProfiles()">${pt('Профили', 'Profiles')}</div>`
     + `<div class="sd_it can" onclick="openHeroes()">${pt('Герои', 'Heroes')}${sdN(() => HEROES.length)}</div>`;
   runCard();
-  const names = [pt('Сервисы', 'Services'), pt('Режим и стиль', 'Mode'), pt('Оформление', 'Look'), pt('Озвучка и файлы', 'Voice & files'), pt('Проверка', 'Review'), pt('Создание', 'Creating')];
-  $('sd_steps').innerHTML = names.map((nm, k) => { const n = k + 1, can = n !== cur && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6);
-    return `<div class="sd_it${n === cur ? ' cur' : ''}${cur <= 6 && n < cur ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${n})"` : ''}><span class="n">${cur <= 6 && n < cur ? '✓' : n}</span>${nm}</div>`; }).join('');
+  const nameOf = {1: pt('Сервисы', 'Services'), 2: pt('Режим и стиль', 'Mode'), 3: pt('Оформление', 'Look'), 4: pt('Озвучка и файлы', 'Voice & files'), 5: pt('Проверка', 'Review'), 6: pt('Создание', 'Creating')};
+  const cp = cur <= 6 ? stepPos(cur) : 0;
+  $('sd_steps').innerHTML = STEP_ORDER.map((sc, k) => { const n = k + 1, can = sc !== cur && n < 5 + 1 && n < 6 && (n <= sideMax || n === 1) && cur !== 6 || (n === 6 && jobRunning && cur !== 6), dn = cp && n < cp;
+    return `<div class="sd_it${sc === cur ? ' cur' : ''}${dn ? ' done' : ''}${can ? ' can' : ''}"${can ? ` onclick="go(${sc})"` : ''}><span class="n">${dn ? '✓' : n}</span>${nameOf[sc]}</div>`; }).join('');
 }
 function provs() { return Array.from(document.querySelectorAll('input[name=prov]:checked')).map(x => x.value); }
 function mode() { const r = document.querySelector('input[name=mode]:checked'); return r ? r.value : 'images'; }
@@ -1899,6 +1918,7 @@ function heroRender() {
     + `<div class="bt"><button class="ghost" data-hmk="${esc(h.name)}">${h.img ? pt('Перерисовать', 'Redraw') : pt('Нарисовать портрет', 'Draw portrait')}</button><button class="ghost" data-hup="${esc(h.name)}">${pt('Свой файл…', 'Own file…')}</button><button class="ghost" data-hdel="${esc(h.name)}">${pt('Удалить', 'Delete')}</button></div></div>`).join('')
     : `<div class="note">${pt('Героев пока нет. Вставьте карточки из чата выше и нажмите «Добавить».', 'No heroes yet.')}</div>`;
   const q = a => $('hero_list').querySelectorAll(a);
+  q('.hero').forEach(c => c.onclick = e => { if (e.target.closest('input,button,label,a')) return; heroOpen(c.dataset.n); });
   q('[data-hsel]').forEach(c => c.onchange = () => { c.checked ? HSEL.add(c.dataset.hsel) : HSEL.delete(c.dataset.hsel); heroSelUi(); });
   heroSelUi();
   q('[data-hon]').forEach(c => c.onchange = async () => { const r = await pywebview.api.hero_set(c.dataset.hon, {on: c.checked}); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } });
@@ -1911,6 +1931,24 @@ function heroRender() {
   q('[data-hup]').forEach(b => b.onclick = async () => { const r = await pywebview.api.hero_upload(b.dataset.hup); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } else if (!r.cancel) toast(esc(r.error || ''), 6000); });
   q('[data-hdel]').forEach(b => b.onclick = async () => { const r = await pywebview.api.hero_delete(b.dataset.hdel); if (r.ok) { HEROES = r.heroes; heroRender(); heroLabels(); } });
 }
+let HDET = '';
+async function heroOpen(name) {
+  const h = HEROES.find(x => x.name === name); if (!h) return; HDET = name;
+  $('hd_back').textContent = pt('‹ ко всем героям', '‹ all heroes'); $('hd_back').onclick = heroBack;
+  $('hd_dn').textContent = h.name; $('hd_l_desc').textContent = pt('Описание (DESCRIPTION) — подставляется в кадры, где есть герой', 'Description'); $('hd_l_por').textContent = pt('Запрос на портрет (PORTRAIT) — по нему рисуется портрет', 'Portrait prompt');
+  $('hd_ddesc').value = h.desc || ''; $('hd_dpor').value = h.portrait || ''; $('hd_dmsg').textContent = '';
+  $('hd_dsave').textContent = pt('Сохранить', 'Save'); $('hd_dmake').textContent = h.img ? pt('Нарисовать заново', 'Redraw') : pt('Нарисовать портрет', 'Draw portrait'); $('hd_dup').textContent = pt('Свой файл…', 'Own file…'); $('hd_ddel').textContent = pt('Удалить', 'Delete');
+  $('hd_nopic').textContent = pt('портрета нет', 'no portrait'); $('hd_big').style.display = 'none'; $('hd_nopic').style.display = h.img ? 'none' : '';
+  $('hero_dlg').classList.add('det');
+  if (h.img) { $('hd_big').src = h.img; $('hd_big').style.display = ''; try { const r = await pywebview.api.hero_big(name); if (r && r.ok && HDET === name) $('hd_big').src = r.img; } catch (e) {} }
+  const save = async () => { const r = await pywebview.api.hero_set(name, {desc: $('hd_ddesc').value, portrait: $('hd_dpor').value}); if (r && r.ok) { HEROES = r.heroes; heroLabels(); } return r; };
+  $('hd_dsave').onclick = async () => { const r = await save(); $('hd_dmsg').textContent = r && r.ok ? pt('Сохранено.', 'Saved.') : ''; };
+  $('hd_dmake').onclick = async () => { const b = $('hd_dmake'); b.disabled = true; b.textContent = pt('рисую…', 'drawing…'); await save(); const r = await pywebview.api.hero_make(name); b.disabled = false;
+    if (r.ok) { HEROES = r.heroes; heroLabels(); heroOpen(name); } else { b.textContent = pt('Нарисовать заново', 'Redraw'); $('hd_dmsg').textContent = r.error || pt('Не вышло', 'Failed'); } };
+  $('hd_dup').onclick = async () => { const r = await pywebview.api.hero_upload(name); if (r.ok) { HEROES = r.heroes; heroLabels(); heroOpen(name); } else if (!r.cancel) $('hd_dmsg').textContent = r.error || ''; };
+  $('hd_ddel').onclick = async () => { if (!confirm(pt(`Удалить героя ${name}?`, `Delete ${name}?`))) return; const r = await pywebview.api.hero_delete(name); if (r.ok) { HEROES = r.heroes; heroLabels(); heroBack(); } };
+}
+function heroBack() { HDET = ''; $('hero_dlg').classList.remove('det'); heroRender(); heroLabels(); }
 function heroSelUi() {
   HSEL = new Set([...HSEL].filter(n => HEROES.some(h => h.name === n)));
   const n = HSEL.size, all = HEROES.length && n === HEROES.length;
@@ -2056,7 +2094,7 @@ function rvLinks() {  // строки «Проверки» — по раздел
 })();
 let HCNT = null;
 async function openHeroes() {
-  HSEL = new Set(); HCNT = null;
+  HSEL = new Set(); HCNT = null; HDET = ''; $('hero_dlg').classList.remove('det');
   try { if (typeof promptsFile !== 'undefined' && promptsFile) { const c = await pywebview.api.hero_counts(promptsFile); if (c && c.ok) HCNT = c; } } catch (e) {}
   await heroesLoad();
   $('hd_t').textContent = pt('Герои', 'Heroes');
@@ -2065,6 +2103,8 @@ async function openHeroes() {
     'Paste hero cards from the chat. The portrait is attached to every frame whose prompt contains the hero name.');
   $('hd_text').placeholder = 'HERO: MIGUEL\nDESCRIPTION: MIGUEL: 29-year-old ranch hand …\nPORTRAIT: Waist-up portrait of MIGUEL …\n\nHERO: DON_AUGUSTO\nDESCRIPTION: …\nPORTRAIT: none';
   $('hero_dlg').classList.remove('paste'); $('hd_add').textContent = pt('Вставить карточки из чата', 'Paste hero cards'); $('hd_close').textContent = pt('Готово', 'Done'); $('hd_msg').textContent = '';
+  $('hd_chk').style.display = ''; $('hd_chk').textContent = pt('Проверить по файлу промптов…', 'Check against a prompts file…');
+  $('hd_chk').onclick = async () => { const f = await pywebview.api.pick_prompts(); if (!f) return; const c = await pywebview.api.hero_counts(f); if (c && c.ok) { HCNT = c; heroRender(); $('hd_cnt').textContent = ''; } else toast(pt('Не удалось прочитать файл промптов.', 'Could not read the file.'), 5000); };
   $('hd_all').textContent = pt('Нарисовать недостающие', 'Draw missing') + (HEROES.filter(x => x.on && !x.img).length ? ` · ${HEROES.filter(x => x.on && !x.img).length}` : '');
   $('hd_add').onclick = async () => {
     if (!$('hero_dlg').classList.contains('paste')) { $('hero_dlg').classList.add('paste'); $('hd_add').textContent = pt('Добавить', 'Add'); $('hd_text').focus(); return; }
@@ -2377,7 +2417,7 @@ function promptsRows() {
   const name = promptsFile ? promptsFile.split(/[\\/]/).pop() : '';
   return `<div class="acard" data-col="R"><div class="ah"><b>${pt('Готовые промпты', 'Ready prompts')}</b><span class="lk" onclick="pickPrompts()">${pt('выбрать .txt', 'pick .txt')}</span></div>`
     + `<input type="text" id="pf_name" readonly value="${esc(name)}" hidden><div class="apath">${name ? esc(name) : pt('не выбраны — промпты напишет программа', 'none — the app writes the prompts')}</div>`
-    + (promptsInfo ? `<div class="pfnote ok">${promptsNote(promptsInfo)}</div>` : '') + (promptsFile ? `<span class="lk2" onclick="clearPrompts()">${pt('убрать — промпты напишет программа', 'remove — the app writes the prompts')}</span>` : '') + `</div>`;
+    + (promptsInfo ? `<div class="pfnote ok">${promptsNote(promptsInfo)}</div><div class="pfnote">${pt('Стиль картинок берётся из этих промптов: выбор стиля на шаге «Режим и стиль» не нужен.', 'The image style comes from these prompts.')}</div>` : '') + (promptsFile ? `<span class="lk2" onclick="clearPrompts()">${pt('убрать — промпты напишет программа', 'remove — the app writes the prompts')}</span>` : '') + `</div>`;
   return row(pt('Готовые промпты', 'Ready prompts'), '', `<input type="text" id="pf_name" readonly value="${esc(name)}" placeholder="${esc(pt('не выбраны — промпты напишет программа', 'none — the app writes prompts'))}">`
       + `<button onclick="pickPrompts()">${pt('Выбрать .txt', 'Pick .txt')}</button>${promptsFile ? `<button class="ghost" onclick="clearPrompts()">×</button>` : ''}`)
     + (promptsInfo ? `<div class="lrow"><div class="lab"></div><div class="ctl"><span class="note pfnote">${promptsNote(promptsInfo)}</span></div></div>` : '');
@@ -2397,6 +2437,12 @@ async function pickPrompts() {
 }
 function clearPrompts() { setPrompts(null); }
 let queueMode = false;
+async function step4Next() {  // «Далее» на шаге «Озвучка и файлы»: проверяем, что есть из чего делать, и идём к оформлению
+  await saveKeys(); $('s_prep').textContent = ''; await queueRefresh();
+  const waiting = !jobRunning && queueItems.some(q => q.status === 'queued');
+  if (!formHasContent() && !waiting) { $('s_prep').textContent = source === 'script' ? t('err_script') : t('err_audio'); return; }
+  go(3);
+}
 async function startAll() {
   await saveKeys(); $('s_prep').textContent = ''; $('s_prep2').textContent = '';
   await queueRefresh();
@@ -2405,8 +2451,8 @@ async function startAll() {
   }
   queueMode = false;
   const o = opts();
-  if (!rwOn() && source === 'script' && !o.script.trim()) { $('s_prep').textContent = t('err_script'); return; }
-  if (!rwOn() && source !== 'script' && !audioPath) { $('s_prep').textContent = t('err_audio'); return; }
+  if (!rwOn() && source === 'script' && !o.script.trim()) { $('s_prep').textContent = t('err_script'); go(4); return; }
+  if (!rwOn() && source !== 'script' && !audioPath) { $('s_prep').textContent = t('err_audio'); go(4); return; }
   renderReview(rwOn() ? '' : (o.source === 'script' ? o.script : null));
   if (rwOn()) {
     const r = await pywebview.api.rewrite(o);
@@ -2651,7 +2697,7 @@ function homeRender() {
   list.sort((a, b) => (b.status === 'running') - (a.status === 'running'));
   let qcards = ''; try { qcards = q ? '' : queueItems.filter(x => x.status === 'queued').map((x, k) => `<div class="hcard"><div class="cv" onclick="openQueue()"><span class="chip">${pt(`В очереди · ${k + 1}-й`, `Queued · #${k + 1}`)}</span></div><div class="bd"><div class="tt" title="${esc(x.title)}">${esc(x.title)}</div><div class="mt">${esc(x.prompts_file ? pt('готовые промпты', 'ready prompts') : x.profile || '')}${x.voice ? ' · ' + esc(x.voice) : ''}</div><div class="ac"><button class="main" onclick="openQueue()">${pt('Очередь', 'Queue')}</button></div></div></div>`).join(''); } catch (e) {}
   const run = list.filter(r => r.status === 'running'), other = list.filter(r => r.status !== 'running');
-  g.innerHTML = run.map(homeCard).join('') + qcards + other.map(homeCard).join('') + `<button type="button" class="hnew" onclick="go(1)">${plus}<b>${pt('Новый ролик', 'New video')}</b><span>${all.length ? pt('из озвучки, сценария или готовых промптов', 'from a voice-over, script or ready prompts')
+  g.innerHTML = run.map(homeCard).join('') + qcards + other.map(homeCard).join('') + `<button type="button" class="hnew" onclick="newVideo()">${plus}<b>${pt('Новый ролик', 'New video')}</b><span>${all.length ? pt('из озвучки, сценария или готовых промптов', 'from a voice-over, script or ready prompts')
     : pt('Роликов пока нет. Начните с озвучки, сценария или готовых промптов — программа проведёт по шагам.', 'No videos yet. Start from a voice-over, a script or ready prompts.')}</span></button>`;
 }
 async function recentReveal(id) { const r = await pywebview.api.reveal_job(id); if (!r.ok) toast(esc(r.error || ''), 6000); }
@@ -3156,12 +3202,12 @@ async function loadConfig(keepScreen) {
   setKeysFromConfig(c);
   for (const k of ['voicegen','voicer','lumean']) if (c['has_' + k]) ttsKeys[k] = c[k];
   for (const k of ['fastgen','openai','anthropic','gemini']) rwKeys[k] = c['has_' + k] ? (k === 'fastgen' ? (c.keys.fastgen[0] || '') : c[k]) : '';
-  rwEngine = c.rewrite_engine || 'fastgen'; rwSrc = c.rewrite_source || 'youtube'; $('use_rw').checked = !!c.rewrite;
+  rwEngine = c.rewrite_engine || 'fastgen'; rwSrc = c.rewrite_source || 'youtube'; $('use_rw').checked = false;
   if (!keepScreen) { F.rwUrl = c.rewrite_url || ''; F.rwWords = c.rewrite_words || 1500; F.rwLang = c.rewrite_lang || 'польском'; }
   document.querySelectorAll('input[name=prov]').forEach(x => x.checked = (c.providers || []).includes(x.value));
   let r = document.querySelector(`input[name=mode][value=${c.mode}]`); if (r) r.checked = true;
   r = document.querySelector(`input[name=fgq][value=${c.quality || 'speed'}]`); if (r) r.checked = true;
-  $('use_tts').checked = c.source === 'script' || !!c.rewrite; $('use_subs').checked = !!c.subtitles; $('use_motion').checked = !!c.motion; $('use_hd').checked = !!c.hd_images; $('use_qa').checked = !!c.qa_images; $('use_speed').checked = !!c.speed_copies; qaEngine = c.qa_engine || 'gemini'; qaModel = c.qa_model || ''; mark();
+  $('use_tts').checked = false; $('use_subs').checked = !!c.subtitles; $('use_motion').checked = !!c.motion; $('use_hd').checked = !!c.hd_images; $('use_qa').checked = !!c.qa_images; $('use_speed').checked = !!c.speed_copies; qaEngine = c.qa_engine || 'gemini'; qaModel = c.qa_model || ''; mark();
   $('vf').value = c.video_first || 0; drawVf();
   PROFILES = c.profiles || []; profileName = PROFILES.includes(c.profile) ? c.profile : ''; profileManual = !!c.profile_manual; fillProfiles();
   FG_MODELS = c.fg_models || FG_MODELS; fgImg = c.fg_image_model || ''; fgVid = c.fg_video_model || ''; fillFg();
@@ -3173,7 +3219,7 @@ async function loadConfig(keepScreen) {
   models.llm_model = c.llm_model || models.llm_model; models.openai_model = c.openai_model || models.openai_model; models.anthropic_model = c.anthropic_model || 'claude-sonnet-5-5'; models.gemini_model = c.gemini_model || 'gemini-3.6-flash'; baseUrls = c.base_urls || {}; baseDefaults = c.base_defaults || baseDefaults;
   stt = c.stt_engine || (c.has_fastgen ? 'fastgen' : 'whisper'); llm = c.llm_engine || (c.has_fastgen ? 'fastgen' : 'openai'); tts = c.tts_service || 'voicegen';
   recent = c.tts_recent || [];
-  if (!keepScreen) { source = c.source || 'mp3'; F.voice = c.tts_voice || ''; }
+  if (!keepScreen) { source = 'mp3'; F.voice = c.tts_voice || ''; }
   $('use_tts').checked = source === 'script' || !!c.rewrite; mark(); applyLang();
   refreshStore(); refreshRecent();
   autoStart = false;
@@ -3414,6 +3460,11 @@ async function checkRow(k, i, sid) {
   try { r = await pywebview.api.check_keys([k]); } catch (err) { r = {[k]: t('error') + err}; }
   const v = Array.isArray(r[k]) ? (r[k][i] ?? r[k][0]) : r[k];
   put(v || '', String(v || '').startsWith('OK') ? 'ok' : 'err');
+}
+function newVideo() {  // «Новый ролик»: всегда начинаем с готовой озвучки и без промптов прошлого ролика
+  source = 'mp3'; $('use_tts').checked = false; try { mark(); } catch (e) {}
+  if (promptsFile) setPrompts(null);
+  go(1);
 }
 function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(); pywebview.api.save_config({source: v}); if (cur === 4) renderAccess(); }
 async function pickScript() {  // сценарий из .txt: как «выбрать .txt» у готовых промптов; вставить текст в поле можно и по-старому
@@ -3940,7 +3991,7 @@ function q7Render() {
     + `<div class="q7card rvsm">${pt('Ждущие ролики можно переставлять стрелками. Идущий остановится только кнопкой «Остановить очередь».', 'Reorder waiting videos with the arrows.')}</div>`;
   try { sideNav(); } catch (e) {}
 }
-function qpAddNew() { go(cur === 0 || cur === 7 ? (provs().length ? 4 : 1) : 4); }
+function qpAddNew() { source = 'mp3'; $('use_tts').checked = false; try { mark(); } catch (e) {} if (promptsFile) setPrompts(null); go(cur === 0 || cur === 7 ? (provs().length ? 4 : 1) : 4); }
 async function openQueue() { await queueRefresh(); go(7); }
 function q7Enter() { queueRefresh().then(() => { q7Render(); qStrip(); }); }
 $('q7_add').onclick = qpAddNew; $('q7_run').onclick = () => queueRunAll(); $('q7_stop').onclick = () => cancelJob();
