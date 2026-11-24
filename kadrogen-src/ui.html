@@ -1240,6 +1240,11 @@
   #hero_view .row { display:flex; flex-wrap:wrap; gap:8px; } #hero_view .row button { height:38px; padding:0 14px; letter-spacing:0; text-transform:none; font-size:13px; }
   @media (max-width:900px) { #hero_view .hvbox { flex-direction:column; overflow-y:auto; } }
   #hero_list .hero { cursor:pointer; } #hero_list .hero:hover { border-color:var(--acc); }
+  /* ===== p102: «монтируется в фоне» — карточка в левом меню, а не плашка поверх кнопок ===== */
+  #side .asmbar { position:static; right:auto; bottom:auto; max-width:none; width:auto; display:none; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:10px 12px; border-radius:var(--r); background:var(--bg2); border:1px solid color-mix(in srgb, #e8a33a 45%, var(--line)); box-shadow:none; z-index:auto; }
+  #side .asmbar.on { display:flex; } #side .asmbar .lb { font-size:11.5px; color:var(--ink2); flex:1; } #side .asmbar .tm { font-size:11.5px; order:0; }
+  #side .asmbar .tx { order:2; flex:1 1 100%; white-space:normal; overflow:visible; font-size:12px; line-height:1.4; color:var(--ink); }
+  #side .asmbar button { order:3; flex:1 1 100%; height:30px; padding:0 10px; font-size:12px; letter-spacing:0; text-transform:none; }
 </style>
 </head>
 <body>
@@ -1346,7 +1351,7 @@
     <select id="rx_mot" hidden></select>
     <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div></div></div></div>
   <div class="rxfoot"><div class="note" id="rx_n2"></div><div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div></div>
-<div class="asmbar" id="asmbar"><span class="dotl"></span><span class="tx" id="asm_tx"></span><span class="tm" id="asm_tm"></span><button class="ghost" id="asm_stop"></button></div>
+<div class="asmbar" id="asmbar"><span class="dotl"></span><span class="lb" id="asm_lb"></span><span class="tm" id="asm_tm"></span><span class="tx" id="asm_tx"></span><button class="ghost" id="asm_stop"></button></div>
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
   <div class="note" id="pfv_n"></div><pre id="pfv_text"></pre></div></div>
 <div id="fx_dlg"><div class="box"><div class="row1"><h3 id="fxd_t"></h3><span style="flex:1"></span></div>
@@ -1639,7 +1644,7 @@ function go(n) {
     $('runpill').classList.toggle('on', jobRunning && n !== 6);
   }, 240);
 }
-(() => { const b = document.querySelector('#side .sd_bot'); if (b) { b.appendChild(document.querySelector('.topctl')); b.appendChild($('credit')); } })();
+(() => { const b = document.querySelector('#side .sd_bot'); if (b) { b.appendChild(document.querySelector('.topctl')); b.appendChild($('credit')); b.insertBefore($('asmbar'), $('sd_run')); } })();
 (() => { const pb = document.querySelector('#screen6 .pbtns'), r = $('result'); if (pb && r) pb.parentNode.insertBefore(r, pb); if (pb && $('c6_tools')) $('c6_tools').appendChild(pb); })();
 const sdN = f => { let n = 0; try { n = f() || 0; } catch (e) {} return n ? `<span class="cnt">${n}</span>` : ''; };
 let KT = [], KST = {};
@@ -4573,7 +4578,7 @@ async function asmPoll() {
     $('asmbar').classList.toggle('on', !!c);
     if (c) {
       const pct = c.total ? ` · ${Math.min(100, Math.round(100 * c.done / c.total))}%` : '';
-      $('asm_tx').textContent = `${pt('Монтируется в фоне', 'Assembling in background')}: «${c.title}» — ${c.message}${pct}`;
+      $('asm_lb').textContent = pt('Монтаж в фоне', 'Background assembly'); $('asm_tx').textContent = `«${c.title}» — ${c.message}${pct}`;
       $('asm_tm').textContent = fmt(c.since);
       $('asm_stop').textContent = pt('Остановить', 'Stop');
     }
