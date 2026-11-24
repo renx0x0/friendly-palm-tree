@@ -1229,15 +1229,16 @@
   .rxlook { display:flex; align-items:center; gap:12px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); } .rxlook .chips { flex:1; min-width:0; display:flex; flex-wrap:wrap; gap:6px; } .rxlook .chips span { padding:4px 10px; border-radius:12px; background:var(--bg3); font-size:13px; }
   #rx_adv { margin-top:4px; } .rxfoot { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:18px; } .rxfoot .note { margin:0 !important; max-width:440px; font-size:12.5px !important; } .rxfoot .row { margin:0 !important; flex:none; }
   #rw { display:none !important; }
-  #hero_dlg.det #hd_chk { display:none !important; }
   /* ===== p100: панель героя ===== */
-  #hero_det { display:none; flex-direction:column; gap:12px; min-height:0; overflow-y:auto; } #hero_dlg.det #hero_det { display:flex; }
-  #hero_dlg.det #hd_add, #hero_dlg.det .hbar, #hero_dlg.det #hero_list, #hero_dlg.det #hd_text, #hero_dlg.det #hd_cnt, #hero_dlg.det #hd_n { display:none !important; }
-  #hero_dlg.det > .box > div:has(#hd_add) { display:none; }
-  #hero_det .back { color:var(--acc2); cursor:pointer; font-size:13px; } #hero_det .big { width:100%; max-height:420px; object-fit:contain; border-radius:12px; background:var(--bg2); min-height:160px; }
-  #hero_det .nopic { display:grid; place-items:center; height:200px; border-radius:12px; background:var(--bg2); color:var(--ink2); }
-  #hero_det label { font-size:12px; color:var(--ink2); } #hero_det textarea { display:block !important; width:100%; box-sizing:border-box; height:130px; font:13px/1.45 Inter, system-ui, sans-serif; resize:vertical; }
-  #hero_det .row { display:flex; flex-wrap:wrap; gap:8px; } #hero_det .row button { height:38px; padding:0 14px; letter-spacing:0; text-transform:none; font-size:13px; }
+  #hero_view { position:fixed; inset:0; z-index:66; display:none; place-items:center; background:rgba(0,0,0,.72); } #hero_view.show { display:grid; }
+  #hero_view .hvbox { position:relative; width:min(1000px, calc(100% - 48px)); max-height:calc(100vh - 48px); display:flex; gap:22px; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--bg); box-sizing:border-box; }
+  #hero_view .hvx { position:absolute; right:14px; top:14px; z-index:2; }
+  #hero_view .hvpic { flex:1 1 55%; min-width:0; display:grid; place-items:center; background:var(--bg2); border-radius:12px; overflow:hidden; min-height:300px; } #hero_view #hd_big { max-width:100%; max-height:calc(100vh - 120px); object-fit:contain; display:block; }
+  #hero_view .nopic { color:var(--ink2); padding:40px; text-align:center; }
+  #hero_view .hvfm { flex:1 1 45%; min-width:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding-right:6px; } #hero_view .hvfm b { padding-right:44px; }
+  #hero_view label { display:block; font-size:12px; color:var(--ink2); margin-bottom:4px; } #hero_view textarea { display:block !important; width:100%; box-sizing:border-box; height:130px; font:13px/1.45 Inter, system-ui, sans-serif; resize:vertical; }
+  #hero_view .row { display:flex; flex-wrap:wrap; gap:8px; } #hero_view .row button { height:38px; padding:0 14px; letter-spacing:0; text-transform:none; font-size:13px; }
+  @media (max-width:900px) { #hero_view .hvbox { flex-direction:column; overflow-y:auto; } }
   #hero_list .hero { cursor:pointer; } #hero_list .hero:hover { border-color:var(--acc); }
 </style>
 </head>
@@ -1357,13 +1358,16 @@
   <div style="display:flex;gap:10px;align-items:center"><button class="primary" id="hd_add"></button><span class="note" id="hd_msg"></span></div>
   <div class="hbar"><button class="ghost" id="hd_sel"></button><span style="flex:1"></span><button class="ghost" id="hd_all"></button><button class="ghost" id="hd_del"></button></div>
   <div id="hero_list"></div>
-  <div id="hero_det"><a class="back" id="hd_back"></a><img class="big" id="hd_big" alt=""><div class="nopic" id="hd_nopic"></div>
-    <b id="hd_dn" style="font-size:16px"></b>
+  <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="ghost" id="hd_chk" style="display:none"></button><button class="primary" id="hd_close"></button></div></div></div>
+<div id="hero_view"><div class="hvbox">
+  <button class="jdx hvx" id="hd_x" aria-label="Закрыть"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m2 2 8 8M10 2l-8 8"/></svg></button>
+  <div class="hvpic"><img id="hd_big" alt=""><div class="nopic" id="hd_nopic"></div></div>
+  <div class="hvfm"><b id="hd_dn" style="font-size:18px"></b>
     <div><label for="hd_ddesc" id="hd_l_desc"></label><textarea id="hd_ddesc" spellcheck="false"></textarea></div>
     <div><label for="hd_dpor" id="hd_l_por"></label><textarea id="hd_dpor" spellcheck="false"></textarea></div>
     <div class="note" id="hd_dmsg"></div>
     <div class="row"><button class="primary" id="hd_dsave"></button><button class="ghost" id="hd_dmake"></button><button class="ghost" id="hd_dup"></button><button class="ghost" id="hd_ddel"></button></div></div>
-  <div style="display:flex;gap:10px"><span style="flex:1"></span><button class="ghost" id="hd_chk" style="display:none"></button><button class="primary" id="hd_close"></button></div></div></div>
+</div></div>
 <div id="set_dlg"><div class="box"><h3 id="st_t"></h3>
   <div class="setg"><div class="sl" id="st_l_theme"></div><div class="seg2" id="st_theme"></div></div>
   <div class="setg"><div class="sl" id="st_l_col"></div><div class="sd_pal" id="sd_pal"></div></div>
@@ -1934,12 +1938,12 @@ function heroRender() {
 let HDET = '';
 async function heroOpen(name) {
   const h = HEROES.find(x => x.name === name); if (!h) return; HDET = name;
-  $('hd_back').textContent = pt('‹ ко всем героям', '‹ all heroes'); $('hd_back').onclick = heroBack;
+  $('hd_x').onclick = heroBack; $('hero_view').onclick = e => { if (e.target === $('hero_view')) heroBack(); };
   $('hd_dn').textContent = h.name; $('hd_l_desc').textContent = pt('Описание (DESCRIPTION) — подставляется в кадры, где есть герой', 'Description'); $('hd_l_por').textContent = pt('Запрос на портрет (PORTRAIT) — по нему рисуется портрет', 'Portrait prompt');
   $('hd_ddesc').value = h.desc || ''; $('hd_dpor').value = h.portrait || ''; $('hd_dmsg').textContent = '';
   $('hd_dsave').textContent = pt('Сохранить', 'Save'); $('hd_dmake').textContent = h.img ? pt('Нарисовать заново', 'Redraw') : pt('Нарисовать портрет', 'Draw portrait'); $('hd_dup').textContent = pt('Свой файл…', 'Own file…'); $('hd_ddel').textContent = pt('Удалить', 'Delete');
   $('hd_nopic').textContent = pt('портрета нет', 'no portrait'); $('hd_big').style.display = 'none'; $('hd_nopic').style.display = h.img ? 'none' : '';
-  $('hero_dlg').classList.add('det');
+  $('hero_view').classList.add('show');
   if (h.img) { $('hd_big').src = h.img; $('hd_big').style.display = ''; try { const r = await pywebview.api.hero_big(name); if (r && r.ok && HDET === name) $('hd_big').src = r.img; } catch (e) {} }
   const save = async () => { const r = await pywebview.api.hero_set(name, {desc: $('hd_ddesc').value, portrait: $('hd_dpor').value}); if (r && r.ok) { HEROES = r.heroes; heroLabels(); } return r; };
   $('hd_dsave').onclick = async () => { const r = await save(); $('hd_dmsg').textContent = r && r.ok ? pt('Сохранено.', 'Saved.') : ''; };
@@ -1948,7 +1952,7 @@ async function heroOpen(name) {
   $('hd_dup').onclick = async () => { const r = await pywebview.api.hero_upload(name); if (r.ok) { HEROES = r.heroes; heroLabels(); heroOpen(name); } else if (!r.cancel) $('hd_dmsg').textContent = r.error || ''; };
   $('hd_ddel').onclick = async () => { if (!confirm(pt(`Удалить героя ${name}?`, `Delete ${name}?`))) return; const r = await pywebview.api.hero_delete(name); if (r.ok) { HEROES = r.heroes; heroLabels(); heroBack(); } };
 }
-function heroBack() { HDET = ''; $('hero_dlg').classList.remove('det'); heroRender(); heroLabels(); }
+function heroBack() { HDET = ''; $('hero_view').classList.remove('show'); heroRender(); heroLabels(); }
 function heroSelUi() {
   HSEL = new Set([...HSEL].filter(n => HEROES.some(h => h.name === n)));
   const n = HSEL.size, all = HEROES.length && n === HEROES.length;
@@ -2094,7 +2098,7 @@ function rvLinks() {  // строки «Проверки» — по раздел
 })();
 let HCNT = null;
 async function openHeroes() {
-  HSEL = new Set(); HCNT = null; HDET = ''; $('hero_dlg').classList.remove('det');
+  HSEL = new Set(); HCNT = null; HDET = ''; $('hero_view').classList.remove('show');
   try { if (typeof promptsFile !== 'undefined' && promptsFile) { const c = await pywebview.api.hero_counts(promptsFile); if (c && c.ok) HCNT = c; } } catch (e) {}
   await heroesLoad();
   $('hd_t').textContent = pt('Герои', 'Heroes');
@@ -4089,6 +4093,7 @@ function rvCards() {
 
 document.addEventListener('keydown', e => {  // Esc закрывает открытую панель настроек (как «Отмена»)
   if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
+  if ($('hero_view').classList.contains('show')) { heroBack(); e.preventDefault(); return; }
   for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])
     if ($(dlg) && $(dlg).classList.contains('show') && $(btn)) { $(btn).click(); e.preventDefault(); return; }
   if ($('keys_dlg').classList.contains('show')) { $('keys_dlg').classList.remove('show'); return; }
