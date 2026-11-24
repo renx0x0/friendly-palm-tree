@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p102"
+VERSION = "1.7.1-p103"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -177,7 +177,7 @@ def run_queue(common):
                     voice_file=(item.get("voice_file") or None) if script else None, out_name=item.get("name") or None,
                     profile=item.get("profile") if "profile" in item else None,
                     prompts_file=item.get("prompts_file") or None, out_dir=item.get("out_dir") or None,
-                    out_sub=item.get("out_sub") if "out_sub" in item else None)
+                    out_sub=item.get("out_sub") if "out_sub" in item else None, music=item.get("music"))
             if item_after_run(item):
                 break
     finally:
@@ -821,13 +821,13 @@ def _pause(sec, why):
 
 
 def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=False, script=None, rewrite=None, tts=None, voice=None, video_first=0, hd=False,
-            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None, out_dir=None, out_sub=None):
+            profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, out_name=None, out_dir=None, out_sub=None, music=None):
     """Один ролик. Сбой сервиса — пауза и повтор (всё готовое берётся из задания); ролик собран, но часть картинок
     подменена соседними или сцены не оживились — пауза и доводка только их. Выключить: "auto_retry": false в config.json."""
     LAST_RUN.clear()
     LAST_RUN.update(dict(audio=audio, provider=provider, mode=mode, style=style, use_refs=use_refs, subtitles=subtitles, motion=motion,
                          script=script, rewrite=rewrite, tts=tts, voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
-                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name, out_dir=out_dir, out_sub=out_sub))
+                         prompts_file=prompts_file, remix_from=remix_from, look=look, out_name=out_name, out_dir=out_dir, out_sub=out_sub, music=music))
     keep_awake(True)
     tries = fixes = 0
     with LOCK:
@@ -847,7 +847,7 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
                                           use_refs=use_refs, subtitles=subtitles, motion=motion, script_text=script, rewrite=rewrite,
                                           tts_service=tts, tts_voice=voice, video_first=video_first, hd=hd, profile=profile, voice_file=voice_file,
                                           prompts_file=prompts_file, remix_from=remix_from, look=look, assembly_hook=assembly_hook,
-                                          out_name=out_name, out_dir=out_dir or None, out_sub=out_sub)
+                                          out_name=out_name, out_dir=out_dir or None, out_sub=out_sub, music=music)
             except pipeline.Retryable as e:  # сервис не отдаёт картинки, часть не написалась — стоит повторить позже
                 err = str(e)
             except (pipeline.Cancelled, SystemExit):  # «Стоп» или ошибка настроек (нет ключа и т.п.) — повтор не поможет
@@ -1650,7 +1650,8 @@ class Api:
                     profile=profile, voice_file=voice_file, prompts_file=prompts_file,
                     out_name=pipeline.safe_title(opts.get("name")) or None,
                     out_dir=str(opts.get("out_dir") or "").strip().strip('"') or None,
-                    out_sub=bool(opts["out_sub"]) if "out_sub" in opts else None)
+                    out_sub=bool(opts["out_sub"]) if "out_sub" in opts else None,
+                    music=opts.get("music") if isinstance(opts.get("music"), dict) else None)
         return None, args, job_title(opts)
 
     def _enqueue(self, opts):
@@ -1739,6 +1740,8 @@ class Api:
             extra["out_dir"] = od
         if "out_sub" in item:
             extra["out_sub"] = bool(item.get("out_sub"))
+        if isinstance(item.get("music"), dict):
+            extra["music"] = item["music"]
         entry = {"id": uuid.uuid4().hex[:8], "title": (name or title)[:80], "name": name or None, **extra, "source": src,
                  "script": (item.get("script") or "").strip() or None,
                  "audio": (item.get("audio") or "").strip().strip('"') or None,
@@ -2607,6 +2610,120 @@ class Api:
                         "img": make_thumb(f, 320) if ok else None})
         return out
 
+    # ===== музыка: библиотека треков и прослушивание =====
+    def music_lib(self):
+        return self._music_view()
+
+    def job_music(self, job_id):
+        """Настройка музыки готового ролика (для «Новой озвучки»): как была в окне, с id треков из библиотеки."""
+        d = self._job_path(job_id)
+        m = pipeline.read_json(os.path.join(d, "music.json"), None) if d else None
+        return m if isinstance(m, dict) and m.get("on") else None
+
+    def _music_view(self):
+        out = []
+        for t in (load_cfg().get("music_lib") or []):
+            f = t.get("file") or ""
+            out.append({"id": t.get("id"), "name": t.get("name") or "", "orig": t.get("orig") or "", "dur": t.get("dur") or 0, "ok": bool(f) and os.path.isfile(f)})
+        return out
+
+    def music_pick(self):
+        """Выбор файла трека (копия в библиотеку делается в music_add после ввода названия)."""
+        res = WINDOW.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False,
+                                        file_types=("Музыка (*.mp3;*.wav;*.m4a;*.ogg;*.flac;*.aac)", "Все файлы (*.*)"))
+        if not res:
+            return {"ok": False}
+        path = res[0] if isinstance(res, (list, tuple)) else str(res)
+        return {"ok": True, "path": path, "name": os.path.splitext(os.path.basename(path))[0]}
+
+    def music_add(self, path, name):
+        path = str(path or "").strip().strip('"')
+        if not os.path.isfile(path) or not path.lower().endswith(pipeline.MUSIC_EXT):
+            return {"ok": False, "error": "Нужен аудиофайл: mp3, wav, m4a, ogg, flac."}
+        try:
+            dur = pipeline.audio_duration(path)
+        except Exception as e:
+            return {"ok": False, "error": f"Файл не читается: {str(e)[:120]}"}
+        tid = uuid.uuid4().hex[:8]
+        os.makedirs(pipeline.music_lib_dir(), exist_ok=True)
+        dst = os.path.join(pipeline.music_lib_dir(), tid + os.path.splitext(path)[1].lower())
+        shutil.copyfile(path, dst)
+        cfg = load_cfg()
+        lib = list(cfg.get("music_lib") or [])
+        lib.append({"id": tid, "name": " ".join(str(name or "").split())[:80] or os.path.splitext(os.path.basename(path))[0], "file": dst,
+                    "orig": os.path.basename(path), "dur": round(dur, 1)})
+        cfg["music_lib"] = lib
+        save_cfg(cfg)
+        return {"ok": True, "id": tid, "lib": self._music_view()}
+
+    def music_rename(self, tid, name):
+        cfg = load_cfg()
+        for t in cfg.get("music_lib") or []:
+            if t.get("id") == tid:
+                t["name"] = " ".join(str(name or "").split())[:80] or t.get("name")
+        save_cfg(cfg)
+        return self._music_view()
+
+    def music_delete(self, tid):
+        cfg = load_cfg()
+        keep = []
+        for t in cfg.get("music_lib") or []:
+            if t.get("id") == tid:
+                try:
+                    os.remove(t.get("file") or "")
+                except OSError:
+                    pass
+            else:
+                keep.append(t)
+        cfg["music_lib"] = keep
+        save_cfg(cfg)
+        return self._music_view()
+
+    def _audio_uri(self, path):
+        import base64
+        with open(path, "rb") as f:
+            return "data:audio/mp4;base64," + base64.b64encode(f.read()).decode()
+
+    def music_clip(self, tid):
+        """Послушать трек из библиотеки: первые 12 секунд."""
+        t = next((x for x in (load_cfg().get("music_lib") or []) if x.get("id") == tid), None)
+        if not t or not os.path.isfile(t.get("file") or ""):
+            return {"ok": False, "error": "Файл трека не найден."}
+        out = os.path.join(data_dir(), "jobs", "_music_preview", "clip.m4a")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        try:
+            pipeline.run_ffmpeg(["-t", "12", "-i", t["file"], "-vn", "-c:a", "aac", "-b:a", "128k", out])
+            return {"ok": True, "audio": self._audio_uri(out)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:200]}
+
+    def music_preview(self, ui, audio, start=None, mode="start"):
+        """Послушать 15 секунд: голос вашей озвучки + музыка по текущим настройкам. mode: start | middle | at (start — секунды)."""
+        audio = str(audio or "").strip().strip('"')
+        m = pipeline.music_resolve(load_cfg(), ui)
+        if not m:
+            return {"ok": False, "error": "Добавьте хотя бы один участок с треком из библиотеки."}
+        if not audio or not os.path.isfile(audio):
+            return {"ok": False, "error": "Чтобы послушать с голосом, выберите файл озвучки на шаге «Озвучка и файлы». Если озвучивает программа, голос появится только при сборке."}
+        if not PREVIEW_LOCK.acquire(blocking=False):
+            return {"ok": False, "error": "Предыдущее прослушивание ещё готовится."}
+        try:
+            total = pipeline.audio_duration(audio)
+            span = min(15.0, total)
+            st = total / 2 - span / 2 if mode == "middle" else float(start or 0) if mode == "at" else 0.0
+            st = max(0.0, min(st, max(0.0, total - span)))
+            work = os.path.join(data_dir(), "jobs", "_music_preview")
+            os.makedirs(work, exist_ok=True)
+            ex, out = os.path.join(work, "voice.wav"), os.path.join(work, "mix.m4a")
+            pipeline.run_ffmpeg(["-ss", f"{st:.2f}", "-t", f"{span:.2f}", "-i", audio, "-vn", "-ar", "44100", "-ac", "2", ex])
+            info = pipeline.build_music_mix(ex, m["segs"], total, m["rel"], m["duck"], m["duck_db"], out, offset=st, span=span)
+            return {"ok": True, "audio": self._audio_uri(out), "start": round(st, 1), "span": round(span, 1), "total": round(total, 1),
+                    "voice_lufs": round(info["voice_lufs"], 1), "music_lufs": round(info["music_lufs"] + info["gain"], 1)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)[:300]}
+        finally:
+            PREVIEW_LOCK.release()
+
     def heroes_list(self):
         return self._heroes_view()
 
@@ -3305,6 +3422,11 @@ class Api:
                     profile="", voice_file=audio if script else None, prompts_file=None, remix_from=d, look=look)
         if os.path.normcase(os.path.abspath(pipeline.run_job_dir(cfg, args["audio"], script, args["voice_file"], None, "", None, d))) == os.path.normcase(os.path.abspath(d)):
             return {"ok": False, "error": "Это тот же файл озвучки, из которого сделан ролик. Выберите новую озвучку."}
+        mu = o.get("music")
+        if isinstance(mu, dict):          # своя музыка для этой озвучки
+            args["music"] = mu
+        elif mu != "none":                # по умолчанию — как в оригинале
+            args["music"] = pipeline.read_json(os.path.join(d, "music.json"), None)
         name = pipeline.safe_title(o.get("name"))
         if name:
             args["out_name"] = name

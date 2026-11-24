@@ -1245,6 +1245,35 @@
   #side .asmbar.on { display:flex; } #side .asmbar .lb { font-size:11.5px; color:var(--ink2); flex:1; } #side .asmbar .tm { font-size:11.5px; order:0; }
   #side .asmbar .tx { order:2; flex:1 1 100%; white-space:normal; overflow:visible; font-size:12px; line-height:1.4; color:var(--ink); }
   #side .asmbar button { order:3; flex:1 1 100%; height:30px; padding:0 10px; font-size:12px; letter-spacing:0; text-transform:none; }
+  /* ===== p103: музыка ===== */
+  #mx_row .dot { cursor:pointer; }
+  #music_dlg { position:fixed; inset:0; z-index:64; display:none; place-items:stretch end; background:rgba(0,0,0,.3); } #music_dlg.show { display:grid; }
+  #music_dlg .box { width:min(880px, 100%); box-sizing:border-box; display:flex; flex-direction:column; gap:12px; padding:22px 26px 16px; background:var(--side); border-left:1px solid var(--line); box-shadow:-18px 0 50px rgba(0,0,0,.35); animation:panelin .22s ease; min-height:0; overflow:hidden; }
+  .mxhead { display:flex; align-items:flex-start; gap:12px; } .mxh1 { font:700 18px/1.3 Inter, system-ui, sans-serif; } .mxh2 { margin-top:3px; color:var(--ink2); font-size:13px; line-height:1.45; }
+  .mxsw { width:40px; height:22px; flex:none; margin-top:4px; padding:0; border-radius:11px; border:0; background:var(--line); position:relative; cursor:pointer; } .mxsw i { position:absolute; left:3px; top:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .2s; } .mxsw.on { background:var(--acc); } .mxsw.on i { left:21px; }
+  .mxbody { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:12px; padding-right:4px; }
+  .mxchips { display:flex; gap:8px; flex-wrap:wrap; } .mxchip { padding:6px 12px; border-radius:16px; border:1px solid var(--line); font-size:13px; cursor:pointer; } .mxchip:hover { border-color:var(--acc); }
+  .mxtl { padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+  .mxrule { display:flex; justify-content:space-between; font-size:12px; color:var(--ink2); padding-left:74px; } .mxtrk { display:flex; align-items:center; gap:10px; } .mxtrk > span { width:64px; font-size:12px; color:var(--ink2); }
+  .mxwave { flex:1; height:36px; border-radius:6px; background:var(--bg3); display:flex; align-items:center; justify-content:space-between; padding:0 8px; overflow:hidden; } .mxwave i { width:3px; border-radius:2px; background:#7fd6a8; flex:none; }
+  .mxbar { flex:1; height:44px; display:flex; gap:2px; } .mxblk { border-radius:6px; display:flex; align-items:center; padding:0 10px; font-size:12px; font-weight:600; color:#fff; cursor:pointer; overflow:hidden; white-space:nowrap; border:2px solid transparent; min-width:0; } .mxblk.sel { border-color:#8fbaff; } .mxgap { background:var(--bg3); border-radius:6px; }
+  .mxsegs { display:flex; flex-direction:column; gap:10px; }
+  .mxseg { padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:10px; cursor:pointer; flex-shrink:0; } .mxseg.sel { border-color:var(--acc); }
+  .mxsh { display:flex; align-items:center; gap:10px; } .mxn { width:22px; height:22px; flex:none; border-radius:50%; font-size:12px; font-weight:600; color:#fff; display:grid; place-items:center; } .mxt { flex:1; min-width:0; } .mxt b { font-weight:600; } .mxt small { color:var(--ink2); font-size:13px; } .mxsh a { color:var(--acc2); cursor:pointer; font-size:13px; }
+  .sq { width:30px; height:30px; padding:0 !important; letter-spacing:0 !important; }
+  .mxf { display:grid; grid-template-columns:1fr 1fr 1.4fr; gap:10px; } .mxf label { display:flex; flex-direction:column; gap:4px; color:var(--ink2); font-size:12px; } .mxf input, .mxf select { height:36px; font-size:13px; line-height:1.2; } .mxf select { padding:0 28px 0 10px; }
+  .mxadd { height:38px; border-style:dashed !important; color:var(--ink2) !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; flex-shrink:0; }
+  .mxcard { padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:10px; flex-shrink:0; }
+  .mxrow { display:flex; align-items:center; gap:12px; } .mxrow b { font-weight:600; } .mxl2 { width:140px; color:var(--ink2); font-size:13px; flex:none; } .mxrow input[type=range] { flex:1; } .mxv { width:60px; text-align:right; }
+  .mxck { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink2); } .mxck input { width:16px; height:16px; margin:0; }
+  .mxlv { display:flex; flex-direction:column; gap:5px; } .mxlv > div { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--ink2); } .mxlv span { width:56px; } .mxlb { flex:1; height:8px; border-radius:4px; background:var(--line); } .mxlb i { display:block; height:8px; border-radius:4px; }
+  .mxnote { color:var(--ink2); font-size:13px; line-height:1.5; min-height:1px; } .mxlisten { flex-wrap:wrap; font-size:13px; color:var(--ink2); } .mxlisten button { height:34px; padding:0 14px !important; letter-spacing:0 !important; text-transform:none !important; font-size:13px !important; } .mxlisten input { width:70px; height:34px; font-size:13px; }
+  .mxfoot { display:flex; align-items:center; gap:10px; } .mxfoot button { height:42px; padding:0 20px !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; }
+  #mx_lib_dlg { position:fixed; inset:0; z-index:67; display:none; place-items:center; background:rgba(0,0,0,.65); } #mx_lib_dlg.show { display:grid; }
+  #mx_lib_dlg .box { width:min(640px, calc(100% - 48px)); max-height:calc(100vh - 60px); box-sizing:border-box; display:flex; flex-direction:column; gap:12px; padding:22px 24px 18px; border:1px solid var(--line); border-radius:16px; background:var(--bg); overflow:hidden; }
+  .mxlist { flex:1; min-height:60px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; } .mxl { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2); } .mxl.bad { border-color:#7a3a3a; } .mxl.empty { color:var(--ink2); justify-content:center; }
+  .mxl .mxt { display:flex; flex-direction:column; gap:3px; } .mxname { height:32px; font-size:14px; font-weight:600; } .mxl button { height:32px; padding:0 12px !important; letter-spacing:0 !important; text-transform:none !important; font-size:13px !important; }
+  .mxaddrow { display:flex; gap:8px; align-items:center; } .mxaddrow input { flex:1; height:38px; } .mxaddrow button { height:38px; padding:0 16px !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; }
 </style>
 </head>
 <body>
@@ -1349,7 +1378,8 @@
     <label id="rx_l6"></label><div class="f"><select id="rx_fx"></select><button class="ghost" id="rx_fxb"></button></div>
     <label id="rx_l3"></label><div class="f"><select id="rx_sub"></select><button class="ghost" id="rx_subb"></button></div>
     <select id="rx_mot" hidden></select>
-    <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div></div></div></div>
+    <label id="rx_l2"></label><div class="f"><select id="rx_tr"></select><button class="ghost" id="rx_trb"></button></div>
+    <label id="rx_l9"></label><div class="f"><select id="rx_mx"></select><button class="ghost" id="rx_mxb"></button></div></div></div></div>
   <div class="rxfoot"><div class="note" id="rx_n2"></div><div class="row"><button class="ghost" id="rx_cancel"></button><button class="primary" id="rx_go"></button></div></div></div></div>
 <div class="asmbar" id="asmbar"><span class="dotl"></span><span class="lb" id="asm_lb"></span><span class="tm" id="asm_tm"></span><span class="tx" id="asm_tx"></span><button class="ghost" id="asm_stop"></button></div>
 <div id="pfv_dlg"><div class="box"><div class="row1"><h3 id="pfv_t"></h3><select id="pfv_part"></select><span style="flex:1"></span><button class="primary" id="pfv_x" onclick="$('pfv_dlg').classList.remove('show')"></button></div>
@@ -1373,6 +1403,29 @@
     <div class="note" id="hd_dmsg"></div>
     <div class="row"><button class="primary" id="hd_dsave"></button><button class="ghost" id="hd_dmake"></button><button class="ghost" id="hd_dup"></button><button class="ghost" id="hd_ddel"></button></div></div>
 </div></div>
+<div id="music_dlg"><div class="box">
+  <div class="mxhead"><div style="flex:1;min-width:0"><div class="mxh1" id="mx_title"></div><div class="mxh2" id="mx_sub"></div></div><button class="mxsw" id="mx_on" role="switch" aria-label="Музыка"><i></i></button><button class="jdx" onclick="mxClose()" aria-label="Закрыть"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m2 2 8 8M10 2l-8 8"/></svg></button></div>
+  <div class="mxbody">
+    <div class="mxchips" id="mx_presets"></div>
+    <div class="mxtl" id="mx_tl"></div>
+    <div class="mxsegs" id="mx_segs"></div>
+    <button class="ghost mxadd" id="mx_addseg" onclick="mxAddSeg()"></button>
+    <div class="mxcard">
+      <div class="mxrow"><b id="mx_vol_t">Громкость</b><label class="mxck"><input type="checkbox" id="mx_duck" onchange="MXW.duck = this.checked; mxRender()"><span id="mx_l_duck"></span></label></div>
+      <div class="mxrow"><span class="mxl2" id="mx_l_rel"></span><input type="range" id="mx_rel" min="-30" max="-6" step="1" oninput="MXW.rel = +this.value; $('mx_rel_v').textContent = this.value + ' ' + pt('дБ', 'dB'); mxRender()"><b id="mx_rel_v" class="mxv"></b></div>
+      <div class="mxrow" id="mx_dkrow"><span class="mxl2" id="mx_l_dk"></span><input type="range" id="mx_dk" min="3" max="10" step="1" oninput="MXW.duck_db = +this.value; $('mx_dk_v').textContent = this.value + ' ' + pt('дБ', 'dB'); mxRender()"><b id="mx_dk_v" class="mxv"></b></div>
+      <div class="mxlv"><div><span>Голос</span><div class="mxlb"><i style="width:85%;background:#7fd6a8"></i></div></div><div><span>Музыка</span><div class="mxlb"><i id="mx_bar_m" style="background:#6ea8ff"></i></div></div></div>
+      <div class="mxnote" id="mx_txt"></div>
+      <div class="mxrow mxlisten"><span id="mx_l_listen"></span><button class="ghost" id="mx_b_start" onclick="mxListen('start')"></button><button class="ghost" id="mx_b_mid" onclick="mxListen('middle')"></button><input type="text" id="mx_at" placeholder="мм:сс" value="5:00"><button class="ghost" id="mx_b_at" onclick="mxListen('at')"></button></div>
+      <div class="mxnote" id="mx_hint"></div>
+    </div>
+  </div>
+  <div class="mxfoot"><button class="ghost" id="mx_lib_btn" onclick="mxOpenLib(null)"></button><span style="flex:1"></span><button class="ghost" id="mx_close_t" onclick="mxClose()"></button><button class="primary" id="mx_save" onclick="mxSave()"></button></div>
+</div></div>
+<div id="mx_lib_dlg"><div class="box"><div class="mxhead"><div style="flex:1"><div class="mxh1" id="mxl_t"></div><div class="mxh2" id="mxl_n"></div></div><button class="jdx" onclick="mxLibClose()" aria-label="Закрыть"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m2 2 8 8M10 2l-8 8"/></svg></button></div>
+  <div class="mxlist" id="mxl_list"></div><div class="mxaddrow" id="mxl_add"></div>
+  <div style="display:flex"><span style="flex:1"></span><button class="ghost" id="mxl_close" onclick="mxLibClose()"></button></div></div></div>
+<audio id="mx_aud" hidden></audio>
 <div id="set_dlg"><div class="box"><h3 id="st_t"></h3>
   <div class="setg"><div class="sl" id="st_l_theme"></div><div class="seg2" id="st_theme"></div></div>
   <div class="setg"><div class="sl" id="st_l_col"></div><div class="sd_pal" id="sd_pal"></div></div>
@@ -1471,6 +1524,7 @@
       <label class="opt sec" id="subs" data-tipkey="tip_subs"><input type="checkbox" id="use_subs"><svg viewBox="0 0 64 64"><rect x="6" y="12" width="52" height="40"/><path d="M14 38h14M32 38h18M14 46h30"/></svg><span class="t" data-i18n="o_subs"></span><button type="button" class="ghost subcfg" id="sub_cfg_btn"></button><span class="dot"></span></label>
       <div class="optx" id="fx_row"><svg viewBox="0 0 64 64"><circle cx="18" cy="20" r="3"/><circle cx="44" cy="14" r="2"/><circle cx="50" cy="40" r="3"/><circle cx="24" cy="46" r="2"/><path d="M32 22v20M22 32h20"/></svg><span class="t"><span id="fx_lbl"></span><small class="dsc fxsum" id="fx_sum"></small></span><button type="button" class="ghost subcfg" id="fx_btn" onclick="openFx()"></button><span class="dot" id="fx_dot" onclick="fxMaster(event)" title="" role="switch"></span></div>
       <div class="optx" id="hero_row"><svg viewBox="0 0 64 64"><circle cx="32" cy="22" r="10"/><path d="M12 54c2-14 10-20 20-20s18 6 20 20"/></svg><span class="t"><span id="hero_lbl"></span><small class="dsc fxsum" id="hero_sum"></small></span><button type="button" class="ghost subcfg" id="hero_btn" onclick="openHeroes()"></button><span class="dot" id="hero_dot" onclick="heroMaster(event)" role="switch"></span></div>
+      <div class="optx" id="mx_row"><svg viewBox="0 0 64 64"><path d="M24 46V16l26-6v30"/><circle cx="17" cy="46" r="7"/><circle cx="43" cy="40" r="7"/></svg><span class="t"><span id="mx_lbl"></span><small class="dsc fxsum" id="mx_sum"></small></span><button type="button" class="ghost subcfg" id="mx_btn" onclick="openMusic()"></button><span class="dot" id="mx_dot" onclick="mxMaster(event)" role="switch"></span></div>
       <div class="optx" id="vq_row"><svg viewBox="0 0 64 64"><rect x="8" y="14" width="48" height="36" rx="3"/><path d="M18 40V24l8 10 8-10v16M42 24v16"/></svg><span class="t"><span id="vq_lbl"></span><small class="dsc" id="vq_hint"></small></span><select id="vquality"><option value="standard"></option><option value="high"></option><option value="max"></option></select></div>
       <div class="grp sec" data-i18n="g_extra"></div>
       <label class="opt sec" id="hd" data-tipkey="tip_hd"><input type="checkbox" id="use_hd"><svg viewBox="0 0 64 64"><rect x="6" y="14" width="52" height="36" rx="3"/><path d="M16 24v16M16 32h10M26 24v16M36 24v16h7a8 8 0 0 0 0-16z"/></svg><span class="t" data-i18n="o_hd"></span><span class="dot"></span></label>
@@ -1985,6 +2039,7 @@ function s3Paint() {
   set('motion', $('use_motion').checked ? S3SUM.tr : '', pt('переходы между сценами и движение камеры по кадрам', 'transitions and camera motion'));
   set('subs', $('use_subs').checked ? S3SUM.sub : '', pt('текст озвучки на видео — вид, шрифт и эффекты', 'voice-over text on the video'));
   $('s3_sub').textContent = pt('Как будет выглядеть ролик. Строка показывает, что выбрано; «Настроить» открывает панель справа.', 'How the video will look.');
+  try { mxLabels(); } catch (e) {}
   if ($('fx_dot')) $('fx_dot').classList.toggle('on', fxSummary(FXS) !== pt('нет', 'none'));
   if ($('hero_dot')) $('hero_dot').classList.toggle('on', (HEROES || []).some(h => h.on));
   $('s3_pvt').textContent = pt('Предпросмотр', 'Preview'); $('s3_pvr').textContent = pt('обновить', 'refresh'); $('s3_pvb').textContent = pt('рисую…', 'rendering…');
@@ -3400,6 +3455,7 @@ async function queueAdd() {
   if (!formHasContent()) { $('s_prep').textContent = t('q_need'); return false; }
   const o = opts();
   const item = (rwOn() ? {source: 'rewrite', rewrite: o.rewrite, voice: F.voice, tts} : o.voice_file ? {source: 'script', script: F.script, voice_file: o.voice_file, voice: F.voice, tts} : source === 'script' ? {source: 'script', script: F.script, voice: F.voice, tts} : {source: 'mp3', audio: audioPath, voice: F.voice, tts}); item.name = F.name;
+  if (MXV.on && MXV.segs.length) item.music = mxSpecOf(MXV);
   item.profile = profileName; if (typeof promptsFile !== 'undefined' && promptsFile) item.prompts_file = promptsFile; if (OUTDIR.dir) item.out_dir = OUTDIR.dir; item.out_sub = !!OUTDIR.sub;
   const r = await pywebview.api.queue_add(item);
   if (!r.ok) { $('s_prep').textContent = r.error; return false; }
@@ -3407,6 +3463,7 @@ async function queueAdd() {
   // форма освобождается под следующее задание
   if (rwOn()) { if (rwSrc === 'youtube') F.rwUrl = ''; else F.rwText = ''; } else if (source === 'script') F.script = ''; else { audioPath = ''; F.script = ''; }
   F.name = ''; if (promptsFile) setPrompts(null);  // у следующего ролика свои промпты
+  mxReset();
   renderAccess(); toast(t('q_added')); return true;
 }
 function bindAccess() {
@@ -3473,6 +3530,7 @@ async function checkRow(k, i, sid) {
 function newVideo() {  // «Новый ролик»: всегда начинаем с готовой озвучки и без промптов прошлого ролика
   source = 'mp3'; $('use_tts').checked = false; try { mark(); } catch (e) {}
   if (promptsFile) setPrompts(null);
+  mxReset();
   go(1);
 }
 function setSource(v) { source = v; $('use_tts').checked = v === 'script'; mark(); pywebview.api.save_config({source: v}); if (cur === 4) renderAccess(); }
@@ -3534,6 +3592,7 @@ async function loadVoices() {
 }
 function opts() { syncAll(); const o = optsRaw(); if (o.source !== 'script' && !o.rewrite.on && (o.script || '').trim() && o.audio) { o.source = 'script'; o.voice_file = o.audio; } return o; }
 function optsRaw() { return {audio: audioPath, name: F.name, out_dir: OUTDIR.dir, out_sub: !!OUTDIR.sub, source, script: F.script, tts, voice: F.voice, providers: provs(), mode: mode(), use_refs: fgq() === 'quality', subtitles: $('use_subs').checked, motion: $('use_motion').checked, hd: $('use_hd').checked, qa: $('use_qa').checked, speed: $('use_speed').checked, video_first: vf(), style: styleKey, custom_style: customStyle(), video_prompt: $('video_prompt').value.trim(), fg_image_model: fgImg, fg_video_model: fgVid, profile_manual: profileManual, prompts_file: promptsFile, video_zoom_pct: +$('vzoom').value, video_anchor: $('vanchor').value,
+  music: (MXV.on && MXV.segs.length) ? mxSpecOf(MXV) : null,
   rewrite: {on: rwOn(), source: rwSrc, url: F.rwUrl, text: F.rwText, engine: rwEngine, words: F.rwWords, language: F.rwLang}}; }
 
 // ===== фоновая музыка: плейлист из папки music, ползунок 0..100 (середина — тихо, низ — выключено),
@@ -4000,7 +4059,7 @@ function q7Render() {
     + `<div class="q7card rvsm">${pt('Ждущие ролики можно переставлять стрелками. Идущий остановится только кнопкой «Остановить очередь».', 'Reorder waiting videos with the arrows.')}</div>`;
   try { sideNav(); } catch (e) {}
 }
-function qpAddNew() { source = 'mp3'; $('use_tts').checked = false; try { mark(); } catch (e) {} if (promptsFile) setPrompts(null); go(cur === 0 || cur === 7 ? (provs().length ? 4 : 1) : 4); }
+function qpAddNew() { mxReset(); source = 'mp3'; $('use_tts').checked = false; try { mark(); } catch (e) {} if (promptsFile) setPrompts(null); go(cur === 0 || cur === 7 ? (provs().length ? 4 : 1) : 4); }
 async function openQueue() { await queueRefresh(); go(7); }
 function q7Enter() { queueRefresh().then(() => { q7Render(); qStrip(); }); }
 $('q7_add').onclick = qpAddNew; $('q7_run').onclick = () => queueRunAll(); $('q7_stop').onclick = () => cancelJob();
@@ -4048,7 +4107,7 @@ function rvQueueLayout(card, chips, ic) {  // проверка очереди и
 function rvCards() {
   const host = $('rv_cards'); if (!host) return;
   const ic = d => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">${d}</svg>`;
-  const card = (d, title, step, body, cls) => `<div class="rvc7${cls ? ' ' + cls : ''}"><div class="rvc7h">${ic(d)}<b>${title}</b>${step ? `<a onclick="${step === 'H' ? 'openHeroes()' : 'go(' + step + ')'}">${pt('изменить', 'change')}</a>` : ''}</div>${body}</div>`;
+  const card = (d, title, step, body, cls) => `<div class="rvc7${cls ? ' ' + cls : ''}"><div class="rvc7h">${ic(d)}<b>${title}</b>${step ? `<a onclick="${step === 'H' ? 'openHeroes()' : step === 'MX' ? 'go(3); openMusic()' : 'go(' + step + ')'}">${pt('изменить', 'change')}</a>` : ''}</div>${body}</div>`;
   const chips = a => `<div class="rvchips">${a.map(x => `<span>${esc(x)}</span>`).join('')}</div>`;
   const wave = Array.from({length: 46}, (_, i) => 6 + Math.round(14 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * .6)) + 2 * ((i * 7) % 5))).map(h => `<i style="height:${h}px"></i>`).join('');
   const base = s => String(s || '').split(/[\\/]/).pop();
@@ -4083,6 +4142,7 @@ function rvCards() {
   cardsArr.push(card('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h10"/>', pt('Субтитры', 'Subtitles'), 3, $('use_subs').checked
     ? `<div class="rvsubp"><span>${pt('Как инфляция <em>съела</em>', 'Sample <em>text</em>')}</span></div><div class="rvsm">${esc(S3SUM.sub || pt('включены', 'on'))}</div>` : `<div class="rvmid">${pt('выключены', 'off')}</div>`));
   cardsArr.push(card('<path d="M4 12h6m4 0h6M10 8l4 4-4 4"/>', pt('Движение', 'Motion'), 3, $('use_motion').checked ? chips(String(S3SUM.tr || pt('включено', 'on')).split(/\s*·\s*/).filter(Boolean)) : `<div class="rvmid">${pt('выключено', 'off')}</div>`));
+  cardsArr.push(card('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>', pt('Музыка', 'Music'), 'MX', MXV.on && MXV.segs.length ? chips([mxSummary(MXV)]) : `<div class="rvmid">${pt('нет', 'none')}</div>`));
   const fxs = fxSummary(FXS); cardsArr.push(card('<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', pt('Эффекты', 'Effects'), 3, fxs === pt('нет', 'none') ? `<div class="rvmid">${pt('нет', 'none')}</div>` : chips(fxs.split(/,\s*/))));
   if (profileName || (typeof promptsFile !== 'undefined' && promptsFile)) {
     const on = (HEROES || []).filter(h => h.on), cn = RVH.counts && RVH.counts.counts || {}, miss = on.filter(h => !h.img);
@@ -4096,9 +4156,156 @@ function rvCards() {
   rvHeroCounts();
 }
 
+// ===== фоновая музыка: библиотека треков, участки (дорожка + список), громкость, прослушивание =====
+let MXV = {on: false, segs: [], rel: -18, duck: true, duck_db: 9}, MXLIB = [], MXW = null, MXSEL = 0, MXTGT = null, MXTOT = null, MXPICK = null, MXADD = null;
+const MX_COLORS = ['#2c5aa8', '#a8742c', '#2c8a5a', '#8a2c6e', '#2c8a8a', '#7a5a2c'];
+const mxNew = () => ({on: false, segs: [], rel: -18, duck: true, duck_db: 9});
+const mxCopy = v => JSON.parse(JSON.stringify(v));
+const mxName = id => ((MXLIB.find(t => t.id === id) || {}).name) || pt('трек удалён', 'track removed');
+const mxFmt = sec => { sec = Math.max(0, Math.round(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); };
+function mxSummary(v) {
+  if (!v || !v.on || !v.segs.length) return pt('нет', 'none');
+  return `${plural(v.segs.length, [pt('участок', 'part'), pt('участка', 'parts'), pt('участков', 'parts')])} · ${pt('тише голоса на', 'below voice by')} ${-v.rel} ${pt('дБ', 'dB')}${v.duck ? ' · ' + pt('приглушение', 'ducking') : ''}`;
+}
+function mxLabels() {
+  if (!$('mx_lbl')) return;
+  $('mx_lbl').textContent = pt('Музыка', 'Music'); $('mx_btn').textContent = pt('Настроить ›', 'Set up ›');
+  $('mx_sum').textContent = MXV.on && MXV.segs.length ? mxSummary(MXV) : pt('нет — только озвучка', 'none — voice only');
+  $('mx_dot').classList.toggle('on', !!(MXV.on && MXV.segs.length));
+}
+function mxReset() { MXV = mxNew(); try { mxLabels(); } catch (e) {} }
+async function mxLoadLib() { try { const r = await pywebview.api.music_lib(); MXLIB = Array.isArray(r) ? r : []; } catch (e) { MXLIB = []; } }
+function mxMaster(ev) {  // переключатель в строке «Музыка»: включить/выключить; если участков нет — открыть настройку
+  if (ev) ev.stopPropagation();
+  if (!MXV.segs.length) { openMusic(); return; }
+  MXV.on = !MXV.on; mxLabels();
+  toast(MXV.on ? pt('Музыка включена: ', 'Music on: ') + esc(mxSummary(MXV)) : pt('Музыка выключена. Нажмите ещё раз, чтобы вернуть.', 'Music off.'), 3500);
+}
+function mxParse(str, total) {  // «33%», «10:04», «1:02:03» или число (проценты) → доля 0…1; NaN — не разобрали
+  str = String(str || '').trim().replace(',', '.'); if (!str) return NaN;
+  if (str.includes(':')) { if (!total) return NaN; const p = str.split(':').map(Number); if (p.some(isNaN)) return NaN; const sec = p.reduce((a, x) => a * 60 + x, 0); return Math.max(0, Math.min(1, sec / total)); }
+  const n = parseFloat(str); return isNaN(n) ? NaN : Math.max(0, Math.min(1, n / 100));
+}
+const mxPos = (f, total) => `${Math.round(f * 100)}%` + (total ? ` (${mxFmt(f * total)})` : '');
+async function openMusic(tgt) {
+  MXTGT = tgt && tgt.onSave ? tgt : null;
+  MXW = mxCopy(MXTGT ? (MXTGT.v || mxNew()) : MXV); if (!MXW.segs.length) MXW.on = true; MXSEL = 0;
+  await mxLoadLib(); MXTOT = null;
+  $('mx_hint').textContent = '';
+  mxRender(); $('music_dlg').classList.add('show');
+  if (audioPath || LASTFC) { try { const e = LASTFC && LASTFC.duration ? LASTFC : await pywebview.api.estimate(opts()); if (e && e.ok && e.duration) { MXTOT = e.duration; if ($('music_dlg').classList.contains('show')) mxRender(); } } catch (x) {} }
+}
+function mxClose() { $('music_dlg').classList.remove('show'); try { $('mx_aud').pause(); } catch (e) {} }
+function mxPreset(kind) {
+  const have = [...new Set(MXW.segs.map(s => s.track))].concat(MXLIB.filter(t => t.ok).map(t => t.id)).filter((x, i, a) => a.indexOf(x) === i);
+  const need = kind === 'one' ? 1 : kind === 'two' ? 2 : kind === 'aba' ? 2 : 3;
+  const fill = () => {
+    const t = i => have[i % have.length];
+    const mk = (a, b, i) => ({track: t(i), a, b, loop: true});
+    MXW.segs = kind === 'one' ? [mk(0, 1, 0)] : kind === 'two' ? [mk(0, .5, 0), mk(.5, 1, 1)] : kind === 'aba' ? [mk(0, 1 / 3, 0), mk(1 / 3, 2 / 3, 1), mk(2 / 3, 1, 0)] : [mk(0, 1 / 3, 0), mk(1 / 3, 2 / 3, 1), mk(2 / 3, 1, 2)];
+    MXW.on = true; MXSEL = 0; mxRender();
+  };
+  if (!have.length) { toast(pt('Сначала добавьте хотя бы один трек в библиотеку.', 'Add a track to the library first.'), 4000); mxOpenLib(null); return; }
+  if (have.length < need) toast(pt('В библиотеке меньше треков, чем участков: треки будут повторяться. Добавьте ещё, если нужно разные.', 'Fewer tracks than parts — tracks repeat.'), 5000);
+  fill();
+}
+function mxAddSeg() {
+  const last = MXW.segs[MXW.segs.length - 1];
+  const make = track => { let a = last ? last.b : 0, b = 1; if (last && a >= 0.999) { const mid = (last.a + last.b) / 2; last.b = mid; a = mid; } MXW.segs.push({track, a: Math.min(a, 0.99), b, loop: true}); MXSEL = MXW.segs.length - 1; MXW.on = true; mxRender(); };
+  mxOpenLib(id => make(id));
+}
+function mxRender() {
+  const W = MXW, total = MXTOT; if (!W) return;
+  $('mx_title').textContent = pt('Музыка', 'Music'); $('mx_sub').textContent = pt('Фон под озвучкой. Разные треки можно поставить на разные части ролика.', 'Background music under the voice-over.');
+  $('mx_on').classList.toggle('on', !!W.on); $('mx_on').onclick = () => { W.on = !W.on; mxRender(); };
+  $('mx_presets').innerHTML = [['one', pt('Один трек на всё', 'One track'), 1], ['two', pt('Две половины', 'Two halves')], ['aba', 'A – B – A'], ['three', pt('Три части', 'Three parts')]].map(([k, n]) => `<span class="mxchip" onclick="mxPreset('${k}')">${n}</span>`).join('');
+  const sorted = W.segs.map((s, i) => ({...s, i})).sort((a, b) => a.a - b.a);
+  let pos = 0, blocks = '';
+  sorted.forEach(s => { if (s.a > pos + 0.001) blocks += `<div class="mxgap" style="flex:${(s.a - pos) * 1000}"></div>`;
+    blocks += `<div class="mxblk${s.i === MXSEL ? ' sel' : ''}" style="flex:${Math.max(1, (s.b - s.a) * 1000)};background:${MX_COLORS[s.i % MX_COLORS.length]}" onclick="MXSEL=${s.i}; mxRender()" title="${esc(mxName(s.track))}">${esc(mxName(s.track))}</div>`; pos = s.b; });
+  if (pos < 0.999 && sorted.length) blocks += `<div class="mxgap" style="flex:${(1 - pos) * 1000}"></div>`;
+  const wave = Array.from({length: 70}, (_, i) => 5 + Math.round(16 * Math.abs(Math.sin(i * 1.3) * Math.cos(i * .45)) + 2 * ((i * 5) % 4))).map(h => `<i style="height:${h}px"></i>`).join('');
+  $('mx_tl').innerHTML = `<div class="mxrule"><span>0:00</span><span>${total ? mxFmt(total / 2) : '50%'}</span><span>${total ? mxFmt(total) : '100%'}</span></div>`
+    + `<div class="mxtrk"><span>${pt('Озвучка', 'Voice')}</span><div class="mxwave">${wave}</div></div>`
+    + `<div class="mxtrk"><span>${pt('Музыка', 'Music')}</span><div class="mxbar">${blocks || `<div class="mxgap" style="flex:1;text-align:center;color:var(--ink2);font-size:12px;line-height:44px">${pt('участков нет: выберите шаблон выше или «+ Добавить участок»', 'no parts yet')}</div>`}</div></div>`;
+  $('mx_segs').innerHTML = W.segs.map((s, i) => {
+    const col = MX_COLORS[i % MX_COLORS.length], lt = (MXLIB.find(t => t.id === s.track) || {});
+    return `<div class="mxseg${i === MXSEL ? ' sel' : ''}" onclick="MXSEL=${i}; mxRender()"><div class="mxsh"><span class="mxn" style="background:${col}">${i + 1}</span><div class="mxt"><b>${esc(mxName(s.track))}</b>${lt.dur ? `<small> · ${mxFmt(lt.dur)}</small>` : ''}</div><a onclick="event.stopPropagation(); mxChange(${i})">${pt('сменить', 'change')}</a><button class="ghost sq" title="${pt('Убрать участок', 'Remove')}" onclick="event.stopPropagation(); mxDel(${i})">×</button></div>`
+      + `<div class="mxf"><label>${pt('С', 'From')}<input type="text" value="${esc(mxPos(s.a, total))}" onclick="event.stopPropagation()" onchange="mxEdit(${i}, 'a', this.value)"></label><label>${pt('До', 'To')}<input type="text" value="${esc(mxPos(s.b, total))}" onclick="event.stopPropagation()" onchange="mxEdit(${i}, 'b', this.value)"></label>`
+      + `<label>${pt('Если трек короче', 'If the track is shorter')}<select onclick="event.stopPropagation()" onchange="MXW.segs[${i}].loop = this.value === '1'; mxRender()"><option value="1"${s.loop !== false ? ' selected' : ''}>${pt('повторять по кругу', 'loop')}</option><option value="0"${s.loop === false ? ' selected' : ''}>${pt('один раз, дальше тишина', 'once, then silence')}</option></select></label></div></div>`; }).join('');
+  $('mx_addseg').textContent = pt('+ Добавить участок', '+ Add a part');
+  $('mx_rel').value = W.rel; $('mx_rel_v').textContent = `${W.rel} ${pt('дБ', 'dB')}`; $('mx_duck').checked = !!W.duck; $('mx_dk').value = W.duck_db; $('mx_dk_v').textContent = `${W.duck_db} ${pt('дБ', 'dB')}`;
+  $('mx_dkrow').style.display = W.duck ? '' : 'none';
+  $('mx_bar_m').style.width = Math.max(6, Math.min(92, 85 + W.rel * 2.6)) + '%';
+  $('mx_txt').textContent = pt(`Музыка тише голоса на ${-W.rel} дБ${W.duck ? `; пока диктор говорит, она прижимается ещё на ${W.duck_db} дБ, в паузах поднимается обратно` : ''}.`, 'Music level relative to the voice.');
+  $('mx_close_t').textContent = pt('Отмена', 'Cancel'); $('mx_save').textContent = pt('Сохранить', 'Save');
+  $('mx_l_rel').textContent = pt('Музыка тише голоса', 'Music below voice'); $('mx_l_duck').textContent = pt('приглушать под голос', 'duck under voice'); $('mx_l_dk').textContent = pt('прижимать на', 'duck by');
+  $('mx_l_listen').textContent = pt('Послушать 15 секунд:', 'Listen (15 s):'); $('mx_b_start').textContent = pt('▶ С начала', '▶ From start'); $('mx_b_mid').textContent = pt('▶ С середины', '▶ From the middle'); $('mx_b_at').textContent = '▶';
+  $('mx_lib_btn').textContent = pt('Библиотека треков…', 'Track library…');
+}
+function mxEdit(i, k, val) {
+  const f = mxParse(val, MXTOT);
+  if (isNaN(f)) { toast(pt('Не понял значение. Напишите долю («33%») или время («10:04»); время работает, когда выбрана озвучка.', 'Use a percentage or a time.'), 5000); mxRender(); return; }
+  const s = MXW.segs[i]; s[k] = f; if (s.b <= s.a + 0.002) { if (k === 'a') s.b = Math.min(1, s.a + 0.05); else s.a = Math.max(0, s.b - 0.05); } mxRender();
+}
+function mxDel(i) { MXW.segs.splice(i, 1); MXSEL = Math.max(0, Math.min(MXSEL, MXW.segs.length - 1)); mxRender(); }
+function mxChange(i) { mxOpenLib(id => { MXW.segs[i].track = id; mxRender(); }); }
+function mxSpecOf(w) { return {on: true, segs: w.segs.map(s => ({track: s.track, a: s.a, b: s.b, loop: s.loop !== false})), rel: w.rel, duck: !!w.duck, duck_db: w.duck_db}; }
+function mxSave() {
+  if (MXW.on && !MXW.segs.length) { toast(pt('Добавьте хотя бы один участок или выключите музыку.', 'Add a part or turn the music off.'), 4000); return; }
+  MXW.segs.sort((a, b) => a.a - b.a);
+  if (MXTGT) { MXTGT.onSave(mxCopy(MXW)); mxClose(); return; }
+  MXV = mxCopy(MXW); mxLabels(); mxClose(); try { s3Paint(); } catch (e) {}
+  toast(MXV.on && MXV.segs.length ? pt('Музыка сохранена: ', 'Music saved: ') + esc(mxSummary(MXV)) : pt('Музыка выключена.', 'Music off.'), 3500);
+}
+async function mxListen(mode) {
+  if (!MXW.segs.length) { toast(pt('Добавьте хотя бы один участок.', 'Add a part first.'), 3000); return; }
+  const at = mode === 'at' ? mxParseSec($('mx_at').value) : 0;
+  if (mode === 'at' && isNaN(at)) { toast(pt('Укажите время в формате мм:сс.', 'Use mm:ss.'), 3000); return; }
+  $('mx_hint').textContent = pt('Готовлю 15 секунд…', 'Preparing 15 seconds…'); ['mx_b_start', 'mx_b_mid', 'mx_b_at'].forEach(id => $(id).disabled = true);
+  let r = null; try { r = await pywebview.api.music_preview(mxSpecOf(MXW), audioPath || '', at, mode); } catch (e) { r = {ok: false, error: String(e)}; }
+  ['mx_b_start', 'mx_b_mid', 'mx_b_at'].forEach(id => $(id).disabled = false);
+  if (!r || !r.ok) { $('mx_hint').textContent = (r && r.error) || ''; return; }
+  $('mx_hint').textContent = pt(`Играет кусок с ${mxFmt(r.start)} · голос ${r.voice_lufs} LUFS, музыка ${r.music_lufs} LUFS`, `From ${mxFmt(r.start)} · voice ${r.voice_lufs} LUFS, music ${r.music_lufs} LUFS`);
+  const a = $('mx_aud'); a.src = r.audio; a.play().catch(() => {});
+}
+function mxParseSec(str) { const p = String(str || '').trim().split(':').map(Number); if (!str || p.some(isNaN)) return NaN; return p.reduce((a, x) => a * 60 + x, 0); }
+// --- библиотека треков ---
+async function mxOpenLib(pick) {
+  MXPICK = pick || null; MXADD = null; await mxLoadLib(); mxLibRender(); $('mx_lib_dlg').classList.add('show');
+}
+$('mx_lib_dlg').addEventListener('click', e => { if (e.target === $('mx_lib_dlg')) mxLibClose(); });
+function mxLibClose() { $('mx_lib_dlg').classList.remove('show'); MXPICK = null; try { $('mx_aud').pause(); } catch (e) {} }
+function mxLibRender() {
+  $('mxl_t').textContent = MXPICK ? pt('Выберите трек', 'Choose a track') : pt('Библиотека треков', 'Track library');
+  $('mxl_n').textContent = pt('Добавьте трек и назовите его по смыслу, например «для драматических историй». Файл копируется в папку программы.', 'Add a track and give it a name.');
+  $('mxl_list').innerHTML = MXLIB.length ? MXLIB.map(t => `<div class="mxl${t.ok ? '' : ' bad'}"><div class="mxt"><input type="text" class="mxname" value="${esc(t.name)}" onchange="mxRenameT('${t.id}', this.value)"><small>${esc(t.orig)} · ${mxFmt(t.dur)}${t.ok ? '' : ' · ' + pt('файл не найден', 'file missing')}</small></div>`
+    + `<button class="ghost" onclick="mxClip('${t.id}')">▶</button>${MXPICK && t.ok ? `<button class="primary" onclick="mxChoose('${t.id}')">${pt('Выбрать', 'Use')}</button>` : ''}<button class="ghost sq" title="${pt('Удалить из библиотеки', 'Delete')}" onclick="mxDelT('${t.id}')">×</button></div>`).join('')
+    : `<div class="mxl empty">${pt('Библиотека пуста.', 'The library is empty.')}</div>`;
+  $('mxl_add').innerHTML = MXADD ? `<input type="text" id="mxl_name" value="${esc(MXADD.name)}" spellcheck="false" placeholder="${esc(pt('название трека', 'track name'))}"><button class="primary" onclick="mxAddOk()">${pt('Добавить', 'Add')}</button><button class="ghost" onclick="MXADD = null; mxLibRender()">${pt('Отмена', 'Cancel')}</button>`
+    : `<button class="ghost" onclick="mxAddPick()">${pt('+ Добавить трек…', '+ Add a track…')}</button>`;
+  $('mxl_close').textContent = pt('Закрыть', 'Close');
+}
+async function mxAddPick() { const r = await pywebview.api.music_pick(); if (r && r.ok) { MXADD = r; mxLibRender(); const i = $('mxl_name'); if (i) { i.focus(); i.select(); } } }
+async function mxAddOk() {
+  const name = ($('mxl_name').value || '').trim(); const r = await pywebview.api.music_add(MXADD.path, name);
+  if (!r || !r.ok) { toast(esc((r && r.error) || ''), 6000); return; }
+  MXLIB = r.lib; MXADD = null; mxLibRender();
+  if (MXPICK) { const f = MXPICK; mxLibClose(); f(r.id); }
+}
+async function mxRenameT(id, name) { const r = await pywebview.api.music_rename(id, name); if (Array.isArray(r)) { MXLIB = r; if (MXW) mxRender(); } }
+async function mxDelT(id) {
+  if (!confirm(pt('Удалить трек из библиотеки? Участки с этим треком останутся без музыки.', 'Delete the track from the library?'))) return;
+  const r = await pywebview.api.music_delete(id); if (Array.isArray(r)) { MXLIB = r; if (MXW) { MXW.segs = MXW.segs.filter(s => s.track !== id); mxRender(); } mxLibRender(); }
+}
+async function mxClip(id) { const r = await pywebview.api.music_clip(id); if (r && r.ok) { const a = $('mx_aud'); a.src = r.audio; a.play().catch(() => {}); } else toast(esc((r && r.error) || ''), 5000); }
+function mxChoose(id) { const f = MXPICK; mxLibClose(); if (f) f(id); }
+
 document.addEventListener('keydown', e => {  // Esc закрывает открытую панель настроек (как «Отмена»)
   if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
   if ($('hero_view').classList.contains('show')) { heroBack(); e.preventDefault(); return; }
+  if ($('mx_lib_dlg').classList.contains('show')) { mxLibClose(); e.preventDefault(); return; }
+  if ($('music_dlg').classList.contains('show')) { mxClose(); e.preventDefault(); return; }
   for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])
     if ($(dlg) && $(dlg).classList.contains('show') && $(btn)) { $(btn).click(); e.preventDefault(); return; }
   if ($('keys_dlg').classList.contains('show')) { $('keys_dlg').classList.remove('show'); return; }
@@ -4109,7 +4316,7 @@ document.addEventListener('keydown', e => {  // Esc закрывает откр�
 // клик по пустому месту (затемнённому фону) закрывает боковую панель — как Esc
 (function () {
   let down = null;
-  const ids = ['fx_dlg', 'hero_dlg', 'sub_dlg', 'tr_dlg', 'stock_dlg', 'keys_dlg', 'set_dlg', 'queue_dlg'];
+  const ids = ['fx_dlg', 'hero_dlg', 'sub_dlg', 'tr_dlg', 'stock_dlg', 'keys_dlg', 'set_dlg', 'queue_dlg', 'music_dlg'];
   document.addEventListener('mousedown', e => { down = e.target; }, true);
   document.addEventListener('click', e => {
     const t = e.target;
@@ -4482,7 +4689,8 @@ lbEditLabels();
 // ===== новая озвучка для готового ролика =====
 let RX = null;
 function openRemix(r) {
-  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null, trans: null, out: ''};
+  RX = {id: r.id, file: '', look: '', fx: null, fxNone: false, sub: null, subSrc: null, trans: null, out: '', music: null, mxMode: 'orig', mxOrig: null};
+  pywebview.api.job_music(r.id).then(m => { RX.mxOrig = m; if ($('rx_dlg').classList.contains('show')) rxMx(); });
   $('rx_l8').textContent = pt('Куда сохранить', 'Save to'); $('rx_outb').textContent = pt('Выбрать', 'Choose'); $('rx_out').value = '';
   $('rx_out').placeholder = pt('туда же, где оригинал', 'next to the original');
   pywebview.api.remix_default_dir(r.id).then(d => { if (!RX.out) $('rx_out').placeholder = d ? pt('туда же, где оригинал: ', 'next to the original: ') + d : pt('как в настройках', 'as in settings'); });
@@ -4509,6 +4717,15 @@ function openRemix(r) {
   $('rx_trb').onclick = () => openTrans({t: RX.trans, onSave: t => { RX.trans = t; trOpts(); $('rx_mot').value = 'on'; rxRender(); }});
   $('rx_tr').onchange = () => { if ($('rx_tr').value !== 'own') { RX.trans = null; trOpts(); } rxRender(); };
   $('rx_sub').addEventListener('change', () => rxRender());
+  const rxMx = () => {
+    $('rx_l9').textContent = pt('Музыка', 'Music'); $('rx_mxb').textContent = pt('Настроить ›', 'Set up ›');
+    const orig = RX.mxOrig ? pt('как в оригинале: ', 'as the original: ') + mxSummary(RX.mxOrig) : pt('как в оригинале (без музыки)', 'as the original (none)');
+    $('rx_mx').innerHTML = `<option value="orig">${esc(orig)}</option><option value="none">${pt('без музыки', 'no music')}</option>` + (RX.music ? `<option value="own">${esc(pt('своя: ', 'own: ') + mxSummary(RX.music))}</option>` : '');
+    $('rx_mx').value = RX.mxMode; rxRender();
+  };
+  $('rx_mx').onchange = () => { RX.mxMode = $('rx_mx').value; rxMx(); };
+  $('rx_mxb').onclick = async () => { await mxLoadLib(); openMusic({v: RX.music || RX.mxOrig || mxNew(), onSave: v => { RX.music = v.on && v.segs.length ? v : null; RX.mxMode = RX.music ? 'own' : 'none'; rxMx(); }}); };
+  setTimeout(rxMx, 0);  // rxRender объявлен ниже
   $('rx_sub').value = $('use_subs').checked ? 'on' : 'off';
   const rxRender = () => {
     const tpl = RX.look ? pt(`из шаблона «${RX.look}»`, `from template`) : pt('как сейчас', 'as now');
@@ -4524,7 +4741,8 @@ function openRemix(r) {
     $('rx_chips').innerHTML = [RX.look ? pt('шаблон: ', 'template: ') + RX.look : pt('шаблон не берём', 'no template'),
       RX.fxNone ? pt('без эффектов', 'no effects') : pt('эффекты: ', 'effects: ') + (RX.fx ? fxSummary(RX.fx) : (RX.look ? pt('из шаблона', 'from template') : fxSummary(FXS))),
       $('rx_sub').value === 'off' ? pt('без субтитров', 'no subtitles') : pt('субтитры включены', 'subtitles on'),
-      trTxt.replace(/^как сейчас.*/i, pt('переходы как сейчас', 'transitions as now'))].map(x => `<span>${esc(x)}</span>`).join('');
+      trTxt.replace(/^как сейчас.*/i, pt('переходы как сейчас', 'transitions as now')),
+      RX.mxMode === 'none' ? pt('без музыки', 'no music') : RX.mxMode === 'own' ? pt('музыка: своя', 'music: own') : (RX.mxOrig ? pt('музыка как в оригинале', 'music as original') : pt('без музыки', 'no music'))].map(x => `<span>${esc(x)}</span>`).join('');
   };
   $('rx_mot').innerHTML = [['on', 'с движением камеры и переходами', 'with motion and transitions'], ['off', 'без движения (статичные кадры, склейки встык)', 'no motion']]
     .map(([v, a, b]) => `<option value="${v}">${pt(a, b)}</option>`).join('');
@@ -4551,6 +4769,7 @@ function openRemix(r) {
     if (RX.out) o.out_dir = RX.out;
     if (RX.trans && $('rx_tr').value === 'own') o.transitions = RX.trans; else if ($('rx_tr').value) o.transitions = $('rx_tr').value;
     if (RX.look) o.look_name = RX.look;
+    if (RX.mxMode === 'none') o.music = 'none'; else if (RX.mxMode === 'own' && RX.music) o.music = mxSpecOf(RX.music);
     if (RX.fxNone) o.fx = 'none'; else if (RX.fx) o.fx = RX.fx;
     if (RX.sub) { o.sub_style = RX.sub; if (RX.subSrc) o.sub_source = RX.subSrc; }
     const x = await pywebview.api.remix_job(RX.id, RX.file, o);

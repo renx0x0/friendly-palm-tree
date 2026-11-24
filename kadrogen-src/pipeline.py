@@ -4762,12 +4762,161 @@ def _dur(sec):
     return f"{sec // 3600} ч {sec % 3600 // 60} мин" if sec >= 3600 else f"{sec // 60} мин {sec % 60} с" if sec >= 60 else f"{sec} с"
 
 
+# ===================== фоновая музыка =====================
+MUSIC_FADE_IN, MUSIC_FADE_OUT, MUSIC_XF = 2.0, 3.0, 2.0   # плавность: вход, выход, перекрытие участков
+MUSIC_EXT = (".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac", ".opus")
+
+
+def music_lib_dir():
+    return os.path.join(data_dir(), "music")
+
+
+def music_resolve(cfg, ui):
+    """Настройка музыки из окна → {"segs": [{file, a, b, loop}], rel, duck, duck_db} или None. Треки берутся из библиотеки по id."""
+    if not isinstance(ui, dict) or not ui.get("on"):
+        return None
+    lib = {t.get("id"): t for t in (cfg.get("music_lib") or []) if isinstance(t, dict)}
+    segs = []
+    for s in ui.get("segs") or []:
+        t = lib.get((s or {}).get("track"))
+        f = (t or {}).get("file") or ""
+        if not (f and os.path.isfile(f)):
+            log(f"музыка: трека «{(t or {}).get('name') or (s or {}).get('track')}» нет на диске — участок пропущен")
+            continue
+        try:
+            a = max(0.0, min(1.0, float(s.get("a", 0))))
+            b = max(0.0, min(1.0, float(s.get("b", 1))))
+        except (TypeError, ValueError):
+            continue
+        if b - a < 0.002:
+            continue
+        segs.append({"file": f, "a": a, "b": b, "loop": s.get("loop", True) is not False})
+    if not segs:
+        return None
+    try:
+        rel = max(-40.0, min(-3.0, float(ui.get("rel", -18))))
+    except (TypeError, ValueError):
+        rel = -18.0
+    try:
+        dk = max(3.0, min(10.5, float(ui.get("duck_db", 9))))
+    except (TypeError, ValueError):
+        dk = 9.0
+    return {"segs": segs, "rel": rel, "duck": ui.get("duck", True) is not False, "duck_db": dk}
+
+
+def _lufs(path, seconds=None):
+    """Интегральная громкость файла (LUFS); тишина — −70."""
+    args = [ffmpeg_bin(), "-hide_banner", "-nostats"]
+    if seconds:
+        args += ["-t", str(seconds)]
+    args += ["-i", path, "-filter_complex", "ebur128", "-f", "null", "-"]
+    r = subprocess.run(args, capture_output=True, creationflags=NO_WINDOW)
+    txt = r.stderr.decode(errors="replace")
+    found = re.findall(r"I:\s+(-?\d+(?:\.\d+)?)\s+LUFS", txt)
+    return float(found[-1]) if found else -70.0
+
+
+def music_plan(segs, total, offset=0.0, span=None):
+    """Участки в секундах относительно начала выбранного куска: [(файл, начало, конец, loop, плавный_вход, плавный_выход)].
+    Соседние участки перекрываются на MUSIC_XF — стык без щелчка."""
+    end_all = span if span else total - offset
+    out = []
+    n = len(segs)
+    for i, s in enumerate(segs):
+        s0, e0 = s["a"] * total - offset, s["b"] * total - offset
+        has_prev = i > 0 and abs(segs[i - 1]["b"] - s["a"]) < 0.02
+        has_next = i < n - 1 and abs(segs[i + 1]["a"] - s["b"]) < 0.02
+        st = s0 - (MUSIC_XF / 2 if has_prev else 0)
+        en = e0 + (MUSIC_XF / 2 if has_next else 0)
+        fi = MUSIC_XF if has_prev else MUSIC_FADE_IN
+        fo = MUSIC_XF if has_next else MUSIC_FADE_OUT
+        if en <= 0 or st >= end_all:
+            continue
+        out.append((s["file"], st, en, s["loop"], fi, fo))
+    return out
+
+
+def build_music_mix(voice, segs, total, rel_db, duck, duck_db, out_path, offset=0.0, span=None, voice_lufs=None):
+    """Голос + музыка → out_path (m4a). total — длина всей озвучки (для долей), offset/span — кусок для прослушивания.
+    Музыка подгоняется так, чтобы её громкость была на rel_db ниже голоса; под речью прижимается на duck_db."""
+    plan = music_plan(segs, total, offset, span)
+    if not plan:
+        raise RuntimeError("нет участков музыки в этом куске")
+    work = out_path + ".work"
+    os.makedirs(work, exist_ok=True)
+    try:
+        # 1) «постель» из участков: у каждого свой трек, повтор по кругу, плавный вход и выход
+        args, filt, labels = [], [], []
+        for k, (f, st, en, loop, fi, fo) in enumerate(plan):
+            ss = max(0.0, st)
+            ln = en - ss
+            skip = max(0.0, -st)  # участок уже идёт к началу куска — входим в трек не с нуля
+            if loop:
+                args += ["-stream_loop", "-1"]
+            if skip > 0:
+                args += ["-ss", f"{skip:.2f}"]
+            args += ["-i", f]
+            fade_in = min(fi, ln / 2)
+            fade_out = min(fo, ln / 2)
+            fl = (f"[{k}:a]aresample=44100,aformat=channel_layouts=stereo,atrim=0:{ln:.3f},asetpts=PTS-STARTPTS,"
+                  f"afade=t=in:st=0:d={fade_in:.2f},afade=t=out:st={max(0.0, ln - fade_out):.3f}:d={fade_out:.2f},"
+                  f"adelay={int(ss * 1000)}|{int(ss * 1000)}[m{k}]")
+            filt.append(fl)
+            labels.append(f"[m{k}]")
+        if len(plan) == 1:
+            filt.append("[m0]anull[bed]")
+        else:
+            filt.append("".join(labels) + f"amix=inputs={len(plan)}:duration=longest:dropout_transition=0:normalize=0[bed]")
+        bed = os.path.join(work, "bed.flac")
+        run_ffmpeg([*args, "-filter_complex", ";".join(filt), "-map", "[bed]", "-c:a", "flac", bed])
+        # 2) громкость: голос и музыка в LUFS → добавка в дБ
+        lv = voice_lufs if voice_lufs is not None else _lufs(voice)
+        lm = _lufs(bed)
+        gain = max(-40.0, min(20.0, (lv + rel_db) - lm))
+        log(f"музыка: голос {lv:.1f} LUFS, музыка {lm:.1f} LUFS → добавка {gain:+.1f} дБ (цель: на {abs(rel_db):.0f} дБ тише голоса)")
+        # 3) смешивание; под речью музыка прижимается (sidechain по голосу)
+        flt = f"[1:a]volume={gain:.2f}dB[mu]"
+        if duck:
+            thr = max(0.001, min(1.0, 10 ** ((lv - 12.0) / 20.0)))
+            ratio = 1.0 / (1.0 - min(duck_db, 10.5) / 12.0)
+            flt += (f";[0:a]asplit=2[v][sc];[mu][sc]sidechaincompress=threshold={thr:.4f}:ratio={ratio:.2f}:attack=30:release=500:makeup=1:detection=rms[md]"
+                    f";[v][md]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97[out]")
+        else:
+            flt += ";[0:a][mu]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,alimiter=limit=0.97[out]"
+        run_ffmpeg(["-i", voice, "-i", bed, "-filter_complex", flt, "-map", "[out]", "-c:a", "aac", "-b:a", "192k", out_path])
+        return {"voice_lufs": lv, "music_lufs": lm, "gain": gain}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def mix_music(spec, audio_path, job_dir, progress=None):
+    """Монтаж: озвучка + фоновая музыка → новый файл звука. Любая неудача — ролик идёт без музыки, а не падает."""
+    m = spec.get("music")
+    if not m or not m.get("segs"):
+        return audio_path
+    try:
+        if progress:
+            progress("render", 0, 0, "микшер: музыка под озвучку")
+        total = audio_duration(audio_path)
+        out = os.path.join(job_dir, "audio_music.m4a")
+        t0 = time.time()
+        build_music_mix(audio_path, m["segs"], total, m.get("rel", -18.0), m.get("duck", True), m.get("duck_db", 9.0), out)
+        log(f"время: музыка (микшер) — {_dur(time.time() - t0)}")
+        return out
+    except Cancelled:
+        raise
+    except Exception as e:
+        log(f"музыка: не получилось ({str(e)[:200]}) — ролик собираю без музыки")
+        return audio_path
+
+
 def finish_video(spec, progress):
     """Монтаж готового задания: клипы, переходы, звук, субтитры, копии скорости, уборка. spec — из make_video."""
     apply_look(spec.get("look"))
     scenes, img_dir, job_dir, out_mp4 = spec["scenes"], spec["img_dir"], spec["job_dir"], spec["out_mp4"]
     videos = {int(k): v for k, v in (spec.get("videos") or {}).items()}
     audio_path, motion = spec["audio_path"], spec.get("motion")
+    audio_path = mix_music(spec, audio_path, job_dir, progress)  # фоновая музыка под озвучку (если включена)
     t_asm = time.time()
     if spec.get("subtitles"):
         raw_mp4 = os.path.join(job_dir, "nosubs.mp4")
@@ -4904,7 +5053,7 @@ def named_output(out_dir, name, job_dir, limit=120):
 def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, mode="images", style_key=None, use_refs=False,
                subtitles=False, motion=False, script_text=None, tts_service=None, tts_voice=None, fastgen_quality=None, rewrite=None,
                video_first=0, hd=False, profile=None, voice_file=None, prompts_file=None, remix_from=None, look=None, assembly_hook=None,
-               out_name=None, out_sub=None):
+               out_name=None, out_sub=None, music=None):
     """remix_from — папка готового ролика: его картинки и клипы под новую озвучку, без генерации;
     look — разовые настройки вида {"transitions": пресет}; profile — имя профиля (None — из настроек, "" — без профиля); voice_file — готовая озвучка к сценарию;
     prompts_file — готовые промпты из .txt (профиль и модель для промптов тогда не нужны)."""
@@ -5161,7 +5310,12 @@ def make_video(audio_path=None, progress_cb=None, out_dir=None, provider=None, m
         sub_words = subtitle_words(cfg, job_dir, tr, bool((script_text and script_text.strip()) or (rewrite and rewrite.get("on"))))
     spec = {"version": 1, "scenes": scenes, "img_dir": img_dir, "videos": {str(k): v for k, v in videos.items()}, "audio_path": audio_path,
             "job_dir": job_dir, "out_mp4": out_mp4, "motion": bool(motion), "subtitles": bool(subtitles), "srt_path": srt_path,
-            "sub_words": sub_words, "sub_style": sub_style_of(cfg), "speed_copies": bool(cfg.get("speed_copies")), "look": look_snapshot()}
+            "sub_words": sub_words, "sub_style": sub_style_of(cfg), "speed_copies": bool(cfg.get("speed_copies")), "look": look_snapshot(),
+            "music": music_resolve(cfg, music)}
+    try:  # настройка музыки запоминается за роликом: «Новая озвучка» по умолчанию берёт её же
+        write_json(os.path.join(job_dir, "music.json"), music if (isinstance(music, dict) and music.get("on")) else {"on": False})
+    except Exception:
+        pass
     spec_path = os.path.join(job_dir, ASSEMBLE_SPEC)
     write_json(spec_path, spec)
     if assembly_hook and assembly_hook(spec_path, out_mp4, not (bad_img or bad_vid)):
