@@ -1231,14 +1231,15 @@
   #rw { display:none !important; }
   /* ===== p100: панель героя ===== */
   #hero_view { position:fixed; inset:0; z-index:66; display:none; place-items:center; background:rgba(0,0,0,.72); } #hero_view.show { display:grid; }
-  #hero_view .hvbox { position:relative; width:min(1000px, calc(100% - 48px)); max-height:calc(100vh - 48px); display:flex; gap:22px; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--bg); box-sizing:border-box; }
+  #hero_view .hvbox { position:relative; width:min(1480px, calc(100% - 40px)); height:min(900px, calc(100vh - 40px)); max-height:calc(100vh - 40px); display:flex; gap:22px; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--bg); box-sizing:border-box; }
   #hero_view .hvx { position:absolute; right:14px; top:14px; z-index:2; }
-  #hero_view .hvpic { flex:1 1 55%; min-width:0; display:grid; place-items:center; background:var(--bg2); border-radius:12px; overflow:hidden; min-height:300px; } #hero_view #hd_big { max-width:100%; max-height:calc(100vh - 120px); object-fit:contain; display:block; }
+  #hero_view .hvpic { flex:1 1 62%; min-width:0; display:grid; place-items:center; background:var(--bg2); border-radius:12px; overflow:hidden; min-height:300px; } #hero_view #hd_big { width:100%; height:100%; max-height:calc(min(900px, 100vh - 40px) - 48px); object-fit:contain; display:block; }
   #hero_view .nopic { color:var(--ink2); padding:40px; text-align:center; }
-  #hero_view .hvfm { flex:1 1 45%; min-width:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding-right:6px; } #hero_view .hvfm b { padding-right:44px; }
-  #hero_view label { display:block; font-size:12px; color:var(--ink2); margin-bottom:4px; } #hero_view textarea { display:block !important; width:100%; box-sizing:border-box; height:130px; font:13px/1.45 Inter, system-ui, sans-serif; resize:vertical; }
+  #hero_view .hvfm { flex:1 1 38%; min-width:0; display:flex; flex-direction:column; gap:12px; overflow-y:auto; padding-right:6px; } #hero_view .hvfm b { padding-right:44px; }
+  #hero_view label { display:block; font-size:12px; color:var(--ink2); margin-bottom:4px; } #hero_view textarea { display:block !important; width:100%; box-sizing:border-box; height:210px; font:14px/1.5 Inter, system-ui, sans-serif; resize:vertical; }
   #hero_view .row { display:flex; flex-wrap:wrap; gap:8px; } #hero_view .row button { height:38px; padding:0 14px; letter-spacing:0; text-transform:none; font-size:13px; }
   @media (max-width:900px) { #hero_view .hvbox { flex-direction:column; overflow-y:auto; } }
+  @media (min-width:1900px) { #hero_view .hvbox { zoom:1.15; } }
   #hero_list .hero { cursor:pointer; } #hero_list .hero:hover { border-color:var(--acc); }
   /* ===== p102: «монтируется в фоне» — карточка в левом меню, а не плашка поверх кнопок ===== */
   #side .asmbar { position:static; right:auto; bottom:auto; max-width:none; width:auto; display:none; flex-wrap:wrap; align-items:center; gap:6px 8px; padding:10px 12px; border-radius:var(--r); background:var(--bg2); border:1px solid color-mix(in srgb, #e8a33a 45%, var(--line)); box-shadow:none; z-index:auto; }
