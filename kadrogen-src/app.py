@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p105"
+VERSION = "1.7.1-p106"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -101,7 +101,7 @@ def queue_save():
 def queue_public():
     out = []
     for x in QUEUE:
-        d = {k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file", "out_sub", "audio")}
+        d = {k: x.get(k) for k in ("id", "title", "name", "source", "voice", "style", "status", "result", "error", "profile", "out_dir", "prompts_file", "out_sub", "audio", "origin_title")}
         d["words"] = len(str(x.get("script") or "").split())
         out.append(d)
     return out
@@ -1752,6 +1752,43 @@ class Api:
             QUEUE.append(entry)
         queue_save()
         return {"ok": True, "items": queue_public()}
+
+    def queue_detail(self, qid):
+        """Подробности задания очереди: что за ролик, из чего, с каким оформлением и музыкой — для окна по клику на карточку."""
+        with LOCK:
+            x = next((i for i in QUEUE if i.get("id") == qid), None)
+            if x is None:
+                return {"ok": False}
+            waiting = [i for i in QUEUE if i.get("status") == "queued"]
+            pos = waiting.index(x) + 1 if x in waiting else 0
+            args, opts = dict(x.get("args") or {}), dict(x.get("opts") or {})
+            x = dict(x)
+        d = {"ok": True, "id": qid, "title": x.get("title"), "status": x.get("status"), "pos": pos, "total": len(waiting), "name": x.get("name"),
+             "voice": x.get("voice") or opts.get("voice") or args.get("voice") or "", "error": x.get("error"), "result": x.get("result")}
+        if x.get("source") == "remix":
+            d["kind"] = "remix"
+            origin = args.get("remix_from") or ""
+            rec = pipeline.read_json(os.path.join(origin, "job.json"), {}) if origin else {}
+            d["origin"] = {"id": os.path.basename(origin), "title": (rec or {}).get("title") or x.get("origin_title") or os.path.basename(origin)}
+            d["audio"] = args.get("voice_file") or args.get("audio") or ""
+            d["out_dir"] = args.get("out_dir") or ""
+            look = args.get("look") or {}
+            d["fx"], d["transitions"] = look.get("fx") or {}, look.get("transitions") or {}
+            d["subtitles"], d["motion"] = bool(args.get("subtitles")), bool(args.get("motion"))
+            d["music"] = args.get("music") if isinstance(args.get("music"), dict) else None
+            d["style"] = args.get("style") or ""
+        else:
+            d["kind"] = "new"
+            src = opts or x
+            d["audio"] = src.get("audio") or ""
+            d["words"] = len(str(src.get("script") or "").split())
+            d["profile"] = src.get("profile") or ""
+            d["prompts_file"] = src.get("prompts_file") or ""
+            d["out_dir"] = src.get("out_dir") or ""
+            d["music"] = src.get("music") if isinstance(src.get("music"), dict) else None
+            d["style"] = src.get("style") or ""
+            d["subtitles"] = opts.get("subtitles") if opts else None
+        return d
 
     def queue_set_name(self, qid, name):
         """Название ролика в очереди — так будет назван готовый файл."""
@@ -3441,7 +3478,8 @@ class Api:
             busy = STATE["running"] or STATE["preparing"] or STATE.get("queue_active")
             if busy:  # сейчас делается другой ролик — в очередь, запустится сам после него
                 entry = {"id": uuid.uuid4().hex[:8], "title": title[:80], "name": name or None, "source": "remix", "script": None, "audio": None,
-                         "rewrite": None, "voice": "", "style": "", "status": "queued", "result": None, "error": None, "args": args}
+                         "rewrite": None, "voice": "", "style": "", "status": "queued", "result": None, "error": None, "args": args,
+                         "origin_title": str(rec.get("title") or base)[:80]}
                 QUEUE.append(entry)
                 pos = len(QUEUE)
         if busy:

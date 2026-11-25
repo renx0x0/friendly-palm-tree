@@ -1275,6 +1275,14 @@
   .mxlist { flex:1; min-height:60px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; } .mxl { display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg2); } .mxl.bad { border-color:#7a3a3a; } .mxl.empty { color:var(--ink2); justify-content:center; }
   .mxl .mxt { display:flex; flex-direction:column; gap:3px; } .mxname { height:32px; font-size:14px; font-weight:600; } .mxl button { height:32px; padding:0 12px !important; letter-spacing:0 !important; text-transform:none !important; font-size:13px !important; }
   .mxaddrow { display:flex; gap:8px; align-items:center; } .mxaddrow input { flex:1; height:38px; } .mxaddrow button { height:38px; padding:0 16px !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; }
+  /* ===== p106: подробности ролика из очереди ===== */
+  #qd_dlg { position:fixed; inset:0; z-index:62; display:none; place-items:center; background:rgba(0,0,0,.6); } #qd_dlg.show { display:grid; }
+  #qd_dlg .box { width:min(760px, calc(100% - 48px)); max-height:calc(100vh - 40px); box-sizing:border-box; display:flex; flex-direction:column; gap:14px; padding:24px 26px 20px; border:1px solid var(--line); border-radius:16px; background:var(--bg); overflow:hidden; }
+  #qd_dlg h3 { margin:0 !important; font:700 18px/1.3 Inter, system-ui, sans-serif !important; }
+  .qdbody { overflow-y:auto; display:flex; flex-direction:column; gap:12px; min-height:0; } .qdbody .rvtbl { margin:0; }
+  .qdfoot { display:flex; gap:10px; align-items:center; flex-wrap:wrap; } .qdfoot button { height:38px; padding:0 16px !important; letter-spacing:0 !important; text-transform:none !important; font-size:14px !important; }
+  .qdchips { display:flex; flex-wrap:wrap; gap:6px; padding:12px 18px; } .qdchips span { padding:4px 10px; border-radius:12px; background:var(--bg3); font-size:13px; }
+  .qdwhy { padding:12px 16px; border:1px solid #7a3a3a; border-radius:12px; color:var(--ink); font-size:13px; line-height:1.5; }
 </style>
 </head>
 <body>
@@ -1427,6 +1435,9 @@
   <div class="mxlist" id="mxl_list"></div><div class="mxaddrow" id="mxl_add"></div>
   <div style="display:flex"><span style="flex:1"></span><button class="ghost" id="mxl_close" onclick="mxLibClose()"></button></div></div></div>
 <audio id="mx_aud" hidden></audio>
+<div id="qd_dlg"><div class="box"><div class="jdhead"><div class="jdt"><h3 id="qd_t"></h3><div class="note" id="qd_s"></div></div><button class="jdx" onclick="qdClose()" aria-label="Закрыть"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m2 2 8 8M10 2l-8 8"/></svg></button></div>
+  <div class="qdbody" id="qd_body"></div>
+  <div class="qdfoot" id="qd_foot"></div></div></div>
 <div id="set_dlg"><div class="box"><h3 id="st_t"></h3>
   <div class="setg"><div class="sl" id="st_l_theme"></div><div class="seg2" id="st_theme"></div></div>
   <div class="setg"><div class="sl" id="st_l_col"></div><div class="sd_pal" id="sd_pal"></div></div>
@@ -2760,7 +2771,7 @@ function homeRender() {
   const list = q ? all.filter(r => (r.title + ' ' + (r.profile || '') + ' ' + (r.children || []).map(k => k.title).join(' ')).toLowerCase().includes(q)) : all;
   if (q && !list.length) { g.innerHTML = `<div class="hnew" style="cursor:default"><b>${pt('Ничего не найдено', 'Nothing found')}</b><span>${pt('Попробуйте другое слово из названия ролика или профиля.', 'Try another word.')}</span></div>`; return; }
   list.sort((a, b) => (b.status === 'running') - (a.status === 'running'));
-  let qcards = ''; try { qcards = q ? '' : queueItems.filter(x => x.status === 'queued').map((x, k) => `<div class="hcard"><div class="cv" onclick="openQueue()"><span class="chip">${pt(`В очереди · ${k + 1}-й`, `Queued · #${k + 1}`)}</span></div><div class="bd"><div class="tt" title="${esc(x.title)}">${esc(x.title)}</div><div class="mt">${esc(x.prompts_file ? pt('готовые промпты', 'ready prompts') : x.profile || '')}${x.voice ? ' · ' + esc(x.voice) : ''}</div><div class="ac"><button class="main" onclick="openQueue()">${pt('Очередь', 'Queue')}</button></div></div></div>`).join(''); } catch (e) {}
+  let qcards = ''; try { qcards = q ? '' : queueItems.filter(x => x.status === 'queued').map((x, k) => `<div class="hcard" style="cursor:pointer" onclick="queueDetail('${x.id}')"><div class="cv"><span class="chip">${pt(`В очереди · ${k + 1}-й`, `Queued · #${k + 1}`)}</span></div><div class="bd"><div class="tt" title="${esc(x.title)}">${esc(x.title)}</div><div class="mt">${x.origin_title ? esc(pt('новая озвучка для «', 'new voice-over for «') + x.origin_title + '»') : esc(x.prompts_file ? pt('готовые промпты', 'ready prompts') : x.profile || '')}${x.voice ? ' · ' + esc(x.voice) : ''}</div><div class="ac"><button class="main" onclick="event.stopPropagation(); queueDetail('${x.id}')">${pt('Подробнее', 'Details')}</button><button onclick="event.stopPropagation(); openQueue()">${pt('Очередь', 'Queue')}</button></div></div></div>`).join(''); } catch (e) {}
   const run = list.filter(r => r.status === 'running'), other = list.filter(r => r.status !== 'running');
   g.innerHTML = run.map(homeCard).join('') + qcards + other.map(homeCard).join('') + `<button type="button" class="hnew" onclick="newVideo()">${plus}<b>${pt('Новый ролик', 'New video')}</b><span>${all.length ? pt('из озвучки, сценария или готовых промптов', 'from a voice-over, script or ready prompts')
     : pt('Роликов пока нет. Начните с озвучки, сценария или готовых промптов — программа проведёт по шагам.', 'No videos yet. Start from a voice-over, a script or ready prompts.')}</span></button>`;
@@ -4014,7 +4025,7 @@ function q7Card(q, n) {
     body = run && RUN ? `<div class="q7prog"><div class="q7bar"><i style="width:${RUN.pct}%"></i></div><div class="q7row"><span>${esc(RUN.stage)}</span><span>${RUN.pct}%${RUN.left ? ' · ' + pt('осталось ≈ ', '≈ ') + fmtMin(RUN.left) : ''}</span></div></div>`
       : `<div class="q7prog"><div class="q7row"><span>${pt('Картинки готовы, ролик монтируется в фоне, очередь уже работает над следующим.', 'Assembling in the background.')}</span></div></div>`;
   } else if (q.status === 'queued') {
-    head = `<div class="q7h"><span class="q7n">${n}</span><div class="q7t"><b title="${esc(q.title)}">${esc(q.title)}</b><small>${esc(q7Meta(q) || pt('готово к запуску', 'ready'))}</small></div>`
+    head = `<div class="q7h"><span class="q7n">${n}</span><div class="q7t" style="cursor:pointer" onclick="queueDetail('${q.id}')"><b title="${esc(q.title)}">${esc(q.title)}</b><small>${esc(q7Meta(q) || pt('готово к запуску', 'ready'))}</small></div>`
       + bt('sq', '↑', `queueOp('move','${q.id}',-1)`, pt('Выше', 'Up')) + bt('sq', '↓', `queueOp('move','${q.id}',1)`, pt('Ниже', 'Down'))
       + bt('', pt('Изменить', 'Edit'), `qToggle('${q.id}')`) + bt('', pt('Убрать', 'Remove'), `queueOp('remove','${q.id}')`) + `</div>`;
   } else if (q.status === 'done') {
@@ -4323,9 +4334,46 @@ async function mxDelT(id) {
 async function mxClip(id) { const r = await pywebview.api.music_clip(id); if (r && r.ok) { const a = $('mx_aud'); a.src = r.audio; a.play().catch(() => {}); } else toast(esc((r && r.error) || ''), 5000); }
 function mxChoose(id) { const f = MXPICK; mxLibClose(); if (f) f(id); }
 
+
+// ===== подробности ролика из очереди: клик по карточке на главной =====
+let QDID = '';
+function qdClose() { $('qd_dlg').classList.remove('show'); QDID = ''; }
+$('qd_dlg').addEventListener('click', e => { if (e.target === $('qd_dlg')) qdClose(); });
+async function queueDetail(id) {
+  let d = null; try { d = await pywebview.api.queue_detail(id); } catch (e) {}
+  if (!d || !d.ok) { toast(pt('Ролика уже нет в очереди.', 'The video is no longer in the queue.'), 3500); return; }
+  QDID = id;
+  const base = x => String(x || '').split(/[\\/]/).pop(), row = (k, v, link) => v ? `<div class="rvr"><span>${k}</span><span>${v}</span>${link || '<i></i>'}</div>` : '';
+  const stN = {queued: pt('ждёт своей очереди', 'waiting'), running: pt('делается сейчас', 'running'), assembling: pt('монтируется', 'assembling'), done: pt('готов', 'done'), error: pt('ошибка', 'error'), stopped: pt('остановлен', 'stopped')};
+  $('qd_t').textContent = d.title || '';
+  $('qd_s').textContent = (stN[d.status] || d.status) + (d.pos ? pt(` · №${d.pos} из ${d.total}`, ` · #${d.pos} of ${d.total}`) : '');
+  const chips = [];
+  if (d.kind === 'remix') { chips.push(d.subtitles ? pt('субтитры включены', 'subtitles on') : pt('без субтитров', 'no subtitles')); const fxs = fxSummary(d.fx || {}); chips.push(pt('эффекты: ', 'effects: ') + fxs);
+    const tr = d.transitions || {}; chips.push(d.motion === false ? pt('без движения', 'no motion') : tr.preset ? pt('переходы: ', 'transitions: ') + tr.preset : pt('переходы как сейчас', 'transitions as now')); }
+  chips.push(d.music && d.music.on ? pt('музыка: ', 'music: ') + mxSummary(d.music) : pt('без музыки', 'no music'));
+  const origin = d.origin ? `<a onclick="qdClose(); jobMenu('${esc(d.origin.id)}')">${pt('открыть оригинал', 'open original')}</a>` : '';
+  $('qd_body').innerHTML = (d.error ? `<div class="qdwhy">${qErrText(d.error)}</div>` : '')
+    + `<div class="rvc7 rvtbl"><div class="rvc7h"><b>${pt('Что это за ролик', 'What it is')}</b></div>`
+    + row(pt('Вид', 'Kind'), d.kind === 'remix' ? pt('новая озвучка для готового ролика', 'new voice-over') : pt('новый ролик', 'new video'))
+    + (d.origin ? row(pt('Оригинал', 'Original'), esc(d.origin.title), origin) : '')
+    + row(pt('Название файла', 'File name'), d.name ? esc(d.name) : pt('как у источника', 'as the source'))
+    + row(pt('Озвучка', 'Voice-over'), d.audio ? esc(base(d.audio)) : (d.words ? pt('сценарий, ', 'script, ') + d.words + ' ' + t('rv_words') : ''))
+    + row(pt('Голос', 'Voice'), esc(d.voice))
+    + row(pt('Промпты', 'Prompts'), d.prompts_file ? esc(base(d.prompts_file)) : d.profile ? pt('профиль ', 'profile ') + esc(d.profile) : '')
+    + row(pt('Куда сохранить', 'Save to'), d.out_dir ? esc(d.out_dir) : pt('как в настройках', 'as in settings')) + `</div>`
+    + `<div class="rvc7 rvtbl"><div class="rvc7h"><b>${pt('Оформление', 'Look')}</b></div><div class="qdchips">${chips.map(c => `<span>${esc(c)}</span>`).join('')}</div></div>`;
+  const wait = d.status === 'queued';
+  $('qd_foot').innerHTML = (wait ? `<button class="ghost" onclick="qdMove('${id}', -1)">${pt('Выше', 'Up')}</button><button class="ghost" onclick="qdMove('${id}', 1)">${pt('Ниже', 'Down')}</button><button class="danger" onclick="qdRemove('${id}')">${pt('Убрать из очереди', 'Remove')}</button>` : '')
+    + `<span style="flex:1"></span><button class="ghost" onclick="qdClose(); openQueue()">${pt('Очередь', 'Queue')}</button><button class="primary" onclick="qdClose()">${pt('Закрыть', 'Close')}</button>`;
+  $('qd_dlg').classList.add('show');
+}
+async function qdMove(id, dlt) { await pywebview.api.queue_move(id, dlt); await queueRefresh(); try { homeRender(); } catch (e) {} queueDetail(id); }
+async function qdRemove(id) { const r = await pywebview.api.queue_remove(id); if (r) queueItems = r; qdClose(); try { homeRender(); sideNav(); } catch (e) {} }
+
 document.addEventListener('keydown', e => {  // Esc закрывает открытую панель настроек (как «Отмена»)
   if (e.key !== 'Escape' || $('lb').classList.contains('show')) return;
   if ($('hero_view').classList.contains('show')) { heroBack(); e.preventDefault(); return; }
+  if ($('qd_dlg').classList.contains('show')) { qdClose(); e.preventDefault(); return; }
   if ($('mx_lib_dlg').classList.contains('show')) { mxLibClose(); e.preventDefault(); return; }
   if ($('music_dlg').classList.contains('show')) { mxClose(); e.preventDefault(); return; }
   for (const [dlg, btn] of [['fx_dlg', 'fxd_x'], ['hero_dlg', 'hd_close'], ['sub_dlg', 'sd_cancel'], ['tr_dlg', 'tr_cancel'], ['stock_dlg', 'sk_x']])
