@@ -1257,7 +1257,7 @@
   .mxtl { padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
   .mxrule { display:flex; justify-content:space-between; font-size:12px; color:var(--ink2); padding-left:74px; } .mxtrk { display:flex; align-items:center; gap:10px; } .mxtrk > span { width:64px; font-size:12px; color:var(--ink2); }
   .mxwave { flex:1; height:36px; border-radius:6px; background:var(--bg3); display:flex; align-items:center; justify-content:space-between; padding:0 8px; overflow:hidden; } .mxwave i { width:3px; border-radius:2px; background:#7fd6a8; flex:none; }
-  .mxbar { flex:1; height:44px; display:flex; gap:2px; } .mxblk { border-radius:6px; display:flex; align-items:center; padding:0 10px; font-size:12px; font-weight:600; color:#fff; cursor:pointer; overflow:hidden; white-space:nowrap; border:2px solid transparent; min-width:0; } .mxblk.sel { border-color:#8fbaff; } .mxgap { background:var(--bg3); border-radius:6px; }
+  .mxbar { flex:1; height:44px; display:flex; gap:2px; position:relative; } .mxh { position:absolute; top:-3px; bottom:-3px; width:12px; margin-left:-6px; cursor:ew-resize; z-index:2; touch-action:none; } .mxh::after { content:''; position:absolute; left:4px; right:4px; top:4px; bottom:4px; border-radius:2px; background:rgba(255,255,255,.75); } .mxh:hover::after { background:#fff; } .mxblk { border-radius:6px; display:flex; align-items:center; padding:0 10px; font-size:12px; font-weight:600; color:#fff; cursor:pointer; overflow:hidden; white-space:nowrap; border:2px solid transparent; min-width:0; } .mxblk.sel { border-color:#8fbaff; } .mxgap { background:var(--bg3); border-radius:6px; }
   .mxsegs { display:flex; flex-direction:column; gap:10px; }
   .mxseg { padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--bg2); display:flex; flex-direction:column; gap:10px; cursor:pointer; flex-shrink:0; } .mxseg.sel { border-color:var(--acc); }
   .mxsh { display:flex; align-items:center; gap:10px; } .mxn { width:22px; height:22px; flex:none; border-radius:50%; font-size:12px; font-weight:600; color:#fff; display:grid; place-items:center; } .mxt { flex:1; min-width:0; } .mxt b { font-weight:600; } .mxt small { color:var(--ink2); font-size:13px; } .mxsh a { color:var(--acc2); cursor:pointer; font-size:13px; }
@@ -4192,7 +4192,7 @@ async function openMusic(tgt) {
   MXTGT = tgt && tgt.onSave ? tgt : null;
   MXW = mxCopy(MXTGT ? (MXTGT.v || mxNew()) : MXV); if (!MXW.segs.length) MXW.on = true; MXSEL = 0;
   await mxLoadLib(); MXTOT = null;
-  $('mx_hint').textContent = '';
+  $('mx_hint').textContent = pt('Границы участков можно тянуть мышкой на дорожке или вписать в карточках ниже.', 'Drag the edges on the track or type values below.');
   mxRender(); $('music_dlg').classList.add('show');
   if (audioPath || LASTFC) { try { const e = LASTFC && LASTFC.duration ? LASTFC : await pywebview.api.estimate(opts()); if (e && e.ok && e.duration) { MXTOT = e.duration; if ($('music_dlg').classList.contains('show')) mxRender(); } } catch (x) {} }
 }
@@ -4225,10 +4225,16 @@ function mxRender() {
   sorted.forEach(s => { if (s.a > pos + 0.001) blocks += `<div class="mxgap" style="flex:${(s.a - pos) * 1000}"></div>`;
     blocks += `<div class="mxblk${s.i === MXSEL ? ' sel' : ''}" style="flex:${Math.max(1, (s.b - s.a) * 1000)};background:${MX_COLORS[s.i % MX_COLORS.length]}" onclick="MXSEL=${s.i}; mxRender()" title="${esc(mxName(s.track))}">${esc(mxName(s.track))}</div>`; pos = s.b; });
   if (pos < 0.999 && sorted.length) blocks += `<div class="mxgap" style="flex:${(1 - pos) * 1000}"></div>`;
+  // ручки границ: общая для стыкующихся участков, отдельные для крайних
+  const hs = [];
+  sorted.forEach((s, k) => { const prev = sorted[k - 1], joined = prev && Math.abs(prev.b - s.a) < 0.006;
+    if (joined) hs.push({at: s.a, l: prev.i, r: s.i}); else hs.push({at: s.a, l: null, r: s.i});
+    const nx = sorted[k + 1]; if (!(nx && Math.abs(s.b - nx.a) < 0.006)) hs.push({at: s.b, l: s.i, r: null}); });
+  const handles = hs.map(h => `<div class="mxh" style="left:${h.at * 100}%" onpointerdown="mxDragStart(event, ${h.l === null ? 'null' : h.l}, ${h.r === null ? 'null' : h.r})" title="${pt('потяните границу', 'drag the edge')}"></div>`).join('');
   const wave = Array.from({length: 70}, (_, i) => 5 + Math.round(16 * Math.abs(Math.sin(i * 1.3) * Math.cos(i * .45)) + 2 * ((i * 5) % 4))).map(h => `<i style="height:${h}px"></i>`).join('');
   $('mx_tl').innerHTML = `<div class="mxrule"><span>0:00</span><span>${total ? mxFmt(total / 2) : '50%'}</span><span>${total ? mxFmt(total) : '100%'}</span></div>`
     + `<div class="mxtrk"><span>${pt('Озвучка', 'Voice')}</span><div class="mxwave">${wave}</div></div>`
-    + `<div class="mxtrk"><span>${pt('Музыка', 'Music')}</span><div class="mxbar">${blocks || `<div class="mxgap" style="flex:1;text-align:center;color:var(--ink2);font-size:12px;line-height:44px">${pt('участков нет: выберите шаблон выше или «+ Добавить участок»', 'no parts yet')}</div>`}</div></div>`;
+    + `<div class="mxtrk"><span>${pt('Музыка', 'Music')}</span><div class="mxbar" id="mx_bar">${blocks || `<div class="mxgap" style="flex:1;text-align:center;color:var(--ink2);font-size:12px;line-height:44px">${pt('участков нет: выберите шаблон выше или «+ Добавить участок»', 'no parts yet')}</div>`}${handles}</div></div>`;
   $('mx_segs').innerHTML = W.segs.map((s, i) => {
     const col = MX_COLORS[i % MX_COLORS.length], lt = (MXLIB.find(t => t.id === s.track) || {});
     return `<div class="mxseg${i === MXSEL ? ' sel' : ''}" onclick="MXSEL=${i}; mxRender()"><div class="mxsh"><span class="mxn" style="background:${col}">${i + 1}</span><div class="mxt"><b>${esc(mxName(s.track))}</b>${lt.dur ? `<small> · ${mxFmt(lt.dur)}</small>` : ''}</div><a onclick="event.stopPropagation(); mxChange(${i})">${pt('сменить', 'change')}</a><button class="ghost sq" title="${pt('Убрать участок', 'Remove')}" onclick="event.stopPropagation(); mxDel(${i})">×</button></div>`
@@ -4243,6 +4249,21 @@ function mxRender() {
   $('mx_l_rel').textContent = pt('Музыка тише голоса', 'Music below voice'); $('mx_l_duck').textContent = pt('приглушать под голос', 'duck under voice'); $('mx_l_dk').textContent = pt('прижимать на', 'duck by');
   $('mx_l_listen').textContent = pt('Послушать 15 секунд:', 'Listen (15 s):'); $('mx_b_start').textContent = pt('▶ С начала', '▶ From start'); $('mx_b_mid').textContent = pt('▶ С середины', '▶ From the middle'); $('mx_b_at').textContent = '▶';
   $('mx_lib_btn').textContent = pt('Библиотека треков…', 'Track library…');
+}
+let MXDRAG = null;
+function mxDragStart(ev, l, r) {  // тянем границу: ← → меняет конец левого участка и/или начало правого
+  ev.preventDefault(); ev.stopPropagation(); const bar = $('mx_bar'); if (!bar) return;
+  const segs = MXW.segs.map((s, i) => ({a: s.a, b: s.b, i})).sort((x, y) => x.a - y.a);
+  let lo = 0, hi = 1;
+  if (l !== null && r !== null) { lo = MXW.segs[l].a + 0.02; hi = MXW.segs[r].b - 0.02; }
+  else if (l !== null) { lo = MXW.segs[l].a + 0.02; const nx = segs.find(x => x.a >= MXW.segs[l].b - 0.001 && x.i !== l); hi = nx ? nx.a : 1; }
+  else { hi = MXW.segs[r].b - 0.02; const pv = [...segs].reverse().find(x => x.b <= MXW.segs[r].a + 0.001 && x.i !== r); lo = pv ? pv.b : 0; }
+  MXDRAG = {l, r, lo, hi, rect: bar.getBoundingClientRect()};
+  const move = e => { const d = MXDRAG; if (!d) return; let f = (e.clientX - d.rect.left) / d.rect.width; f = Math.round(f * 200) / 200; f = Math.max(d.lo, Math.min(d.hi, f));
+    if (d.l !== null) MXW.segs[d.l].b = f; if (d.r !== null) MXW.segs[d.r].a = f;
+    mxRender(); const bar2 = $('mx_bar'); if (bar2) d.rect = bar2.getBoundingClientRect(); $('mx_hint').textContent = pt('Граница: ', 'Edge: ') + mxPos(f, MXTOT); };
+  const up = () => { MXDRAG = null; window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
 }
 function mxEdit(i, k, val) {
   const f = mxParse(val, MXTOT);
