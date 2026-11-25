@@ -43,7 +43,7 @@ from fastgen_api import FastGen, app_dir, data_dir
 import endpoints
 import pipeline
 
-VERSION = "1.7.1-p106"
+VERSION = "1.7.1-p107"
 # Публичная папка Google Диска с архивами VideoGen-x.y.z.zip. Программа при запуске смотрит список файлов
 # и предлагает скачать самую свежую версию. Пусто — проверка выключена.
 UPDATE_FOLDER_ID = ""  # своя сборка с профилями: автообновление от автора выключено, иначе оно затрёт правки
@@ -79,9 +79,23 @@ def queue_load():
     except Exception:
         QUEUE = []
     for x in QUEUE:
-        if x.get("status") == "running":  # программу закрыли посреди задания — доделаем при следующем запуске очереди
-            x["status"] = "queued"
-        elif x.get("status") == "assembling":  # монтаж шёл в фоне, когда программу закрыли — смотрим, чем кончился
+        if x.get("status") == "running" or (x.get("status") == "queued" and (x.get("args") or {}).get("remix_from")):
+            # программу закрыли посреди задания. Монтаж мог дойти до конца в фоне — смотрим в папку задания, а не просто возвращаем в «ждёт»
+            jd = x.get("job_dir") or ""
+            if not jd and (x.get("args") or {}).get("remix_from"):  # новая озвучка: папка считается по файлу озвучки
+                try:
+                    a = x["args"]
+                    jd = pipeline.run_job_dir(load_cfg(), a.get("audio"), a.get("script"), a.get("voice_file"), None, "", None, a.get("remix_from")) or ""
+                except Exception:
+                    jd = ""
+            rec0 = pipeline.read_json(os.path.join(jd, "job.json"), {}) if jd else {}
+            if rec0 and rec0.get("status") == "done" and rec0.get("result"):
+                x["status"], x["result"], x["job_dir"] = "done", rec0["result"], jd
+            elif rec0 and rec0.get("status") == "assembling":
+                x["status"], x["job_dir"] = "assembling", jd
+            else:  # доделаем при следующем запуске очереди
+                x["status"] = "queued"
+        if x.get("status") == "assembling":  # монтаж шёл в фоне, когда программу закрыли — смотрим, чем кончился
             rec = pipeline.read_json(os.path.join(x.get("job_dir") or "", "job.json"), {}) or {}
             if rec.get("status") == "done" and rec.get("result"):
                 x["status"], x["result"] = "done", rec["result"]
@@ -838,6 +852,10 @@ def run_job(audio, provider, mode, style, use_refs, subtitles=False, motion=Fals
         d = pipeline.run_job_dir(load_cfg(), audio, script, voice_file, rewrite, profile, prompts_file, remix_from)
         with LOCK:
             STATE["job_dir"] = d
+            for qx in QUEUE:
+                if qx.get("status") == "running":
+                    qx["job_dir"] = d
+        queue_save()
         job_record(d, "running")
         auto = load_cfg().get("auto_retry", True)
         while True:
