@@ -53,7 +53,7 @@ FASTGEN_QUALITY = "speed"  # переключается из настроек (�
 NONSTOP_CHAINS = {"speed": [("NARWHAL", 2), ("HARBOR_SEAL", 1), ("GEM_PIX_2", 1)], "quality": [("GEM_PIX_2", 2), ("NARWHAL", 1), ("HARBOR_SEAL", 1)]}
 YOUGEN_CHAINS = {"speed": [("nano-banana-2", 2), ("nano-banana-2-lite", 1), ("nano-banana-pro", 1)], "quality": [("nano-banana-pro", 2), ("nano-banana-2", 1), ("nano-banana-2-lite", 1)]}
 ROYAL_CHAINS = {"speed": [("nano-banana-2", 2), ("nano-banana-pro", 1)], "quality": [("nano-banana-pro", 2), ("nano-banana-2", 1)]}
-IMAGE_CREDITS = {"flower_image_generate": 1, "gemini_nano_banana_2_image_generate": 1, "nano_banana_2_image_generate": 4, "nano_banana_pro_image_generate": 4, "openai_image_generate": 4}
+IMAGE_CREDITS = {"coral_image_generate": 2, "flower_image_generate": 1, "gemini_nano_banana_2_image_generate": 1, "nano_banana_2_image_generate": 4, "nano_banana_pro_image_generate": 4, "openai_image_generate": 4}
 HD_IMAGES = False  # «HD-картинки»: Nano Banana через fast-gen с upscale 2x — вдвое крупнее исходник, 8 кредитов вместо 4
 HD_OPS = ("nano_banana_2_image_generate", "nano_banana_pro_image_generate", "nano_banana_2_lite_image_generate")
 
@@ -64,7 +64,7 @@ def image_credits(op):
 NONSTOP_CHAIN = [("GEM_PIX_2", 2), ("NARWHAL", 1), ("HARBOR_SEAL", 1)]
 # оживление картинки в видео
 VIDEO_CHAIN_FASTGEN = [("flower_video_from_image", 2), ("flow_video_from_keyframes", 1)]
-VIDEO_CREDITS = {"flower_video_from_image": 1, "flow_video_from_keyframes": 1}
+VIDEO_CREDITS = {"coral_video_generate": 2, "flower_video_from_image": 1, "flow_video_from_keyframes": 1}
 OMNI_SECONDS = (4, 6, 8, 10)  # Omni Flash делает клип ровно 4/6/8/10 с за 1 кредит — для длинных сцен не нужен «замороженный хвост»
 
 
@@ -102,6 +102,11 @@ DEFAULT_FG_MODELS = {
             "op": "openai_image_generate",
             "name": "ChatGPT Image (OpenAI)",
             "credits": 4
+        },
+        {
+            "op": "coral_image_generate",
+            "name": "Coral",
+            "credits": 2
         }
     ],
     "video": [
@@ -130,6 +135,11 @@ DEFAULT_FG_MODELS = {
             "op": "flower_video_from_image",
             "name": "Flower Omni",
             "credits": 1
+        },
+        {
+            "op": "coral_video_generate",
+            "name": "Coral (по референсу)",
+            "credits": 2
         }
     ]
 }
@@ -1693,7 +1703,7 @@ def gen_fastgen_image(api, gate, scene, out_path, progress, refs, chain=None):
         chain = [(o, n) for o, n in chain if o != "gemini_nano_banana_2_image_generate"] or chain
     if FG_IMAGE_MODEL:  # выбранная модель — первой; если не отдаст картинку, дальше обычная цепочка
         chain = [(FG_IMAGE_MODEL, 3)] + [(o, n) for o, n in chain if o != FG_IMAGE_MODEL]
-    inputs = [{"filename": os.path.basename(p), "input": file_to_data_uri(upload_copy(p))} for p in refs]
+    inputs = [{"name": os.path.basename(p), "filename": os.path.basename(p), "input": file_to_data_uri(upload_copy(p))} for p in refs]
     started = time.time()
     for op, tries in chain:
         t = 0
